@@ -50,7 +50,7 @@ public class CameraController extends InputAdapter {
         if (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)) {
             moveUp(-moveSpeed);
         }
-
+        Log.info("CameraController.update", direction.toString());
         // Update camera position and rotation
         camera.position.set(position);
         Vector3 target = new Vector3(position).add(direction);
@@ -80,6 +80,7 @@ public class CameraController extends InputAdapter {
 
     @Override
     public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+        Log.info("touchDown", "something");
         if (button == Input.Buttons.LEFT) {
             mouseCaptured = true;
             lastX = screenX;
@@ -102,30 +103,31 @@ public class CameraController extends InputAdapter {
 
     @Override
     public boolean touchDragged(int screenX, int screenY, int pointer) {
+        Log.info("touchDragged", screenX +", "+ screenY +","+ pointer);
         if (mouseCaptured) {
             // Calculate delta from last position
             float deltaX = (screenX - lastX) * sensitivity;
             float deltaY = (lastY - screenY) * sensitivity;
-            
+
             // Update last position
             lastX = screenX;
             lastY = screenY;
-            
+
             // Rotate horizontally (around Y axis)
             direction.rotate(Vector3.Y, -deltaX);
-            
+
             // Calculate right vector for vertical rotation
             Vector3 right = new Vector3().set(direction).crs(Vector3.Y).nor();
-            
+
             // Rotate vertically (limit to prevent over-rotation)
             float newAngle = (float)Math.acos(Vector3.Y.dot(direction.nor()));
             if ((deltaY < 0 && newAngle > 0.1f) || (deltaY > 0 && newAngle < Math.PI - 0.1f)) {
-                direction.rotate(right, -deltaY);
+                direction.rotate(right, deltaY);
             }
-            
+
             // Normalize direction to prevent drift
             direction.nor();
-            
+            Log.info("CameraController", direction.toString());
             return true;
         }
         return false;

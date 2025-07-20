@@ -199,7 +199,7 @@ public class Main extends ApplicationAdapter {
                 try {
                     Thread.sleep(1000); // Wait for the message to be visible
                     show3DView = true;
-//                    Gdx.input.setInputProcessor(Main.this); // Use Main class as input processor
+                    Gdx.input.setInputProcessor(cameraController); // Use Main class as input processor
                     Log.info("Server", "Switched to 3D view and set input processor to Main");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -242,7 +242,8 @@ public class Main extends ApplicationAdapter {
                     try {
                         Thread.sleep(1000); // Wait for the message to be visible
                         show3DView = true;
-//                        Gdx.input.setInputProcessor(Main.this); // Use Main class as input processor
+
+                        Gdx.input.setInputProcessor(cameraController); // Use Main class as input processor
                         Log.info("Client", "Switched to 3D view and set input processor to Main");
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
