@@ -56,7 +56,7 @@ public class NetworkListener implements Listener {
      */
     @Override
     public void disconnected(Connection connection) {
-        Log.info("Network", "Connection closed: " + connection.getRemoteAddressTCP().getAddress());
+        Log.info("Network", "Connection closed: " + connection.getID());
     }
 
     /**
@@ -69,6 +69,26 @@ public class NetworkListener implements Listener {
         if (object instanceof CubeRotationUpdate) {
             Log.info("Network", "Handling CubeRotationUpdate from " + connection.getRemoteAddressTCP().getAddress());
             handleCubeRotationUpdate((CubeRotationUpdate) object, connection);
+        } else if (object instanceof MapDataUpdate) {
+            Log.info("Network", "Handling MapDataUpdate from " + connection.getRemoteAddressTCP().getAddress());
+            MapDataUpdate update = (MapDataUpdate) object;
+            if (update.map != null) {
+                Log.info("Network", "Received map with size: " +
+                    update.map.getWidth() + "x" +
+                    update.map.getHeight() + "x" +
+                    update.map.getDepth());
+
+                // Call postDeserialize to initialize transient fields
+                update.map.postDeserialize();
+
+                if (mapReceivedListener != null) {
+                    mapReceivedListener.onMapReceived(update.toVoxelMap());
+                } else {
+                    Log.warn("Network", "No map received listener set");
+                }
+            } else {
+                Log.error("Network", "Received null map in MapDataUpdate");
+            }
         }
     }
 

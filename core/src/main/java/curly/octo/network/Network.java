@@ -2,6 +2,8 @@ package curly.octo.network;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
+import curly.octo.map.VoxelMap;
+import curly.octo.map.VoxelType;
 
 /**
  * Base class for network-related functionality.
@@ -15,11 +17,18 @@ public class Network {
     // This registers objects that will be sent over the network.
     public static void register(EndPoint endPoint) {
         Kryo kryo = endPoint.getKryo();
-        
+
         // Register all network message classes here
         kryo.register(CubeRotationUpdate.class);
         kryo.register(MapDataUpdate.class);
         kryo.register(byte[].class);
         kryo.register(float[].class);
+
+        // Register VoxelMap class for serialization
+        kryo.register(VoxelMap.class);
+        kryo.register(VoxelType[][][].class);
+        kryo.register(VoxelType[][].class);
+        kryo.register(VoxelType[].class);
+        kryo.register(VoxelType.class);
     }
 }

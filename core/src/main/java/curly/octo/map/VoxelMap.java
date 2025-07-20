@@ -7,12 +7,18 @@ import java.util.Random;
  * Handles the generation and management of a voxel-based dungeon map.
  */
 public class VoxelMap {
-    private final int width;
-    private final int height;
-    private final int depth;
-    private final VoxelType[][][] map;
-    private final Random random;
-    private final long seed;
+    private int width;
+    private int height;
+    private int depth;
+    private VoxelType[][][] map;
+    private transient Random random;
+    private long seed;
+
+    // Default constructor required for Kryo
+    public VoxelMap() {
+        // Initialize with minimum size, will be replaced by deserialization
+        this(1, 1, 1, 0);
+    }
 
     public VoxelMap(int width, int height, int depth, long seed) {
         this.width = width;
@@ -139,4 +145,12 @@ public class VoxelMap {
     public int getHeight() { return height; }
     public int getDepth() { return depth; }
     public long getSeed() { return seed; }
+
+    /**
+     * Called after Kryo deserialization to initialize transient fields.
+     */
+    public void postDeserialize() {
+        // Reinitialize the random number generator
+        this.random = new Random(seed);
+    }
 }

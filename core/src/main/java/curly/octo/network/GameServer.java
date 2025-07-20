@@ -42,9 +42,11 @@ public class GameServer {
             @Override
             public void connected(Connection connection) {
                 // Send map data to newly connected client
-                Log.info("Server", "Sending map data to client " + connection.getID() );
+                Log.info("Server", "Sending map data to client " + connection.getID());
                 MapDataUpdate mapUpdate = new MapDataUpdate(map);
+                Log.info("Server", "Created MapDataUpdate with map size: " + map.getWidth() + "x" + map.getHeight() + "x" + map.getDepth());
                 server.sendToTCP(connection.getID(), mapUpdate);
+                Log.info("Server", "Map data sent to client " + connection.getID());
                 Log.info("Server", "Sent map data to client " + connection.getID());
             }
         });

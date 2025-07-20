@@ -24,13 +24,13 @@ public class GameClient {
     public GameClient(String host) {
         this.host = host;
         client = new Client();
-        
+
         // Register all network classes
         Network.register(client);
-        
+
         // Create network listener with client reference
         networkListener = new NetworkListener(client);
-        
+
         // Set up network listener
         networkListener.setRotationListener(rotation -> {
             this.lastRotation = rotation;
@@ -38,7 +38,7 @@ public class GameClient {
                 this.rotationListener.onCubeRotationUpdate(rotation);
             }
         });
-        
+
         // Add network listener
         client.addListener(networkListener);
     }
@@ -86,7 +86,7 @@ public class GameClient {
     public Client getClient() {
         return client;
     }
-    
+
     /**
      * Sends a cube rotation update to the server
      * @param rotation the new rotation to send
@@ -96,7 +96,7 @@ public class GameClient {
             client.sendTCP(new CubeRotationUpdate(rotation));
         }
     }
-    
+
     /**
      * Sets the rotation listener for receiving updates
      * @param listener the listener to notify of rotation updates
@@ -104,12 +104,12 @@ public class GameClient {
     public void setRotationListener(CubeRotationListener listener) {
         this.rotationListener = listener;
     }
-    
+
     public void setMapReceivedListener(MapReceivedListener listener) {
         this.mapReceivedListener = listener;
         this.networkListener.setMapReceivedListener(listener);
     }
-    
+
     /**
      * @return the last received rotation, or null if none received yet
      */
