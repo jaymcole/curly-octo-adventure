@@ -50,7 +50,7 @@ public class CameraController extends InputAdapter {
         if (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)) {
             moveUp(-moveSpeed);
         }
-        Log.info("CameraController.update", direction.toString());
+
         // Update camera position and rotation
         camera.position.set(position);
         Vector3 target = new Vector3(position).add(direction);
@@ -80,7 +80,6 @@ public class CameraController extends InputAdapter {
 
     @Override
     public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-        Log.info("touchDown", "something");
         if (button == Input.Buttons.LEFT) {
             mouseCaptured = true;
             lastX = screenX;
@@ -103,7 +102,6 @@ public class CameraController extends InputAdapter {
 
     @Override
     public boolean touchDragged(int screenX, int screenY, int pointer) {
-        Log.info("touchDragged", screenX +", "+ screenY +","+ pointer);
         if (mouseCaptured) {
             // Calculate delta from last position
             float deltaX = (screenX - lastX) * sensitivity;
@@ -127,7 +125,6 @@ public class CameraController extends InputAdapter {
 
             // Normalize direction to prevent drift
             direction.nor();
-            Log.info("CameraController", direction.toString());
             return true;
         }
         return false;

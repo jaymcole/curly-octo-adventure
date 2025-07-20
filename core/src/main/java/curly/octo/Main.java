@@ -60,14 +60,10 @@ public class Main extends ApplicationAdapter {
     private Environment environment;
     private PerspectiveCamera cam;
     private CameraController cameraController;
-    private ModelBatch modelBatch;
     private Model model;
     private ModelInstance instance;
-    private Quaternion currentRotation = new Quaternion();
-    private float rotationUpdateTimer = 0;
     private static final float ROTATION_UPDATE_INTERVAL = 0.1f; // Update 10 times per second
     private boolean isDragging = false;
-    private float lastX, lastY;
 
     /**
      * Creates a new instance of the game.
@@ -90,7 +86,6 @@ public class Main extends ApplicationAdapter {
     @Override
     public void create() {
         // Setup 3D environment
-        modelBatch = new ModelBatch();
         environment = new Environment();
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
         environment.add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
@@ -250,6 +245,7 @@ public class Main extends ApplicationAdapter {
                     }
                 });
             });
+            showUI = false;
 
         } catch (IOException e) {
             Gdx.app.postRunnable(() -> {
