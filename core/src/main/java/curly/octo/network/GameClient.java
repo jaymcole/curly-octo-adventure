@@ -1,5 +1,6 @@
 package curly.octo.network;
 
+import com.badlogic.gdx.math.Quaternion;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
 
@@ -12,6 +13,8 @@ public class GameClient {
     private final Client client;
     private final NetworkListener networkListener;
     private final String host;
+    private CubeRotationListener rotationListener;
+    private Quaternion lastRotation;
 
     /**
      * Creates a new game client that will connect to the specified host.
@@ -20,10 +23,20 @@ public class GameClient {
     public GameClient(String host) {
         this.host = host;
         client = new Client();
-        networkListener = new NetworkListener();
         
         // Register all network classes
         Network.register(client);
+        
+        // Create network listener with client reference
+        networkListener = new NetworkListener(client);
+        
+        // Set up network listener
+        networkListener.setRotationListener(rotation -> {
+            this.lastRotation = rotation;
+            if (this.rotationListener != null) {
+                this.rotationListener.onCubeRotationUpdate(rotation);
+            }
+        });
         
         // Add network listener
         client.addListener(networkListener);
@@ -71,5 +84,30 @@ public class GameClient {
      */
     public Client getClient() {
         return client;
+    }
+    
+    /**
+     * Sends a cube rotation update to the server
+     * @param rotation the new rotation to send
+     */
+    public void sendCubeRotation(Quaternion rotation) {
+        if (client.isConnected()) {
+            client.sendTCP(new CubeRotationUpdate(rotation));
+        }
+    }
+    
+    /**
+     * Sets the rotation listener for receiving updates
+     * @param listener the listener to notify of rotation updates
+     */
+    public void setRotationListener(CubeRotationListener listener) {
+        this.rotationListener = listener;
+    }
+    
+    /**
+     * @return the last received rotation, or null if none received yet
+     */
+    public Quaternion getLastRotation() {
+        return lastRotation;
     }
 }

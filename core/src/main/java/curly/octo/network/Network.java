@@ -17,6 +17,7 @@ public class Network {
         Kryo kryo = endPoint.getKryo();
         
         // Register all network message classes here
-        // Example: kryo.register(SomeMessage.class);
+        kryo.register(CubeRotationUpdate.class);
+        kryo.register(float[].class);
     }
 }
