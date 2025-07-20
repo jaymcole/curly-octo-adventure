@@ -18,6 +18,8 @@ public class Network {
         
         // Register all network message classes here
         kryo.register(CubeRotationUpdate.class);
+        kryo.register(MapDataUpdate.class);
+        kryo.register(byte[].class);
         kryo.register(float[].class);
     }
 }

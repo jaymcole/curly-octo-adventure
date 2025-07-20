@@ -105,20 +105,8 @@ public class Main extends ApplicationAdapter {
         // Set up input processor
         Gdx.input.setInputProcessor(cameraController);
 
-        // Initialize voxel map and renderer
-        voxelMap = new VoxelMap(64, 16, 64, System.currentTimeMillis());
-        voxelMap.generateDungeon();
+        // Initialize voxel renderer
         voxelMapRenderer = new VoxelMapRenderer();
-        voxelMapRenderer.updateMap(voxelMap);
-
-        // Create a simple cube model
-        ModelBuilder modelBuilder = new ModelBuilder();
-        model = modelBuilder.createBox(2f, 2f, 2f,
-            new Material(ColorAttribute.createDiffuse(Color.BLUE)),
-            Usage.Position | Usage.Normal);
-        instance = new ModelInstance(model);
-
-
 
         // Create stage for UI
         stage = new Stage(new ScreenViewport());
@@ -161,14 +149,6 @@ public class Main extends ApplicationAdapter {
         table.row();
         table.add(startServerButton).colspan(2).pad(5);
 
-        // Initialize voxel map
-        voxelMap = new VoxelMap(64, 16, 64, System.currentTimeMillis());
-        voxelMap.generateDungeon();
-
-        // Initialize renderer
-        voxelMapRenderer = new VoxelMapRenderer();
-        voxelMapRenderer.updateMap(voxelMap);
-
         // Auto-start server if specified
         // if (isServer) {
         //     startServer();
@@ -179,13 +159,15 @@ public class Main extends ApplicationAdapter {
 
     private void startServer() {
         try {
-            gameServer = new GameServer();
-            gameServer.setRotationListener(rotation -> {
-                // Update local cube rotation
-                if (instance != null) {
-                    instance.transform.set(Vector3.Zero, rotation);
-                }
-            });
+            // Generate map before starting server
+            if (voxelMap == null) {
+                voxelMap = new VoxelMap(64, 16, 64, System.currentTimeMillis());
+                voxelMap.generateDungeon();
+                voxelMapRenderer.updateMap(voxelMap);
+            }
+
+            gameServer = new GameServer(voxelMap);
+
             gameServer.start();
             updateUIForServer();
             statusLabel.setText("Server started on port " + Network.TCP_PORT);
@@ -266,11 +248,13 @@ public class Main extends ApplicationAdapter {
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
-        // Update camera
-        cameraController.update(Gdx.graphics.getDeltaTime());
+        if (show3DView) {
+            // Update camera
+            cameraController.update(Gdx.graphics.getDeltaTime());
 
-        // Render the voxel map
-        voxelMapRenderer.render(cam);
+            // Render the voxel map
+            voxelMapRenderer.render(cam);
+        }
 
         // Update and draw UI if visible
         if (showUI) {

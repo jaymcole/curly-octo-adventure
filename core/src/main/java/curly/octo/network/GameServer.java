@@ -1,8 +1,11 @@
 package curly.octo.network;
 
 import com.badlogic.gdx.math.Quaternion;
+import com.esotericsoftware.kryonet.Connection;
+import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.map.VoxelMap;
 
 import java.io.IOException;
 
@@ -12,9 +15,11 @@ import java.io.IOException;
 public class GameServer {
     private final Server server;
     private final NetworkListener networkListener;
+    private final VoxelMap map;
     private CubeRotationListener rotationListener;
 
-    public GameServer() {
+    public GameServer(VoxelMap map) {
+        this.map = map;
         server = new Server();
         networkListener = new NetworkListener(server);
 
@@ -28,7 +33,22 @@ public class GameServer {
             }
         });
 
-        // Add network listener
+        networkListener.setConnectionListener(new Listener.ConnectionListener() {
+            @Override
+            public void disconnected(Connection arg0) {
+
+            }
+
+            @Override
+            public void connected(Connection connection) {
+                // Send map data to newly connected client
+                Log.info("Server", "Sending map data to client " + connection.getID() );
+                MapDataUpdate mapUpdate = new MapDataUpdate(map);
+                server.sendToTCP(connection.getID(), mapUpdate);
+                Log.info("Server", "Sent map data to client " + connection.getID());
+            }
+        });
+
         server.addListener(networkListener);
     }
 

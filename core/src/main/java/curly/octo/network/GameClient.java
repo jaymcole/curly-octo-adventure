@@ -14,6 +14,7 @@ public class GameClient {
     private final NetworkListener networkListener;
     private final String host;
     private CubeRotationListener rotationListener;
+    private MapReceivedListener mapReceivedListener;
     private Quaternion lastRotation;
 
     /**
@@ -102,6 +103,11 @@ public class GameClient {
      */
     public void setRotationListener(CubeRotationListener listener) {
         this.rotationListener = listener;
+    }
+    
+    public void setMapReceivedListener(MapReceivedListener listener) {
+        this.mapReceivedListener = listener;
+        this.networkListener.setMapReceivedListener(listener);
     }
     
     /**

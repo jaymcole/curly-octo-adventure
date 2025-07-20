@@ -12,6 +12,8 @@ import com.esotericsoftware.minlog.Log;
  */
 public class NetworkListener implements Listener {
     private CubeRotationListener rotationListener;
+    private ConnectionListener connectionListener;
+    private MapReceivedListener mapReceivedListener;
     private Server server;
     private Client client;
 
@@ -29,6 +31,14 @@ public class NetworkListener implements Listener {
     public void setRotationListener(CubeRotationListener listener) {
         this.rotationListener = listener;
     }
+
+    public void setConnectionListener(ConnectionListener listener) {
+        this.connectionListener = listener;
+    }
+
+    public void setMapReceivedListener(MapReceivedListener listener) {
+        this.mapReceivedListener = listener;
+    }
     /**
      * Called when a connection is received from a client (server-side)
      * or when connected to a server (client-side).
@@ -36,6 +46,9 @@ public class NetworkListener implements Listener {
     @Override
     public void connected(Connection connection) {
         Log.info("Network", "Connection established: " + connection.getRemoteAddressTCP().getAddress());
+        if (connectionListener != null) {
+            connectionListener.connected(connection);
+        }
     }
 
     /**
