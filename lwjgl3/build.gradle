@@ -37,10 +37,38 @@ dependencies {
 
   if(enableGraalNative == 'true') {
     implementation "io.github.berstanio:gdx-svmhelper-backend-lwjgl3:$graalHelperVersion"
-      implementation "io.github.berstanio:gdx-svmhelper-extension-freetype:$graalHelperVersion"
-
-    }
+    implementation "io.github.berstanio:gdx-svmhelper-extension-freetype:$graalHelperVersion"
+  }
 }
+
+//// Task to create a runnable JAR with all dependencies
+//task dist(type: Jar) {
+//    manifest {
+//        attributes 'Main-Class': 'curly.octo.lwjgl3.Lwjgl3Launcher'
+//    }
+//    archiveBaseName = 'curly-octo-adventure'
+//    archiveVersion = '' // Remove version from the JAR filename
+//
+//    from {
+//        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+//    }
+//
+//    with jar
+//
+//    // Exclude signature files that might cause conflicts
+//    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+//
+//    // Set the main class for the JAR manifest
+//    manifest {
+//        attributes 'Main-Class': 'curly.octo.lwjgl3.Lwjgl3Launcher'
+//    }
+//
+//    // Ensure the JAR is executable
+//    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+//}
+
+// Make sure the dist task runs after the jar task
+//dist.dependsOn jar
 
 def os = System.properties['os.name'].toLowerCase()
 

@@ -1,5 +1,6 @@
 package curly.octo.lwjgl3;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import curly.octo.Main;
@@ -8,11 +9,21 @@ import curly.octo.Main;
 public class Lwjgl3Launcher {
     public static void main(String[] args) {
         if (StartupHelper.startNewJvmIfRequired()) return; // This handles macOS support and helps on Windows.
-        createApplication();
+
+        // Check for command line arguments
+        boolean isServer = args.length > 0 && (args[0].equals("--server") || args[0].equals("-s"));
+        String host = null;
+
+        // If not server mode, check for host argument
+        if (!isServer && args.length > 0) {
+            host = args[0];
+        }
+
+        createApplication(isServer, host);
     }
 
-    private static Lwjgl3Application createApplication() {
-        return new Lwjgl3Application(new Main(), getDefaultConfiguration());
+    private static Lwjgl3Application createApplication(boolean isServer, String host) {
+        return new Lwjgl3Application(new Main(isServer, host), getDefaultConfiguration());
     }
 
     private static Lwjgl3ApplicationConfiguration getDefaultConfiguration() {
