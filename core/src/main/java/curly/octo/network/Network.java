@@ -19,20 +19,31 @@ public class Network {
         Kryo kryo = endPoint.getKryo();
         
         // Configure Kryo for better performance with our data
-        kryo.setRegistrationRequired(false); // Allow unregistered classes (for arrays)
+        kryo.setRegistrationRequired(true); // Require explicit registration for better error messages
         kryo.setReferences(true);
         kryo.setAutoReset(false);
 
-        // Register all network message classes here
+        // Register primitive arrays first
+        kryo.register(byte[].class);
+        kryo.register(int[].class);
+        kryo.register(float[].class);
+        kryo.register(boolean[].class);
+        
+        // Register LibGDX math classes
+        kryo.register(com.badlogic.gdx.math.Vector3.class);
+        kryo.register(com.badlogic.gdx.math.Quaternion.class);
+        
+        // Register enum types
+        kryo.register(VoxelType.class);
+        kryo.register(VoxelType[].class);
+        kryo.register(VoxelType[][].class);
+        kryo.register(VoxelType[][][].class);
+        
+        // Register network message classes
         kryo.register(CubeRotationUpdate.class);
         kryo.register(MapDataUpdate.class);
-        kryo.register(float[].class);
-
-        // Register VoxelMap class for serialization
+        
+        // Register VoxelMap class
         kryo.register(VoxelMap.class);
-        kryo.register(VoxelType[][][].class);
-        kryo.register(VoxelType[][].class);
-        kryo.register(VoxelType[].class);
-        kryo.register(VoxelType.class);
     }
 }

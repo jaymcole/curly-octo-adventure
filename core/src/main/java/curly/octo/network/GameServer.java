@@ -20,7 +20,7 @@ public class GameServer {
 
     public GameServer(VoxelMap map) {
         this.map = map;
-        server = new Server(16384, 16384);
+        server = new Server(655360, 655360);
         networkListener = new NetworkListener(server);
 
         // Register all network classes

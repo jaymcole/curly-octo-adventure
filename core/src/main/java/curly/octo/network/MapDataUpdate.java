@@ -1,11 +1,15 @@
 package curly.octo.network;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoSerializable;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import curly.octo.map.VoxelMap;
 
 /**
  * Network message for sending map data from server to clients.
  */
-public class MapDataUpdate {
+public class MapDataUpdate implements KryoSerializable {
     public VoxelMap map;
 
     public MapDataUpdate() {
@@ -16,8 +20,17 @@ public class MapDataUpdate {
         this.map = map;
     }
 
+    @Override
+    public void write(Kryo kryo, Output output) {
+        kryo.writeObjectOrNull(output, map, VoxelMap.class);
+    }
+
+    @Override
+    public void read(Kryo kryo, Input input) {
+        this.map = kryo.readObjectOrNull(input, VoxelMap.class);
+    }
+
     public VoxelMap toVoxelMap() {
-        // Since we're now sending the entire map directly, just return it
         return map;
     }
 }

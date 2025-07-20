@@ -148,13 +148,6 @@ public class Main extends ApplicationAdapter {
         table.add(connectButton).pad(5);
         table.row();
         table.add(startServerButton).colspan(2).pad(5);
-
-        // Auto-start server if specified
-        // if (isServer) {
-        //     startServer();
-        // } else if (host != null) {
-        //     connectToServer(host);
-        // }
     }
 
     private void startServer() {

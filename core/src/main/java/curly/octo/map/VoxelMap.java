@@ -1,12 +1,16 @@
 package curly.octo.map;
 
 import com.badlogic.gdx.math.Vector3;
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoSerializable;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import java.util.Random;
 
 /**
  * Handles the generation and management of a voxel-based dungeon map.
  */
-public class VoxelMap {
+public class VoxelMap implements KryoSerializable {
     private int width;
     private int height;
     private int depth;
@@ -18,6 +22,43 @@ public class VoxelMap {
     public VoxelMap() {
         // Initialize with minimum size, will be replaced by deserialization
         this(1, 1, 1, 0);
+    }
+    
+    @Override
+    public void write(Kryo kryo, Output output) {
+        // Write primitive fields
+        output.writeInt(width);
+        output.writeInt(height);
+        output.writeInt(depth);
+        output.writeLong(seed);
+        
+        // Write the 3D array
+        if (map != null) {
+            output.writeBoolean(true);
+            kryo.writeObject(output, map);
+        } else {
+            output.writeBoolean(false);
+        }
+    }
+    
+    @Override
+    public void read(Kryo kryo, Input input) {
+        // Read primitive fields
+        this.width = input.readInt();
+        this.height = input.readInt();
+        this.depth = input.readInt();
+        this.seed = input.readLong();
+        
+        // Initialize the map array
+        this.map = new VoxelType[width][height][depth];
+        
+        // Read the 3D array if it exists
+        if (input.readBoolean()) {
+            this.map = kryo.readObject(input, VoxelType[][][].class);
+        }
+        
+        // Initialize transient fields
+        this.random = new Random(seed);
     }
 
     public VoxelMap(int width, int height, int depth, long seed) {

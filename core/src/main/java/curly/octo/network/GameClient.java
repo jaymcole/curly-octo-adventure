@@ -23,7 +23,7 @@ public class GameClient {
      */
     public GameClient(String host) {
         this.host = host;
-        client = new Client(16384, 16384);
+        client = new Client(655360, 655360);
 
         // Register all network classes
         Network.register(client);
