@@ -6,17 +6,18 @@ import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
-import com.badlogic.gdx.graphics.g3d.utils.CameraInputController;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Quaternion;
 import com.badlogic.gdx.math.Vector3;
+import curly.octo.camera.CameraController;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
-import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.map.VoxelMap;
+import curly.octo.map.VoxelMapRenderer;
 import curly.octo.network.CubeRotationListener;
 import curly.octo.network.GameClient;
 import curly.octo.network.GameServer;
@@ -39,6 +40,11 @@ public class Main extends ApplicationAdapter implements InputProcessor {
     private GameServer gameServer;
     private GameClient gameClient;
 
+    // Voxel map components
+    private VoxelMap voxelMap;
+    private VoxelMapRenderer voxelMapRenderer;
+    private boolean showUI = true;
+
     // Interface implementation for receiving rotation updates
     private final CubeRotationListener rotationListener = rotation -> {
         if (gameServer != null) {
@@ -53,7 +59,7 @@ public class Main extends ApplicationAdapter implements InputProcessor {
     private boolean show3DView = false;
     private Environment environment;
     private PerspectiveCamera cam;
-    private CameraInputController camController;
+    private CameraController cameraController;
     private ModelBatch modelBatch;
     private Model model;
     private ModelInstance instance;
@@ -89,13 +95,23 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
         environment.add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
 
-        // Create camera
+        // Create and set up camera
         cam = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        cam.position.set(3f, 3f, 3f);
+        cam.position.set(0, 10, 10);
         cam.lookAt(0, 0, 0);
-        cam.near = 1f;
+        cam.near = 0.1f;
         cam.far = 300f;
         cam.update();
+
+        // Initialize camera controller
+        cameraController = new CameraController(cam);
+        cameraController.setVelocity(20f); // Adjust movement speed as needed
+
+        // Initialize voxel map and renderer
+        voxelMap = new VoxelMap(64, 16, 64, System.currentTimeMillis());
+        voxelMap.generateDungeon();
+        voxelMapRenderer = new VoxelMapRenderer();
+        voxelMapRenderer.updateMap(voxelMap);
 
         // Create a simple cube model
         ModelBuilder modelBuilder = new ModelBuilder();
@@ -104,70 +120,63 @@ public class Main extends ApplicationAdapter implements InputProcessor {
             Usage.Position | Usage.Normal);
         instance = new ModelInstance(model);
 
-        // Camera controller for mouse interaction
-        camController = new CameraInputController(cam);
-        
+
+
         // Create stage for UI
         stage = new Stage(new ScreenViewport());
-        
+
         // Set initial input processor to stage
         Gdx.input.setInputProcessor(stage);
-        
+
         // If we were launched with command line args, skip the UI
-        // if (host != null) {
-        //     if (isServer) {
-        //         startServer();
-        //     } else {
-        //         connectToServer(host);
-        //     }
-        //     return;
-        // }
-
-        Skin skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
-
         table = new Table();
         table.setFillParent(true);
         stage.addActor(table);
 
-        // Title
-        Label titleLabel = new Label("Curly Octo Adventure", skin);
-        table.add(titleLabel).colspan(2).padBottom(20);
-        table.row();
+        // Create UI elements
+        Skin skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
 
-        // Server button
-        startServerButton = new TextButton("Create Server", skin);
+        statusLabel = new Label("Not connected", skin);
+        ipAddressField = new TextField("localhost", skin);
+
+        startServerButton = new TextButton("Start Server", skin);
         startServerButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 startServer();
             }
         });
-        table.add(startServerButton).width(200).pad(5);
 
-        // Connect button
-        connectButton = new TextButton("Join Server", skin);
+        connectButton = new TextButton("Connect", skin);
         connectButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                String host = ipAddressField.getText().trim();
-                if (!host.isEmpty()) {
-                    connectToServer(host);
-                }
+                connectToServer(ipAddressField.getText());
             }
         });
-        table.add(connectButton).width(200).pad(5);
-        table.row();
 
-        // IP Address field
-        ipAddressField = new TextField("localhost", skin);
-        ipAddressField.setMessageText("Enter server IP");
-        table.add(ipAddressField).colspan(2).width(410).pad(5);
+        // Layout
+        table.add(statusLabel).colspan(2).pad(10);
         table.row();
+        table.add(ipAddressField).width(200).pad(5);
+        table.add(connectButton).pad(5);
+        table.row();
+        table.add(startServerButton).colspan(2).pad(5);
 
-        // Status label
-        statusLabel = new Label("", skin);
-        statusLabel.setAlignment(Align.center);
-        table.add(statusLabel).colspan(2).width(400).pad(10);
+        // Initialize voxel map
+        voxelMap = new VoxelMap(64, 16, 64, System.currentTimeMillis());
+        voxelMap.generateDungeon();
+
+        // Initialize renderer
+        voxelMapRenderer = new VoxelMapRenderer();
+        voxelMapRenderer.updateMap(voxelMap);
+
+        // Auto-start server if specified
+        // if (isServer) {
+        //     startServer();
+        // } else if (host != null) {
+        //     connectToServer(host);
+        // }
     }
 
     private void startServer() {
@@ -193,6 +202,7 @@ public class Main extends ApplicationAdapter implements InputProcessor {
                     Thread.currentThread().interrupt();
                 }
             });
+            showUI = false;
         } catch (IOException e) {
             statusLabel.setText("Failed to start server: " + e.getMessage());
             e.printStackTrace();
@@ -253,47 +263,17 @@ public class Main extends ApplicationAdapter implements InputProcessor {
 
     @Override
     public void render() {
+        Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
-        if (show3DView) {
-            // Update camera controller only when not dragging
-            if (!isDragging) {
-                camController.update();
-            }
+        // Update camera
+        cameraController.update(Gdx.graphics.getDeltaTime());
 
-            // Get the current rotation
-            instance.transform.getRotation(currentRotation);
+        // Render the voxel map
+        voxelMapRenderer.render(cam);
 
-            // If we're connected (either as server or client), send rotation updates
-            if ((gameServer != null || gameClient != null) && isDragging) {
-                // Send rotation updates more frequently while dragging
-                rotationUpdateTimer += Gdx.graphics.getDeltaTime();
-                if (rotationUpdateTimer >= ROTATION_UPDATE_INTERVAL) {
-                    rotationUpdateTimer = 0;
-                    if (gameServer != null) {
-                        // If we're the server, broadcast to all clients
-                        gameServer.broadcastCubeRotation(currentRotation);
-                    } else if (gameClient != null) {
-                        // If we're a client, send to server
-                        gameClient.sendCubeRotation(currentRotation);
-                    }
-                }
-            }
-
-            // Apply any received rotation updates (for clients)
-            if (gameClient != null && gameClient.getLastRotation() != null) {
-                // Only update if we're not currently dragging (to avoid jitter)
-                if (!isDragging) {
-                    instance.transform.set(Vector3.Zero, gameClient.getLastRotation());
-                }
-            }
-
-            // Render 3D scene
-            modelBatch.begin(cam);
-            modelBatch.render(instance, environment);
-            modelBatch.end();
-        } else {
-            // Render UI
+        // Update and draw UI if visible
+        if (showUI) {
             stage.act(Math.min(Gdx.graphics.getDeltaTime(), 1 / 30f));
             stage.draw();
         }
@@ -305,10 +285,8 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         stage.getViewport().update(width, height, true);
 
         // Update camera for 3D view
-        if (cam != null) {
-            cam.viewportWidth = width;
-            cam.viewportHeight = height;
-            cam.update();
+        if (cameraController != null) {
+            cameraController.resize(width, height);
         }
     }
 
@@ -362,57 +340,11 @@ public class Main extends ApplicationAdapter implements InputProcessor {
 
     @Override
     public boolean touchCancelled(int screenX, int screenY, int pointer, int button) {
-        isDragging = false;
         return false;
     }
 
     @Override
     public boolean touchDragged(int screenX, int screenY, int pointer) {
-        Log.info("Main", "Touch is dragging");
-
-        if (isDragging && show3DView) {
-            Log.info("Main", "Touch is dragging");
-
-            // Calculate delta movement
-            float deltaX = (screenX - lastX) * 0.5f;
-            float deltaY = (screenY - lastY) * 0.5f;
-
-            // Get current rotation
-            Quaternion currentRot = new Quaternion();
-            instance.transform.getRotation(currentRot);
-
-            // Create rotation deltas
-            Quaternion rotX = new Quaternion(Vector3.Y, -deltaX);
-            Quaternion rotY = new Quaternion(Vector3.X, -deltaY);
-
-            // Apply rotations to current rotation
-            currentRot.mul(rotX).mul(rotY);
-
-            // Update the instance transform
-            instance.transform.set(Vector3.Zero, currentRot);
-
-            // Store the current rotation
-            currentRotation.set(currentRot);
-
-            // Update last position
-            lastX = screenX;
-            lastY = screenY;
-
-            // Update rotation timer and send updates at a fixed rate
-            rotationUpdateTimer += Gdx.graphics.getDeltaTime();
-            if (rotationUpdateTimer >= ROTATION_UPDATE_INTERVAL) {
-                if (gameServer != null) {
-                    Log.info("Main", "Sending rotation update from server");
-                    gameServer.broadcastCubeRotation(currentRot);
-                } else if (gameClient != null) {
-                    Log.info("Main", "Sending rotation update from client");
-                    gameClient.sendCubeRotation(currentRot);
-                }
-                rotationUpdateTimer = 0;
-            }
-
-            return true;
-        }
         return false;
     }
 
@@ -428,10 +360,15 @@ public class Main extends ApplicationAdapter implements InputProcessor {
 
     @Override
     public void dispose() {
-        if (gameServer != null) gameServer.stop();
-        if (gameClient != null) gameClient.disconnect();
-        modelBatch.dispose();
-        model.dispose();
+        if (gameServer != null) {
+            gameServer.stop();
+        }
+        if (gameClient != null) {
+            gameClient.disconnect();
+        }
+        if (voxelMapRenderer != null) {
+            voxelMapRenderer.disposeAll();
+        }
         stage.dispose();
     }
 }
