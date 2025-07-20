@@ -17,11 +17,15 @@ public class Network {
     // This registers objects that will be sent over the network.
     public static void register(EndPoint endPoint) {
         Kryo kryo = endPoint.getKryo();
+        
+        // Configure Kryo for better performance with our data
+        kryo.setRegistrationRequired(false); // Allow unregistered classes (for arrays)
+        kryo.setReferences(true);
+        kryo.setAutoReset(false);
 
         // Register all network message classes here
         kryo.register(CubeRotationUpdate.class);
         kryo.register(MapDataUpdate.class);
-        kryo.register(byte[].class);
         kryo.register(float[].class);
 
         // Register VoxelMap class for serialization

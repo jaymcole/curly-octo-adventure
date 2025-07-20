@@ -20,7 +20,7 @@ public class GameServer {
 
     public GameServer(VoxelMap map) {
         this.map = map;
-        server = new Server();
+        server = new Server(16384, 16384);
         networkListener = new NetworkListener(server);
 
         // Register all network classes
@@ -33,21 +33,16 @@ public class GameServer {
             }
         });
 
-        networkListener.setConnectionListener(new Listener.ConnectionListener() {
+        // Add connection listener for logging
+        server.addListener(new Listener() {
             @Override
-            public void disconnected(Connection arg0) {
-
+            public void connected(Connection connection) {
+                sendMapRefreshToUser(connection);
             }
 
             @Override
-            public void connected(Connection connection) {
-                // Send map data to newly connected client
-                Log.info("Server", "Sending map data to client " + connection.getID());
-                MapDataUpdate mapUpdate = new MapDataUpdate(map);
-                Log.info("Server", "Created MapDataUpdate with map size: " + map.getWidth() + "x" + map.getHeight() + "x" + map.getDepth());
-                server.sendToTCP(connection.getID(), mapUpdate);
-                Log.info("Server", "Map data sent to client " + connection.getID());
-                Log.info("Server", "Sent map data to client " + connection.getID());
+            public void disconnected(Connection arg0) {
+
             }
         });
 
@@ -95,6 +90,15 @@ public class GameServer {
         } else {
             Log.warn("Server", "Cannot broadcast rotation - server is null");
         }
+    }
+
+    public void sendMapRefreshToUser(Connection connection) {
+        Log.info("Server", "Sending map data to client " + connection.getID());
+        MapDataUpdate mapUpdate = new MapDataUpdate(map);
+        Log.info("Server", "Created MapDataUpdate with map size: " + map.getWidth() + "x" + map.getHeight() + "x" + map.getDepth());
+        server.sendToTCP(connection.getID(), mapUpdate);
+        Log.info("Server", "Map data sent to client " + connection.getID());
+
     }
 
     /**

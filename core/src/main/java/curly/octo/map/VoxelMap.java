@@ -43,7 +43,7 @@ public class VoxelMap {
      */
     public void generateDungeon() {
         // Generate a few random rooms
-        int roomCount = 5 + random.nextInt(5); // 5-10 rooms
+        int roomCount = 1; // 5-10 rooms
         Vector3[] roomCenters = new Vector3[roomCount];
 
         for (int i = 0; i < roomCount; i++) {
@@ -62,9 +62,9 @@ public class VoxelMap {
             roomCenters[i] = new Vector3(x + roomWidth / 2f, y + roomHeight / 2f, z + roomDepth / 2f);
 
             // Connect to previous room if it exists
-            if (i > 0) {
-                connectRooms(roomCenters[i-1], roomCenters[i]);
-            }
+//            if (i > 0) {
+//                connectRooms(roomCenters[i-1], roomCenters[i]);
+//            }
         }
 
         // Set spawn point in the first room

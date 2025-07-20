@@ -23,7 +23,7 @@ public class GameClient {
      */
     public GameClient(String host) {
         this.host = host;
-        client = new Client();
+        client = new Client(16384, 16384);
 
         // Register all network classes
         Network.register(client);
@@ -36,6 +36,13 @@ public class GameClient {
             this.lastRotation = rotation;
             if (this.rotationListener != null) {
                 this.rotationListener.onCubeRotationUpdate(rotation);
+            }
+        });
+
+        networkListener.setMapReceivedListener(map -> {
+            Log.info("Something");
+            if (this.mapReceivedListener != null) {
+                this.mapReceivedListener.onMapReceived(map);
             }
         });
 
