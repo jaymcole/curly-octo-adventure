@@ -23,7 +23,7 @@ public class VoxelMap implements KryoSerializable {
         // Initialize with minimum size, will be replaced by deserialization
         this(1, 1, 1, 0);
     }
-    
+
     @Override
     public void write(Kryo kryo, Output output) {
         // Write primitive fields
@@ -31,7 +31,7 @@ public class VoxelMap implements KryoSerializable {
         output.writeInt(height);
         output.writeInt(depth);
         output.writeLong(seed);
-        
+
         // Write the 3D array
         if (map != null) {
             output.writeBoolean(true);
@@ -40,7 +40,7 @@ public class VoxelMap implements KryoSerializable {
             output.writeBoolean(false);
         }
     }
-    
+
     @Override
     public void read(Kryo kryo, Input input) {
         // Read primitive fields
@@ -48,17 +48,50 @@ public class VoxelMap implements KryoSerializable {
         this.height = input.readInt();
         this.depth = input.readInt();
         this.seed = input.readLong();
-        
+
         // Initialize the map array
         this.map = new VoxelType[width][height][depth];
-        
+
         // Read the 3D array if it exists
         if (input.readBoolean()) {
             this.map = kryo.readObject(input, VoxelType[][][].class);
+        } else {
+            // If no map data, initialize with AIR
+            for (int x = 0; x < width; x++) {
+                for (int y = 0; y < height; y++) {
+                    for (int z = 0; z < depth; z++) {
+                        map[x][y][z] = VoxelType.AIR;
+                    }
+                }
+            }
         }
-        
+
         // Initialize transient fields
         this.random = new Random(seed);
+
+        // Ensure the map is properly initialized
+        postDeserialize();
+    }
+
+    /**
+     * Performs any necessary initialization after deserialization.
+     * This should be called after the object is deserialized.
+     */
+    public void postDeserialize() {
+        // Reinitialize any transient fields and ensure map consistency
+        this.random = new Random(seed);
+
+        // Ensure the map array is properly initialized
+        if (map == null) {
+            map = new VoxelType[width][height][depth];
+            for (int x = 0; x < width; x++) {
+                for (int y = 0; y < height; y++) {
+                    for (int z = 0; z < depth; z++) {
+                        map[x][y][z] = VoxelType.AIR;
+                    }
+                }
+            }
+        }
     }
 
     public VoxelMap(int width, int height, int depth, long seed) {
@@ -84,7 +117,7 @@ public class VoxelMap implements KryoSerializable {
      */
     public void generateDungeon() {
         // Generate a few random rooms
-        int roomCount = 1; // 5-10 rooms
+        int roomCount = random.nextInt(5) + 5; // 5-10 rooms
         Vector3[] roomCenters = new Vector3[roomCount];
 
         for (int i = 0; i < roomCount; i++) {
@@ -103,9 +136,9 @@ public class VoxelMap implements KryoSerializable {
             roomCenters[i] = new Vector3(x + roomWidth / 2f, y + roomHeight / 2f, z + roomDepth / 2f);
 
             // Connect to previous room if it exists
-//            if (i > 0) {
-//                connectRooms(roomCenters[i-1], roomCenters[i]);
-//            }
+            if (i > 0) {
+                connectRooms(roomCenters[i-1], roomCenters[i]);
+            }
         }
 
         // Set spawn point in the first room
@@ -186,12 +219,4 @@ public class VoxelMap implements KryoSerializable {
     public int getHeight() { return height; }
     public int getDepth() { return depth; }
     public long getSeed() { return seed; }
-
-    /**
-     * Called after Kryo deserialization to initialize transient fields.
-     */
-    public void postDeserialize() {
-        // Reinitialize the random number generator
-        this.random = new Random(seed);
-    }
 }

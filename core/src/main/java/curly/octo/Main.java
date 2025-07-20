@@ -199,6 +199,25 @@ public class Main extends ApplicationAdapter {
                 });
             });
 
+            // Set up the map received listener
+            gameClient.setMapReceivedListener(receivedMap -> {
+                Gdx.app.postRunnable(() -> {
+                    Log.info("Client", "Received map with size: " + 
+                        receivedMap.getWidth() + "x" + 
+                        receivedMap.getHeight() + "x" + 
+                        receivedMap.getDepth());
+                    
+                    // Update the local map and renderer
+                    voxelMap = receivedMap;
+                    if (voxelMapRenderer != null) {
+                        voxelMapRenderer.updateMap(voxelMap);
+                        Log.info("Client", "Updated local map and renderer");
+                    } else {
+                        Log.error("Client", "VoxelMapRenderer is null");
+                    }
+                });
+            });
+
             // Connect to the server
             gameClient.connect(5000);
 
