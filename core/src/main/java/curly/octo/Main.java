@@ -29,7 +29,7 @@ import java.io.IOException;
  * Main game class with network setup UI.
  * Allows starting a server or connecting as a client.
  */
-public class Main extends ApplicationAdapter implements InputProcessor {
+public class Main extends ApplicationAdapter {
     private Stage stage;
     private Table table;
     private TextButton startServerButton;
@@ -106,6 +106,9 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         // Initialize camera controller
         cameraController = new CameraController(cam);
         cameraController.setVelocity(20f); // Adjust movement speed as needed
+
+        // Set up input processor
+        Gdx.input.setInputProcessor(cameraController);
 
         // Initialize voxel map and renderer
         voxelMap = new VoxelMap(64, 16, 64, System.currentTimeMillis());
@@ -196,7 +199,7 @@ public class Main extends ApplicationAdapter implements InputProcessor {
                 try {
                     Thread.sleep(1000); // Wait for the message to be visible
                     show3DView = true;
-                    Gdx.input.setInputProcessor(Main.this); // Use Main class as input processor
+//                    Gdx.input.setInputProcessor(Main.this); // Use Main class as input processor
                     Log.info("Server", "Switched to 3D view and set input processor to Main");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -239,7 +242,7 @@ public class Main extends ApplicationAdapter implements InputProcessor {
                     try {
                         Thread.sleep(1000); // Wait for the message to be visible
                         show3DView = true;
-                        Gdx.input.setInputProcessor(Main.this); // Use Main class as input processor
+//                        Gdx.input.setInputProcessor(Main.this); // Use Main class as input processor
                         Log.info("Client", "Switched to 3D view and set input processor to Main");
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
@@ -288,74 +291,6 @@ public class Main extends ApplicationAdapter implements InputProcessor {
         if (cameraController != null) {
             cameraController.resize(width, height);
         }
-    }
-
-    @Override
-    public boolean keyDown(int keycode) {
-        return false;
-    }
-
-    @Override
-    public boolean keyUp(int keycode) {
-        return false;
-    }
-
-    @Override
-    public boolean keyTyped(char character) {
-        return false;
-    }
-
-    @Override
-    public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-        Log.info("Main", "touchDown");
-
-        if (button == Input.Buttons.LEFT && show3DView) {
-            isDragging = true;
-            lastX = screenX;
-            lastY = screenY;
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean touchUp(int screenX, int screenY, int pointer, int button) {
-        Log.info("Main", "touchUp");
-
-        if (button == Input.Buttons.LEFT && isDragging) {
-            isDragging = false;
-            // Send final rotation update when dragging stops
-            if (show3DView) {
-                instance.transform.getRotation(currentRotation);
-                if (gameServer != null) {
-                    gameServer.broadcastCubeRotation(currentRotation);
-                } else if (gameClient != null) {
-                    gameClient.sendCubeRotation(currentRotation);
-                }
-            }
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean touchCancelled(int screenX, int screenY, int pointer, int button) {
-        return false;
-    }
-
-    @Override
-    public boolean touchDragged(int screenX, int screenY, int pointer) {
-        return false;
-    }
-
-    @Override
-    public boolean mouseMoved(int screenX, int screenY) {
-        return false;
-    }
-
-    @Override
-    public boolean scrolled(float amountX, float amountY) {
-        return false;
     }
 
     @Override

@@ -13,7 +13,6 @@ import com.esotericsoftware.minlog.Log;
  */
 public class CameraController extends InputAdapter {
     private final PerspectiveCamera camera;
-    private final Quaternion rotation = new Quaternion();
     private final Vector3 position = new Vector3();
     private final Vector3 direction = new Vector3();
     private final Vector3 tmp = new Vector3();
@@ -52,9 +51,11 @@ public class CameraController extends InputAdapter {
             moveUp(-moveSpeed);
         }
 
-        // Update camera position and direction
+        // Update camera position and rotation
         camera.position.set(position);
-        camera.direction.set(direction);
+        Vector3 target = new Vector3(position).add(direction);
+        camera.lookAt(target);
+        camera.up.set(Vector3.Y);
         camera.update();
     }
 
@@ -102,21 +103,29 @@ public class CameraController extends InputAdapter {
     @Override
     public boolean touchDragged(int screenX, int screenY, int pointer) {
         if (mouseCaptured) {
-            Log.info("CameraController", "Dragging mouse");
+            // Calculate delta from last position
             float deltaX = (screenX - lastX) * sensitivity;
             float deltaY = (lastY - screenY) * sensitivity;
-
-            // Rotate horizontally
-             direction.rotate(camera.up, -deltaX);
-
-            // Rotate vertically (limit to prevent over-rotation)
-            tmp.set(direction).crs(camera.up).nor();
-            if (!(direction.y > 0.9f && deltaY < 0) && !(direction.y < -0.9f && deltaY > 0)) {
-                direction.rotate(tmp, -deltaY);
-            }
-
+            
+            // Update last position
             lastX = screenX;
             lastY = screenY;
+            
+            // Rotate horizontally (around Y axis)
+            direction.rotate(Vector3.Y, -deltaX);
+            
+            // Calculate right vector for vertical rotation
+            Vector3 right = new Vector3().set(direction).crs(Vector3.Y).nor();
+            
+            // Rotate vertically (limit to prevent over-rotation)
+            float newAngle = (float)Math.acos(Vector3.Y.dot(direction.nor()));
+            if ((deltaY < 0 && newAngle > 0.1f) || (deltaY > 0 && newAngle < Math.PI - 0.1f)) {
+                direction.rotate(right, -deltaY);
+            }
+            
+            // Normalize direction to prevent drift
+            direction.nor();
+            
             return true;
         }
         return false;
