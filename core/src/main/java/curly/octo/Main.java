@@ -2,14 +2,10 @@ package curly.octo;
 
 import com.badlogic.gdx.*;
 import com.badlogic.gdx.graphics.*;
-import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
-import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
-import com.badlogic.gdx.math.Quaternion;
-import com.badlogic.gdx.math.Vector3;
-import curly.octo.camera.CameraController;
+import curly.octo.player.PlayerController;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
@@ -18,7 +14,6 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.VoxelMap;
 import curly.octo.map.VoxelMapRenderer;
-import curly.octo.network.CubeRotationListener;
 import curly.octo.network.GameClient;
 import curly.octo.network.GameServer;
 import curly.octo.network.Network;
@@ -45,25 +40,15 @@ public class Main extends ApplicationAdapter {
     private VoxelMapRenderer voxelMapRenderer;
     private boolean showUI = true;
 
-    // Interface implementation for receiving rotation updates
-    private final CubeRotationListener rotationListener = rotation -> {
-        if (gameServer != null) {
-            // If we're the server, broadcast to all clients
-            gameServer.broadcastCubeRotation(rotation);
-        }
-    };
     private final boolean isServer;
     private final String host;
+
+    private List<PlayerController> players;
+    private PlayerController localPlayerController;
 
     // 3D rendering variables
     private boolean show3DView = false;
     private Environment environment;
-    private PerspectiveCamera cam;
-    private CameraController cameraController;
-    private Model model;
-    private ModelInstance instance;
-    private static final float ROTATION_UPDATE_INTERVAL = 0.1f; // Update 10 times per second
-    private boolean isDragging = false;
 
     /**
      * Creates a new instance of the game.
@@ -90,20 +75,12 @@ public class Main extends ApplicationAdapter {
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
         environment.add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
 
-        // Create and set up camera
-        cam = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        cam.position.set(0, 10, 10);
-        cam.lookAt(0, 0, 0);
-        cam.near = 0.1f;
-        cam.far = 300f;
-        cam.update();
-
         // Initialize camera controller
-        cameraController = new CameraController(cam);
-        cameraController.setVelocity(20f); // Adjust movement speed as needed
+        localPlayerController = new PlayerController();
+        localPlayerController.setVelocity(20f); // Adjust movement speed as needed
 
         // Set up input processor
-        Gdx.input.setInputProcessor(cameraController);
+        Gdx.input.setInputProcessor(localPlayerController);
 
         // Initialize voxel renderer
         voxelMapRenderer = new VoxelMapRenderer();
@@ -169,7 +146,7 @@ public class Main extends ApplicationAdapter {
                 try {
                     Thread.sleep(1000); // Wait for the message to be visible
                     show3DView = true;
-                    Gdx.input.setInputProcessor(cameraController); // Use Main class as input processor
+                    Gdx.input.setInputProcessor(localPlayerController); // Use Main class as input processor
                     Log.info("Server", "Switched to 3D view and set input processor to Main");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -186,27 +163,14 @@ public class Main extends ApplicationAdapter {
         try {
             gameClient = new GameClient(host);
 
-            // Set up the rotation listener before connecting
-            gameClient.setRotationListener(rotation -> {
-                Gdx.app.postRunnable(() -> {
-                    if (instance != null) {
-                        // Only update if we're not currently dragging (to avoid jitter)
-                        if (!isDragging) {
-                            instance.transform.set(Vector3.Zero, rotation);
-                            Log.info("Client", "Updated cube rotation from server");
-                        }
-                    }
-                });
-            });
-
             // Set up the map received listener
             gameClient.setMapReceivedListener(receivedMap -> {
                 Gdx.app.postRunnable(() -> {
-                    Log.info("Client", "Received map with size: " + 
-                        receivedMap.getWidth() + "x" + 
-                        receivedMap.getHeight() + "x" + 
+                    Log.info("Client", "Received map with size: " +
+                        receivedMap.getWidth() + "x" +
+                        receivedMap.getHeight() + "x" +
                         receivedMap.getDepth());
-                    
+
                     // Update the local map and renderer
                     voxelMap = receivedMap;
                     if (voxelMapRenderer != null) {
@@ -232,7 +196,7 @@ public class Main extends ApplicationAdapter {
                         Thread.sleep(1000); // Wait for the message to be visible
                         show3DView = true;
 
-                        Gdx.input.setInputProcessor(cameraController); // Use Main class as input processor
+                        Gdx.input.setInputProcessor(localPlayerController);
                         Log.info("Client", "Switched to 3D view and set input processor to Main");
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
@@ -262,10 +226,9 @@ public class Main extends ApplicationAdapter {
 
         if (show3DView) {
             // Update camera
-            cameraController.update(Gdx.graphics.getDeltaTime());
-
+            localPlayerController.update(Gdx.graphics.getDeltaTime());
             // Render the voxel map
-            voxelMapRenderer.render(cam);
+            voxelMapRenderer.render(localPlayerController.getCamera());
         }
 
         // Update and draw UI if visible
@@ -281,8 +244,8 @@ public class Main extends ApplicationAdapter {
         stage.getViewport().update(width, height, true);
 
         // Update camera for 3D view
-        if (cameraController != null) {
-            cameraController.resize(width, height);
+        if (localPlayerController != null) {
+            localPlayerController.resize(width, height);
         }
     }
 

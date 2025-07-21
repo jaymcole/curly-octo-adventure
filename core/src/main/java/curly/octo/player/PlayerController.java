@@ -1,18 +1,20 @@
-package curly.octo.camera;
+package curly.octo.player;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
-import com.badlogic.gdx.math.Quaternion;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 
 /**
  * Handles camera movement and input for 3D navigation.
  */
-public class CameraController extends InputAdapter {
-    private final PerspectiveCamera camera;
+public class PlayerController extends InputAdapter {
+
+
+    private transient final PerspectiveCamera camera;
+
     private final Vector3 position = new Vector3();
     private final Vector3 direction = new Vector3();
     private final Vector3 tmp = new Vector3();
@@ -22,10 +24,13 @@ public class CameraController extends InputAdapter {
     private boolean mouseCaptured = false;
     private int lastX, lastY;
 
-    public CameraController(PerspectiveCamera camera) {
-        this.camera = camera;
-        this.position.set(camera.position);
-        this.direction.set(camera.direction);
+    public PlayerController() {
+        this.camera = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        camera.position.set(0, 10, 10);
+        camera.lookAt(0, 0, 0);
+        camera.near = 0.1f;
+        camera.far = 300f;
+        camera.update();
     }
 
     public void update(float delta) {
@@ -33,21 +38,27 @@ public class CameraController extends InputAdapter {
         float moveSpeed = velocity * delta;
 
         if (Gdx.input.isKeyPressed(Input.Keys.W)) {
+            Log.info("PlayerController.update", "W Pressed");
             moveForward(moveSpeed);
         }
         if (Gdx.input.isKeyPressed(Input.Keys.S)) {
+            Log.info("PlayerController.update", "S Pressed");
             moveForward(-moveSpeed);
         }
         if (Gdx.input.isKeyPressed(Input.Keys.A)) {
+            Log.info("PlayerController.update", "A Pressed");
             moveLeft(moveSpeed);
         }
         if (Gdx.input.isKeyPressed(Input.Keys.D)) {
+            Log.info("PlayerController.update", "D Pressed");
             moveRight(moveSpeed);
         }
         if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
+            Log.info("PlayerController.update", "Space Pressed");
             moveUp(moveSpeed);
         }
         if (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)) {
+            Log.info("PlayerController.update", "Left Shift Pressed");
             moveUp(-moveSpeed);
         }
 
@@ -102,6 +113,7 @@ public class CameraController extends InputAdapter {
 
     @Override
     public boolean touchDragged(int screenX, int screenY, int pointer) {
+        Log.info("PlayerController.touchDragged", "Dragging");
         if (mouseCaptured) {
             // Calculate delta from last position
             float deltaX = (screenX - lastX) * sensitivity;
@@ -156,5 +168,13 @@ public class CameraController extends InputAdapter {
 
     public boolean isMouseCaptured() {
         return mouseCaptured;
+    }
+
+    public PerspectiveCamera getCamera() {
+        return camera;
+    }
+
+    public void render() {
+
     }
 }

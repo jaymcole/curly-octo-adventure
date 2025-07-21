@@ -1,9 +1,11 @@
 package curly.octo.network;
 
+import com.badlogic.gdx.graphics.Color;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
 import curly.octo.map.VoxelMap;
 import curly.octo.map.VoxelType;
+import curly.octo.player.PlayerController;
 
 /**
  * Base class for network-related functionality.
@@ -17,7 +19,7 @@ public class Network {
     // This registers objects that will be sent over the network.
     public static void register(EndPoint endPoint) {
         Kryo kryo = endPoint.getKryo();
-        
+
         // Configure Kryo for better performance with our data
         kryo.setRegistrationRequired(true); // Require explicit registration for better error messages
         kryo.setReferences(true);
@@ -28,21 +30,25 @@ public class Network {
         kryo.register(int[].class);
         kryo.register(float[].class);
         kryo.register(boolean[].class);
-        
+
         // Register LibGDX math classes
         kryo.register(com.badlogic.gdx.math.Vector3.class);
         kryo.register(com.badlogic.gdx.math.Quaternion.class);
-        
+
         // Register enum types
         kryo.register(VoxelType.class);
         kryo.register(VoxelType[].class);
         kryo.register(VoxelType[][].class);
         kryo.register(VoxelType[][][].class);
-        
+
         // Register network message classes
         kryo.register(CubeRotationUpdate.class);
         kryo.register(MapDataUpdate.class);
-        
+
+        // Register Player related classes
+        kryo.register(PlayerController.class);
+        kryo.register(Color.class);
+
         // Register VoxelMap class
         kryo.register(VoxelMap.class);
     }

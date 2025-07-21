@@ -20,8 +20,8 @@ public class GameServer {
 
     public GameServer(VoxelMap map) {
         this.map = map;
-        server = new Server(655360, 655360);
-        networkListener = new NetworkListener(server);
+        this.server = new Server(655360, 655360);
+        this.networkListener = new NetworkListener(server);
 
         // Register all network classes
         Network.register(server);
@@ -41,7 +41,7 @@ public class GameServer {
             }
 
             @Override
-            public void disconnected(Connection arg0) {
+            public void disconnected(Connection connection) {
 
             }
         });
