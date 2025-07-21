@@ -18,7 +18,6 @@ public class GameClient {
     private MapReceivedListener mapReceivedListener;
     private PlayerAssignmentListener playerAssignmentListener;
     private PlayerRosterListener playerRosterListener;
-    private Quaternion lastRotation;
 
     /**
      * Creates a new game client that will connect to the specified host.
@@ -114,12 +113,5 @@ public class GameClient {
         this.playerRosterListener = listener;
         this.networkListener.setPlayerRosterListener(listener);
 
-    }
-
-    /**
-     * @return the last received rotation, or null if none received yet
-     */
-    public Quaternion getLastRotation() {
-        return lastRotation;
     }
 }

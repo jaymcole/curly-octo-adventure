@@ -4,27 +4,27 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
-import com.badlogic.gdx.math.Quaternion;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 
 /**
  * Handles camera movement and input for 3D navigation.
  */
-public class PlayerController extends InputAdapter {
+public class PlayerController extends InputAdapter  {
 
     private static final float sensitivity = 1f;
     private transient final PerspectiveCamera camera;
     private transient final Vector3 tmp = new Vector3();
     private transient boolean mouseCaptured = false;
     private transient int lastX, lastY;
-    private transient Model placeholderModel;
-    private transient ModelInstance placeHolderModelInstance;
+    private final transient Model placeholderModel;
+    private final transient ModelInstance placeHolderModelInstance;
 
     private final Vector3 position = new Vector3();
     private final Vector3 direction = new Vector3();
@@ -67,8 +67,27 @@ public class PlayerController extends InputAdapter {
     }
 
     public void render(ModelBatch modelBatch, Environment environment) {
-//        Log.info("PlayerController.render", "Rendering player model");
-        modelBatch.render(placeHolderModelInstance, environment);
+        // Position the model 5 units in front of the camera
+        Vector3 modelPosition = new Vector3(camera.direction).scl(5f).add(camera.position);
+
+        // Reset and set up the model transform
+        placeHolderModelInstance.transform.idt();
+        placeHolderModelInstance.transform.setToScaling(1f, 1f, 1f);
+        placeHolderModelInstance.transform.setTranslation(modelPosition);
+
+        // Enable depth testing and face culling
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+
+        // Render the model
+        try {
+            modelBatch.begin(camera);
+            modelBatch.render(placeHolderModelInstance, environment);
+            modelBatch.end();
+        } catch (Exception e) {
+            Log.error("PlayerController", "Error rendering model: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     public void update(float delta) {
@@ -104,9 +123,7 @@ public class PlayerController extends InputAdapter {
         // Update camera position and direction
         if (moved) {
             updateCamera();
-            updateModel();
         }
-
     }
 
     private void moveForward(float distance) {
@@ -130,13 +147,6 @@ public class PlayerController extends InputAdapter {
         position.y += distance;
     }
 
-    private void updateModel() {
-        Vector3 modelPosition =  new Vector3(position);
-        modelPosition.x += 10;
-        modelPosition.y += 10;
-        modelPosition.z += 10;
-        placeHolderModelInstance.transform.set(modelPosition, new Quaternion());
-    }
 
     private void updateCamera() {
         // Update camera position and direction
@@ -213,20 +223,9 @@ public class PlayerController extends InputAdapter {
         return false;
     }
 
-    public boolean isMouseCaptured() {
-        return mouseCaptured;
-    }
-
     public void resize(int width, int height) {
         camera.viewportWidth = width;
         camera.viewportHeight = height;
         camera.update();
     }
-
-    public void dispose() {
-        if (placeholderModel != null) {
-            placeholderModel.dispose();
-        }
-    }
-
 }

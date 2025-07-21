@@ -17,6 +17,7 @@ import curly.octo.map.VoxelMapRenderer;
 import curly.octo.network.GameClient;
 import curly.octo.network.GameServer;
 import curly.octo.network.Network;
+import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
 import java.util.*;
@@ -130,7 +131,7 @@ public class Main extends ApplicationAdapter {
 
     private void startServer() {
         try {
-            localPlayerController = createPlayerController();
+            localPlayerController = PlayerUtilities.createPlayerController(random);
             localPlayerId = localPlayerController.getPlayerId();
             localPlayerController.setVelocity(20f); // Adjust movement speed as needed
             players = new ArrayList<>();
@@ -143,7 +144,7 @@ public class Main extends ApplicationAdapter {
                 voxelMapRenderer.updateMap(voxelMap);
             }
 
-            gameServer = new GameServer(voxelMap);
+            gameServer = new GameServer(random, voxelMap, players);
 
             gameServer.start();
             updateUIForServer();
@@ -164,12 +165,6 @@ public class Main extends ApplicationAdapter {
             statusLabel.setText("Failed to start server: " + e.getMessage());
             e.printStackTrace();
         }
-    }
-
-    private PlayerController createPlayerController() {
-        PlayerController newPlayer = new PlayerController();
-        newPlayer.setPlayerId(random.nextLong());
-        return newPlayer;
     }
 
     private void connectToServer(String host) {
@@ -264,9 +259,11 @@ public class Main extends ApplicationAdapter {
 
         if (show3DView) {
             // Update camera
-            localPlayerController.update(Gdx.graphics.getDeltaTime());
+            if (localPlayerController != null) {
+                localPlayerController.update(Gdx.graphics.getDeltaTime());
+                voxelMapRenderer.render(localPlayerController.getCamera());
+            }
             // Render the voxel map
-            voxelMapRenderer.render(localPlayerController.getCamera());
             if (players != null) {
                 for(PlayerController player : players) {
                     player.render(modelBatch, environment);

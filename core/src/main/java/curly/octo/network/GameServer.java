@@ -7,8 +7,14 @@ import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.VoxelMap;
 import curly.octo.network.messages.MapDataUpdate;
+import curly.octo.network.messages.PlayerAssignmentUpdate;
+import curly.octo.network.messages.PlayerRosterUpdate;
+import curly.octo.player.PlayerController;
+import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Random;
 
 /**
  * Handles server-side network operations.
@@ -17,9 +23,11 @@ public class GameServer {
     private final Server server;
     private final NetworkListener networkListener;
     private final VoxelMap map;
+    private final List<PlayerController> players;
 
-    public GameServer(VoxelMap map) {
+    public GameServer(Random random, VoxelMap map, List<PlayerController> players) {
         this.map = map;
+        this.players = players;
         this.server = new Server(655360, 655360);
         this.networkListener = new NetworkListener(server);
 
@@ -38,6 +46,10 @@ public class GameServer {
             @Override
             public void connected(Connection connection) {
                 sendMapRefreshToUser(connection);
+                PlayerController newPlayer = PlayerUtilities.createPlayerController(random);
+                players.add(newPlayer);
+                broadcastNewPlayerRoster();
+                assignPlayer(connection, newPlayer.getPlayerId());
             }
 
             @Override
@@ -92,9 +104,28 @@ public class GameServer {
 //        }
 //    }
 
+    public void broadcastNewPlayerRoster() {
+        if (server != null) {
+            PlayerRosterUpdate update = new PlayerRosterUpdate();
+            PlayerController[] playerRoster = new PlayerController[players.size()];
+            for(int i = 0; i < playerRoster.length; i++) {
+                playerRoster[i] = players.get(i);
+            }
+            update.players = playerRoster;
+            server.sendToAllTCP(update);
+        }
+    }
+
+    public void assignPlayer(Connection connection, long playerId)
+    {
+        PlayerAssignmentUpdate assignmentUpdate = new PlayerAssignmentUpdate();
+        assignmentUpdate.playerId = playerId;
+        server.sendToTCP(connection.getID(), assignmentUpdate);
+    }
+
     public void sendMapRefreshToUser(Connection connection) {
         Log.info("Server", "Sending map data to client " + connection.getID());
-        curly.octo.network.messages.MapDataUpdate mapUpdate = new MapDataUpdate(map);
+        MapDataUpdate mapUpdate = new MapDataUpdate(map);
         Log.info("Server", "Created MapDataUpdate with map size: " + map.getWidth() + "x" + map.getHeight() + "x" + map.getDepth());
         server.sendToTCP(connection.getID(), mapUpdate);
         Log.info("Server", "Map data sent to client " + connection.getID());
