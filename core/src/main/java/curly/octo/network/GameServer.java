@@ -1,6 +1,7 @@
 package curly.octo.network;
 
 import com.badlogic.gdx.math.Quaternion;
+import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
@@ -9,6 +10,7 @@ import curly.octo.map.VoxelMap;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerRosterUpdate;
+import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.player.PlayerController;
 import curly.octo.player.PlayerUtilities;
 
@@ -50,11 +52,52 @@ public class GameServer {
                 players.add(newPlayer);
                 broadcastNewPlayerRoster();
                 assignPlayer(connection, newPlayer.getPlayerId());
+
+                Log.info("Server", "Player " + newPlayer.getPlayerId() + " connected from " +
+                    connection.getRemoteAddressTCP().getAddress());
+            }
+
+            @Override
+            public void received(Connection connection, Object object) {
+                if (object instanceof PlayerUpdate) {
+                    // Received a player position update, broadcast to all other clients
+                    PlayerUpdate update = (PlayerUpdate) object;
+                    Log.debug("Server", "Received position update for player " + update.playerId + ": " +
+                        update.x + ", " + update.y + ", " + update.z);
+
+                    // Update the player's position in our local list
+                    for (PlayerController player : players) {
+                        if (player.getPlayerId() == update.playerId) {
+                            player.setPlayerPosition(update.x, update.y, update.z);
+                            break;
+                        }
+                    }
+
+                    // Broadcast to all other clients
+                    for (Connection other : server.getConnections()) {
+                        if (other.getID() != connection.getID()) {
+                            other.sendUDP(update);
+                        }
+                    }
+                }
             }
 
             @Override
             public void disconnected(Connection connection) {
+                // Find and remove the disconnected player
+                PlayerController disconnectedPlayer = null;
+                for (PlayerController player : players) {
+                    if (player.getPlayerId() == connection.getID()) {
+                        disconnectedPlayer = player;
+                        break;
+                    }
+                }
 
+                if (disconnectedPlayer != null) {
+                    players.remove(disconnectedPlayer);
+                    broadcastNewPlayerRoster();
+                    Log.info("Server", "Player " + disconnectedPlayer.getPlayerId() + " disconnected");
+                }
             }
         });
 
@@ -86,6 +129,20 @@ public class GameServer {
      */
     public Server getServer() {
         return server;
+    }
+
+    /**
+     * Broadcasts a player's position to all connected clients
+     * @param playerId The ID of the player whose position is being updated
+     * @param position The new position of the player
+     */
+    public void broadcastPlayerPosition(long playerId, Vector3 position) {
+        if (server != null) {
+            PlayerUpdate update = new PlayerUpdate(playerId, position);
+            server.sendToAllUDP(update); // Using UDP for faster, less reliable but faster updates
+            Log.debug("Server", "Broadcasting position update for player " + playerId + ": " +
+                position.x + ", " + position.y + ", " + position.z);
+        }
     }
 
 //    /**

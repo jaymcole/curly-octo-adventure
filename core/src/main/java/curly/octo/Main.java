@@ -5,6 +5,8 @@ import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
+import com.badlogic.gdx.math.Vector3;
+import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.player.PlayerController;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -55,6 +57,10 @@ public class Main extends ApplicationAdapter {
     private ModelBatch modelBatch;
     private boolean show3DView = false;
     private Environment environment;
+
+    // Networking
+    private float positionUpdateTimer = 0;
+    private static final float POSITION_UPDATE_INTERVAL = 1/20f; // 20 updates per second
 
     /**
      * Creates a new instance of the game.
@@ -213,10 +219,15 @@ public class Main extends ApplicationAdapter {
 
             gameClient.setPlayerUpdateListener(playerUpdate -> {
                 Gdx.app.postRunnable(() -> {
-                    Log.info("Something", "Updating player positions");
+                    Log.info("PlayerUpdate", "Received position update for player " + playerUpdate.playerId + ": " +
+                            playerUpdate.x + ", " + playerUpdate.y + ", " + playerUpdate.z);
                     for (PlayerController player : players) {
-                        if (player.getPlayerId() == player.getPlayerId()) {
-                            player.setPlayerPosition(playerUpdate.x, playerUpdate.y, playerUpdate.z);
+                        if (player.getPlayerId() == playerUpdate.playerId) {
+                            // Skip updating the local player to prevent position override
+                            if (player != localPlayerController) {
+                                player.setPlayerPosition(playerUpdate.x, playerUpdate.y, playerUpdate.z);
+                            }
+                            break;
                         }
                     }
                 });
@@ -264,6 +275,7 @@ public class Main extends ApplicationAdapter {
             for (PlayerController player : players) {
                 if(player.getPlayerId() == localPlayerId) {
                     localPlayerController = player;
+                    localPlayerController.setPlayerId(localPlayerId); // Ensure the controller's id matches the server-assigned id
                     Gdx.input.setInputProcessor(localPlayerController);
                     break;
                 }
@@ -272,33 +284,65 @@ public class Main extends ApplicationAdapter {
     }
 
     private void updateUIForServer() {
-        startServerButton.setDisabled(true);
-        connectButton.setDisabled(true);
-        ipAddressField.setDisabled(true);
+        if (stage != null) {
+            stage.clear();
+            stage.addActor(statusLabel);
+        }
+        if (startServerButton != null) startServerButton.setDisabled(true);
+        if (connectButton != null) connectButton.setDisabled(true);
+        if (ipAddressField != null) ipAddressField.setDisabled(true);
+    }
+
+    private void sendPositionUpdate() {
+        if (gameClient != null && localPlayerController != null) {
+            Vector3 position = localPlayerController.getCamera().position;
+            PlayerUpdate update = new PlayerUpdate(
+                localPlayerId,
+                position
+            );
+            gameClient.sendUDP(update);
+            Log.debug("Client", "Sent position update: " + position.x + ", " + position.y + ", " + position.z);
+        }
     }
 
     @Override
     public void render() {
+        float deltaTime = Gdx.graphics.getDeltaTime();
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
         if (show3DView) {
-            // Update camera
+            // Update camera and player position
             if (localPlayerController != null) {
-                localPlayerController.update(Gdx.graphics.getDeltaTime());
+                localPlayerController.update(deltaTime);
                 voxelMapRenderer.render(localPlayerController.getCamera());
+
+                // Handle periodic position updates
+                positionUpdateTimer += deltaTime;
+                if (positionUpdateTimer >= POSITION_UPDATE_INTERVAL) {
+                    positionUpdateTimer = 0;
+                    sendPositionUpdate();
+                    // If running as server/host, broadcast host's position to all clients
+                    if (gameServer != null) {
+                        gameServer.broadcastPlayerPosition(localPlayerId, localPlayerController.getPosition());
+                    }
+                }
             }
-            // Render the voxel map
+
+            // Render all players
             if (players != null) {
                 for(PlayerController player : players) {
-                    player.render(modelBatch, environment, localPlayerController.getCamera());
+                    // Only render other players if we have a local player controller
+                    if (localPlayerController != null && player.getPlayerId() != localPlayerController.getPlayerId()) {
+                        player.render(modelBatch, environment, localPlayerController.getCamera());
+                    }
                 }
             }
         }
 
         // Update and draw UI if visible
         if (showUI) {
-            stage.act(Math.min(Gdx.graphics.getDeltaTime(), 1 / 30f));
+            stage.act(Math.min(deltaTime, 1 / 30f));
             stage.draw();
         }
     }

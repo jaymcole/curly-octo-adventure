@@ -47,13 +47,20 @@ public class PlayerController extends InputAdapter  {
     }
 
     public void setPlayerPosition(float x, float y, float z) {
-        position.x = x;
-        position.y = y;
-        position.z = z;
+        position.set(x, y, z);
+        if (camera != null) {
+            camera.position.set(position);
+            camera.lookAt(position.x + direction.x, position.y + direction.y, position.z + direction.z);
+            camera.update();
+        }
     }
 
     public long getPlayerId() {
         return playerId;
+    }
+
+    public Vector3 getPosition() {
+        return position.cpy();
     }
 
     public void setVelocity(float velocity) {
@@ -99,7 +106,7 @@ public class PlayerController extends InputAdapter  {
 
         try {
             // Position the model 2 units in front of the camera
-            Vector3 modelPosition = new Vector3(camera.direction).scl(2f).add(camera.position);
+            Vector3 modelPosition = new Vector3(camera.position);
 
             // Update model transform
             placeHolderModelInstance.transform.idt();

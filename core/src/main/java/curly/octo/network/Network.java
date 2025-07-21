@@ -8,6 +8,7 @@ import curly.octo.map.VoxelType;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerRosterUpdate;
+import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.player.PlayerController;
 
 /**
@@ -25,7 +26,7 @@ public class Network {
 
         // Configure Kryo for better performance with our data
         kryo.setRegistrationRequired(true); // Require explicit registration for better error messages
-        kryo.setReferences(true);
+        kryo.setReferences(false); // Disable reference tracking to avoid cross-message reference errors
         kryo.setAutoReset(false);
 
         // Register primitive arrays first
@@ -47,6 +48,7 @@ public class Network {
 
         // Register network message classes
         kryo.register(MapDataUpdate.class);
+        kryo.register(PlayerUpdate.class);
 
         // Register Player related classes
         kryo.register(PlayerController[].class);

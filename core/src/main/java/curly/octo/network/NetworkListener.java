@@ -99,9 +99,14 @@ public class NetworkListener implements Listener {
             PlayerAssignmentUpdate update = (PlayerAssignmentUpdate) object;
             playerAssignmentListener.onPlayerAssignmentReceived(update);
         } else if (object instanceof PlayerUpdate) {
-            Log.info("Network", "Received new player update");
             PlayerUpdate update = (PlayerUpdate) object;
-            playerUpdateListener.onPlayerUpdateReceived(update);
+            Log.info("Network", "Received player update for " + update.playerId + " at (" + 
+                update.x + ", " + update.y + ", " + update.z + ")");
+            if (playerUpdateListener != null) {
+                playerUpdateListener.onPlayerUpdateReceived(update);
+            } else {
+                Log.warn("Network", "No player update listener set");
+            }
         }
     }
 }
