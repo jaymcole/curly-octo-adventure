@@ -18,6 +18,7 @@ public class NetworkListener implements Listener {
     private MapReceivedListener mapReceivedListener;
     private PlayerAssignmentListener playerAssignmentListener;
     private PlayerRosterListener playerRosterListener;
+    private PlayerUpdateListener playerUpdateListener;
 
     private Server server;
     private Client client;
@@ -36,11 +37,14 @@ public class NetworkListener implements Listener {
     public void setMapReceivedListener(MapReceivedListener listener) {
         this.mapReceivedListener = listener;
     }
+    public void setPlayerAssignmentListener(PlayerAssignmentListener listener) {
+        this.playerAssignmentListener = listener;
+    }
     public void setPlayerRosterListener(PlayerRosterListener listener) {
         this.playerRosterListener = listener;
     }
-    public void setPlayerAssignmentListener(PlayerAssignmentListener listener) {
-        this.playerAssignmentListener = listener;
+    public void setPlayerUpdateListener(PlayerUpdateListener listener) {
+        this.playerUpdateListener = listener;
     }
     /**
      * Called when a connection is received from a client (server-side)
@@ -69,9 +73,9 @@ public class NetworkListener implements Listener {
     @Override
     public void received(Connection connection, Object object) {
         Log.info("Network", "Received object of type: " + (object != null ? object.getClass().getSimpleName() : "null"));
-        if (object instanceof curly.octo.network.messages.MapDataUpdate) {
+        if (object instanceof MapDataUpdate) {
             Log.info("Network", "Handling MapDataUpdate from " + connection.getRemoteAddressTCP().getAddress());
-            curly.octo.network.messages.MapDataUpdate update = (MapDataUpdate) object;
+            MapDataUpdate update = (MapDataUpdate) object;
             if (update.map != null) {
                 Log.info("Network", "Received map with size: " +
                     update.map.getWidth() + "x" +
@@ -86,6 +90,18 @@ public class NetworkListener implements Listener {
             } else {
                 Log.error("Network", "Received null map in MapDataUpdate");
             }
+        } else if (object instanceof PlayerRosterUpdate) {
+            Log.info("Network", "Received new player roster");
+            PlayerRosterUpdate update = (PlayerRosterUpdate) object;
+            playerRosterListener.onPlayerRosterReceived(update);
+        } else if (object instanceof PlayerAssignmentUpdate) {
+            Log.info("Network", "Received new player assignment");
+            PlayerAssignmentUpdate update = (PlayerAssignmentUpdate) object;
+            playerAssignmentListener.onPlayerAssignmentReceived(update);
+        } else if (object instanceof PlayerUpdate) {
+            Log.info("Network", "Received new player update");
+            PlayerUpdate update = (PlayerUpdate) object;
+            playerUpdateListener.onPlayerUpdateReceived(update);
         }
     }
 }

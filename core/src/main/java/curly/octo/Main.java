@@ -170,7 +170,7 @@ public class Main extends ApplicationAdapter {
     private void connectToServer(String host) {
         try {
             gameClient = new GameClient(host);
-
+            this.players = new ArrayList<>();
             // Set up the map received listener
             gameClient.setMapReceivedListener(receivedMap -> {
                 Gdx.app.postRunnable(() -> {
@@ -192,13 +192,33 @@ public class Main extends ApplicationAdapter {
 
             gameClient.setPlayerAssignmentListener(receivedPlayerId -> {
                 Gdx.app.postRunnable(() -> {
-                    setPlayer(receivedPlayerId);
+                    setPlayer(receivedPlayerId.playerId);
                 });
             });
 
-            gameClient.setPlayerRosterListener(newPlayer -> {
+            gameClient.setPlayerRosterListener(roster -> {
                 Gdx.app.postRunnable(() -> {
-                    players.add(newPlayer);
+                    HashSet<Long> currentPlayers = new HashSet<>();
+                    for (PlayerController player : players) {
+                        currentPlayers.add(player.getPlayerId());
+                    }
+
+                    for (PlayerController player : roster.players) {
+                        if (!currentPlayers.contains(player.getPlayerId())) {
+                            players.add(player);
+                        }
+                    }
+                });
+            });
+
+            gameClient.setPlayerUpdateListener(playerUpdate -> {
+                Gdx.app.postRunnable(() -> {
+                    Log.info("Something", "Updating player positions");
+                    for (PlayerController player : players) {
+                        if (player.getPlayerId() == player.getPlayerId()) {
+                            player.setPlayerPosition(playerUpdate.x, playerUpdate.y, playerUpdate.z);
+                        }
+                    }
                 });
             });
 
@@ -234,12 +254,17 @@ public class Main extends ApplicationAdapter {
         }
     }
 
+    private void assignCommonListeners() {
+
+    }
+
     private void setPlayer(long localPlayerId) {
         this.localPlayerId = localPlayerId;
         if (players != null && !players.isEmpty()) {
             for (PlayerController player : players) {
                 if(player.getPlayerId() == localPlayerId) {
                     localPlayerController = player;
+                    Gdx.input.setInputProcessor(localPlayerController);
                     break;
                 }
             }
@@ -266,7 +291,7 @@ public class Main extends ApplicationAdapter {
             // Render the voxel map
             if (players != null) {
                 for(PlayerController player : players) {
-                    player.render(modelBatch, environment);
+                    player.render(modelBatch, environment, localPlayerController.getCamera());
                 }
             }
         }

@@ -6,6 +6,8 @@ import com.esotericsoftware.kryonet.EndPoint;
 import curly.octo.map.VoxelMap;
 import curly.octo.map.VoxelType;
 import curly.octo.network.messages.MapDataUpdate;
+import curly.octo.network.messages.PlayerAssignmentUpdate;
+import curly.octo.network.messages.PlayerRosterUpdate;
 import curly.octo.player.PlayerController;
 
 /**
@@ -50,6 +52,8 @@ public class Network {
         kryo.register(PlayerController[].class);
         kryo.register(PlayerController.class);
         kryo.register(Color.class);
+        kryo.register(PlayerRosterUpdate.class);
+        kryo.register(PlayerAssignmentUpdate.class);
 
         // Register VoxelMap class
         kryo.register(VoxelMap.class);

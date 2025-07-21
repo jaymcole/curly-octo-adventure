@@ -1,5 +1,5 @@
 package curly.octo.network.messages;
 
 public interface PlayerAssignmentListener {
-    public void onPlayerAssignmentReceived(long playerId);
+    public void onPlayerAssignmentReceived(PlayerAssignmentUpdate playerAssignmentUpdate);
 }

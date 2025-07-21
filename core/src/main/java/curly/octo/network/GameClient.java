@@ -18,6 +18,7 @@ public class GameClient {
     private MapReceivedListener mapReceivedListener;
     private PlayerAssignmentListener playerAssignmentListener;
     private PlayerRosterListener playerRosterListener;
+    private PlayerUpdateListener playerUpdateListener;
 
     /**
      * Creates a new game client that will connect to the specified host.
@@ -42,6 +43,12 @@ public class GameClient {
         networkListener.setPlayerRosterListener(playerRoster -> {
             if (this.playerRosterListener != null) {
                 this.playerRosterListener.onPlayerRosterReceived(playerRoster);
+            }
+        });
+
+        networkListener.setPlayerUpdateListener(playerUpdate -> {
+            if (this.playerUpdateListener != null) {
+                this.playerUpdateListener.onPlayerUpdateReceived(playerUpdate);
             }
         });
 
@@ -112,6 +119,10 @@ public class GameClient {
     public void setPlayerRosterListener(PlayerRosterListener listener) {
         this.playerRosterListener = listener;
         this.networkListener.setPlayerRosterListener(listener);
+    }
 
+    public void setPlayerUpdateListener(PlayerUpdateListener listener) {
+        this.playerUpdateListener = listener;
+        this.networkListener.setPlayerUpdateListener(listener);
     }
 }

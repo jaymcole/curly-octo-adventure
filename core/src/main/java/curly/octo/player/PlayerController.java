@@ -19,12 +19,13 @@ import com.esotericsoftware.minlog.Log;
 public class PlayerController extends InputAdapter  {
 
     private static final float sensitivity = 1f;
-    private transient final PerspectiveCamera camera;
+    private transient PerspectiveCamera camera;
     private transient final Vector3 tmp = new Vector3();
     private transient boolean mouseCaptured = false;
     private transient int lastX, lastY;
-    private final transient Model placeholderModel;
-    private final transient ModelInstance placeHolderModelInstance;
+    private transient Model placeholderModel;
+    private transient ModelInstance placeHolderModelInstance;
+    private transient boolean initialized = false;
 
     private final Vector3 position = new Vector3();
     private final Vector3 direction = new Vector3();
@@ -33,25 +34,22 @@ public class PlayerController extends InputAdapter  {
     private float velocity = 10f;
 
     public PlayerController() {
-        this.camera = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        // Initialize camera with default values
         position.set(0, 10, 10);
         direction.set(0, 0, -1);
-        camera.position.set(position);
-        camera.lookAt(position.x + direction.x, position.y + direction.y, position.z + direction.z);
-        camera.up.set(Vector3.Y);
-        camera.near = 0.1f;
-        camera.far = 300f;
-        camera.update();
 
-        ModelBuilder modelBuilder = new ModelBuilder();
-        placeholderModel = modelBuilder.createSphere(10f, 10f, 10f, 20, 20,
-            new Material(ColorAttribute.createDiffuse(Color.BLUE)),
-            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal);
-        placeHolderModelInstance = new ModelInstance(placeholderModel);
+        // Initialize camera on the OpenGL thread
+        Gdx.app.postRunnable(this::initialize);
     }
 
     public void setPlayerId(long playerId) {
         this.playerId = playerId;
+    }
+
+    public void setPlayerPosition(float x, float y, float z) {
+        position.x = x;
+        position.y = y;
+        position.z = z;
     }
 
     public long getPlayerId() {
@@ -66,26 +64,57 @@ public class PlayerController extends InputAdapter  {
         return camera;
     }
 
-    public void render(ModelBatch modelBatch, Environment environment) {
-        // Position the model 5 units in front of the camera
-        Vector3 modelPosition = new Vector3(camera.direction).scl(5f).add(camera.position);
+    private void initialize() {
+        if (initialized) return;
 
-        // Reset and set up the model transform
-        placeHolderModelInstance.transform.idt();
-        placeHolderModelInstance.transform.setToScaling(1f, 1f, 1f);
-        placeHolderModelInstance.transform.setTranslation(modelPosition);
-
-        // Enable depth testing and face culling
-        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
-        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
-
-        // Render the model
         try {
-            modelBatch.begin(camera);
+            // Create camera
+            this.camera = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+            camera.position.set(position);
+            camera.lookAt(position.x + direction.x, position.y + direction.y, position.z + direction.z);
+            camera.up.set(Vector3.Y);
+            camera.near = 0.1f;
+            camera.far = 300f;
+            camera.update();
+
+            // Create model on OpenGL thread
+            ModelBuilder modelBuilder = new ModelBuilder();
+            placeholderModel = modelBuilder.createSphere(1f, 1f, 1f, 16, 16,
+                new Material(ColorAttribute.createDiffuse(Color.BLUE)),
+                VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal);
+            placeHolderModelInstance = new ModelInstance(placeholderModel);
+
+            initialized = true;
+        } catch (Exception e) {
+            Log.error("PlayerController", "Error initializing: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public void render(ModelBatch modelBatch, Environment environment, PerspectiveCamera cam) {
+        if (!initialized) {
+            initialize();
+            return;
+        }
+
+        try {
+            // Position the model 2 units in front of the camera
+            Vector3 modelPosition = new Vector3(camera.direction).scl(2f).add(camera.position);
+
+            // Update model transform
+            placeHolderModelInstance.transform.idt();
+            placeHolderModelInstance.transform.setToTranslation(modelPosition);
+
+            // Enable depth testing
+            Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+            Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+
+            // Render the model
+            modelBatch.begin(cam);
             modelBatch.render(placeHolderModelInstance, environment);
             modelBatch.end();
         } catch (Exception e) {
-            Log.error("PlayerController", "Error rendering model: " + e.getMessage());
+            Log.error("PlayerController", "Error in render: " + e.getMessage());
             e.printStackTrace();
         }
     }
