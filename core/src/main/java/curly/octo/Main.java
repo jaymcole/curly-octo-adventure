@@ -19,6 +19,8 @@ import curly.octo.network.GameServer;
 import curly.octo.network.Network;
 
 import java.io.IOException;
+import java.util.*;
+import java.util.List;
 
 /**
  * Main game class with network setup UI.
@@ -31,6 +33,7 @@ public class Main extends ApplicationAdapter {
     private TextButton connectButton;
     private TextField ipAddressField;
     private Label statusLabel;
+    private Random random;
 
     private GameServer gameServer;
     private GameClient gameClient;
@@ -43,10 +46,12 @@ public class Main extends ApplicationAdapter {
     private final boolean isServer;
     private final String host;
 
-    private List<PlayerController> players;
+    private ArrayList<PlayerController> players;
     private PlayerController localPlayerController;
+    private long localPlayerId;
 
     // 3D rendering variables
+    private ModelBatch modelBatch;
     private boolean show3DView = false;
     private Environment environment;
 
@@ -70,17 +75,13 @@ public class Main extends ApplicationAdapter {
 
     @Override
     public void create() {
+        this.random = new Random();
+        modelBatch = new ModelBatch();
+
         // Setup 3D environment
         environment = new Environment();
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
         environment.add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
-
-        // Initialize camera controller
-        localPlayerController = new PlayerController();
-        localPlayerController.setVelocity(20f); // Adjust movement speed as needed
-
-        // Set up input processor
-        Gdx.input.setInputProcessor(localPlayerController);
 
         // Initialize voxel renderer
         voxelMapRenderer = new VoxelMapRenderer();
@@ -129,6 +130,12 @@ public class Main extends ApplicationAdapter {
 
     private void startServer() {
         try {
+            localPlayerController = createPlayerController();
+            localPlayerId = localPlayerController.getPlayerId();
+            localPlayerController.setVelocity(20f); // Adjust movement speed as needed
+            players = new ArrayList<>();
+            players.add(localPlayerController);
+
             // Generate map before starting server
             if (voxelMap == null) {
                 voxelMap = new VoxelMap(64, 16, 64, System.currentTimeMillis());
@@ -159,6 +166,12 @@ public class Main extends ApplicationAdapter {
         }
     }
 
+    private PlayerController createPlayerController() {
+        PlayerController newPlayer = new PlayerController();
+        newPlayer.setPlayerId(random.nextLong());
+        return newPlayer;
+    }
+
     private void connectToServer(String host) {
         try {
             gameClient = new GameClient(host);
@@ -181,6 +194,19 @@ public class Main extends ApplicationAdapter {
                     }
                 });
             });
+
+            gameClient.setPlayerAssignmentListener(receivedPlayerId -> {
+                Gdx.app.postRunnable(() -> {
+                    setPlayer(receivedPlayerId);
+                });
+            });
+
+            gameClient.setPlayerRosterListener(newPlayer -> {
+                Gdx.app.postRunnable(() -> {
+                    players.add(newPlayer);
+                });
+            });
+
 
             // Connect to the server
             gameClient.connect(5000);
@@ -213,6 +239,18 @@ public class Main extends ApplicationAdapter {
         }
     }
 
+    private void setPlayer(long localPlayerId) {
+        this.localPlayerId = localPlayerId;
+        if (players != null && !players.isEmpty()) {
+            for (PlayerController player : players) {
+                if(player.getPlayerId() == localPlayerId) {
+                    localPlayerController = player;
+                    break;
+                }
+            }
+        }
+    }
+
     private void updateUIForServer() {
         startServerButton.setDisabled(true);
         connectButton.setDisabled(true);
@@ -229,6 +267,11 @@ public class Main extends ApplicationAdapter {
             localPlayerController.update(Gdx.graphics.getDeltaTime());
             // Render the voxel map
             voxelMapRenderer.render(localPlayerController.getCamera());
+            if (players != null) {
+                for(PlayerController player : players) {
+                    player.render(modelBatch, environment);
+                }
+            }
         }
 
         // Update and draw UI if visible

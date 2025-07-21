@@ -5,6 +5,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
 import curly.octo.map.VoxelMap;
 import curly.octo.map.VoxelType;
+import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.player.PlayerController;
 
 /**
@@ -30,6 +31,7 @@ public class Network {
         kryo.register(int[].class);
         kryo.register(float[].class);
         kryo.register(boolean[].class);
+        kryo.register(long.class);
 
         // Register LibGDX math classes
         kryo.register(com.badlogic.gdx.math.Vector3.class);
@@ -42,10 +44,10 @@ public class Network {
         kryo.register(VoxelType[][][].class);
 
         // Register network message classes
-        kryo.register(CubeRotationUpdate.class);
         kryo.register(MapDataUpdate.class);
 
         // Register Player related classes
+        kryo.register(PlayerController[].class);
         kryo.register(PlayerController.class);
         kryo.register(Color.class);
 

@@ -3,6 +3,8 @@ package curly.octo.network;
 import com.badlogic.gdx.math.Quaternion;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.network.messages.*;
+import curly.octo.network.messages.MapReceivedListener;
 
 import java.io.IOException;
 
@@ -13,8 +15,9 @@ public class GameClient {
     private final Client client;
     private final NetworkListener networkListener;
     private final String host;
-    private CubeRotationListener rotationListener;
     private MapReceivedListener mapReceivedListener;
+    private PlayerAssignmentListener playerAssignmentListener;
+    private PlayerRosterListener playerRosterListener;
     private Quaternion lastRotation;
 
     /**
@@ -31,16 +34,19 @@ public class GameClient {
         // Create network listener with client reference
         networkListener = new NetworkListener(client);
 
-        // Set up network listener
-        networkListener.setRotationListener(rotation -> {
-            this.lastRotation = rotation;
-            if (this.rotationListener != null) {
-                this.rotationListener.onCubeRotationUpdate(rotation);
+        networkListener.setPlayerAssignmentListener(playerAssignment -> {
+            if (this.playerAssignmentListener != null) {
+                this.playerAssignmentListener.onPlayerAssignmentReceived(playerAssignment);
+            }
+        });
+
+        networkListener.setPlayerRosterListener(playerRoster -> {
+            if (this.playerRosterListener != null) {
+                this.playerRosterListener.onPlayerRosterReceived(playerRoster);
             }
         });
 
         networkListener.setMapReceivedListener(map -> {
-            Log.info("Something");
             if (this.mapReceivedListener != null) {
                 this.mapReceivedListener.onMapReceived(map);
             }
@@ -94,27 +100,20 @@ public class GameClient {
         return client;
     }
 
-    /**
-     * Sends a cube rotation update to the server
-     * @param rotation the new rotation to send
-     */
-    public void sendCubeRotation(Quaternion rotation) {
-        if (client.isConnected()) {
-            client.sendTCP(new CubeRotationUpdate(rotation));
-        }
-    }
-
-    /**
-     * Sets the rotation listener for receiving updates
-     * @param listener the listener to notify of rotation updates
-     */
-    public void setRotationListener(CubeRotationListener listener) {
-        this.rotationListener = listener;
-    }
-
     public void setMapReceivedListener(MapReceivedListener listener) {
         this.mapReceivedListener = listener;
         this.networkListener.setMapReceivedListener(listener);
+    }
+
+    public void setPlayerAssignmentListener(PlayerAssignmentListener listener) {
+        this.playerAssignmentListener = listener;
+        this.networkListener.setPlayerAssignmentListener(listener);
+    }
+
+    public void setPlayerRosterListener(PlayerRosterListener listener) {
+        this.playerRosterListener = listener;
+        this.networkListener.setPlayerRosterListener(listener);
+
     }
 
     /**

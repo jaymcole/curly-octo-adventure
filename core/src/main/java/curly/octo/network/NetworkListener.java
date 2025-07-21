@@ -5,15 +5,20 @@ import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.network.messages.*;
+import curly.octo.network.messages.MapDataUpdate;
+import curly.octo.network.messages.MapReceivedListener;
 
 /**
  * Handles incoming network messages and connection events.
  * Extend this class and override the methods you need.
  */
 public class NetworkListener implements Listener {
-    private CubeRotationListener rotationListener;
     private ConnectionListener connectionListener;
     private MapReceivedListener mapReceivedListener;
+    private PlayerAssignmentListener playerAssignmentListener;
+    private PlayerRosterListener playerRosterListener;
+
     private Server server;
     private Client client;
 
@@ -28,16 +33,14 @@ public class NetworkListener implements Listener {
         this.client = client;
     }
 
-    public void setRotationListener(CubeRotationListener listener) {
-        this.rotationListener = listener;
-    }
-
-    public void setConnectionListener(ConnectionListener listener) {
-        this.connectionListener = listener;
-    }
-
     public void setMapReceivedListener(MapReceivedListener listener) {
         this.mapReceivedListener = listener;
+    }
+    public void setPlayerRosterListener(PlayerRosterListener listener) {
+        this.playerRosterListener = listener;
+    }
+    public void setPlayerAssignmentListener(PlayerAssignmentListener listener) {
+        this.playerAssignmentListener = listener;
     }
     /**
      * Called when a connection is received from a client (server-side)
@@ -66,21 +69,15 @@ public class NetworkListener implements Listener {
     @Override
     public void received(Connection connection, Object object) {
         Log.info("Network", "Received object of type: " + (object != null ? object.getClass().getSimpleName() : "null"));
-        if (object instanceof CubeRotationUpdate) {
-            Log.info("Network", "Handling CubeRotationUpdate from " + connection.getRemoteAddressTCP().getAddress());
-            handleCubeRotationUpdate((CubeRotationUpdate) object, connection);
-        } else if (object instanceof MapDataUpdate) {
+        if (object instanceof curly.octo.network.messages.MapDataUpdate) {
             Log.info("Network", "Handling MapDataUpdate from " + connection.getRemoteAddressTCP().getAddress());
-            MapDataUpdate update = (MapDataUpdate) object;
+            curly.octo.network.messages.MapDataUpdate update = (MapDataUpdate) object;
             if (update.map != null) {
                 Log.info("Network", "Received map with size: " +
                     update.map.getWidth() + "x" +
                     update.map.getHeight() + "x" +
                     update.map.getDepth());
-
-                // Call postDeserialize to initialize transient fields
                 update.map.postDeserialize();
-
                 if (mapReceivedListener != null) {
                     mapReceivedListener.onMapReceived(update.toVoxelMap());
                 } else {
@@ -91,30 +88,4 @@ public class NetworkListener implements Listener {
             }
         }
     }
-
-    private void handleCubeRotationUpdate(CubeRotationUpdate update, Connection sender) {
-        Log.info("Network", "Handling rotation update. Server: " + (server != null) + ", Listener: " + (rotationListener != null));
-
-        // If we're a server, forward the update to all clients except the sender
-        if (server != null) {
-            Log.info("Network", "Forwarding update to all clients except " + sender.getID());
-            server.sendToAllExceptTCP(sender.getID(), update);
-        }
-
-        // If we're a client or server, notify the local listener
-        if (rotationListener != null) {
-            Log.info("Network", "Notifying rotation listener of update");
-            rotationListener.onCubeRotationUpdate(update.getRotation());
-        } else {
-            Log.warn("Network", "No rotation listener set to handle update");
-        }
-    }
-
-//    /**
-//     * Called when an error occurs.
-//     */
-//    @Override
-//    public void onError(Connection connection, Throwable throwable) {
-//        Log.error("Network", "Error: " + throwable.getMessage(), throwable);
-//    }
 }

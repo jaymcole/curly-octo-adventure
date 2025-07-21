@@ -6,6 +6,7 @@ import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.VoxelMap;
+import curly.octo.network.messages.MapDataUpdate;
 
 import java.io.IOException;
 
@@ -16,7 +17,6 @@ public class GameServer {
     private final Server server;
     private final NetworkListener networkListener;
     private final VoxelMap map;
-    private CubeRotationListener rotationListener;
 
     public GameServer(VoxelMap map) {
         this.map = map;
@@ -27,11 +27,11 @@ public class GameServer {
         Network.register(server);
 
         // Set up network listener
-        networkListener.setRotationListener(rotation -> {
-            if (this.rotationListener != null) {
-                this.rotationListener.onCubeRotationUpdate(rotation);
-            }
-        });
+//        networkListener.setRotationListener(rotation -> {
+//            if (this.rotationListener != null) {
+//                this.rotationListener.onCubeRotationUpdate(rotation);
+//            }
+//        });
 
         // Add connection listener for logging
         server.addListener(new Listener() {
@@ -76,36 +76,28 @@ public class GameServer {
         return server;
     }
 
-    /**
-     * Broadcasts a cube rotation update to all connected clients
-     * @param rotation the rotation to broadcast
-     */
-    public void broadcastCubeRotation(Quaternion rotation) {
-        if (server != null) {
-            CubeRotationUpdate update = new CubeRotationUpdate(rotation);
-            Log.info("Server", "Broadcasting rotation update: " +
-                String.format("x=%.2f, y=%.2f, z=%.2f, w=%.2f",
-                    update.x, update.y, update.z, update.w));
-            server.sendToAllTCP(update);
-        } else {
-            Log.warn("Server", "Cannot broadcast rotation - server is null");
-        }
-    }
+//    /**
+//     * Broadcasts a cube rotation update to all connected clients
+//     * @param rotation the rotation to broadcast
+//     */
+//    public void broadcastCubeRotation(Quaternion rotation) {
+//        if (server != null) {
+//            curly.octo.network.messages.CubeRotationUpdate update = new CubeRotationUpdate(rotation);
+//            Log.info("Server", "Broadcasting rotation update: " +
+//                String.format("x=%.2f, y=%.2f, z=%.2f, w=%.2f",
+//                    update.x, update.y, update.z, update.w));
+//            server.sendToAllTCP(update);
+//        } else {
+//            Log.warn("Server", "Cannot broadcast rotation - server is null");
+//        }
+//    }
 
     public void sendMapRefreshToUser(Connection connection) {
         Log.info("Server", "Sending map data to client " + connection.getID());
-        MapDataUpdate mapUpdate = new MapDataUpdate(map);
+        curly.octo.network.messages.MapDataUpdate mapUpdate = new MapDataUpdate(map);
         Log.info("Server", "Created MapDataUpdate with map size: " + map.getWidth() + "x" + map.getHeight() + "x" + map.getDepth());
         server.sendToTCP(connection.getID(), mapUpdate);
         Log.info("Server", "Map data sent to client " + connection.getID());
 
-    }
-
-    /**
-     * Sets the rotation listener for receiving updates
-     * @param listener the listener to notify of rotation updates
-     */
-    public void setRotationListener(CubeRotationListener listener) {
-        this.rotationListener = listener;
     }
 }

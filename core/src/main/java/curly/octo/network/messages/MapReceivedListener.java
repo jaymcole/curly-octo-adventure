@@ -1,4 +1,4 @@
-package curly.octo.network;
+package curly.octo.network.messages;
 
 import curly.octo.map.VoxelMap;
 
