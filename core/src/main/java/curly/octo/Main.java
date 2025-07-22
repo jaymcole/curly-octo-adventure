@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Align;
 import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.player.PlayerController;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
@@ -23,20 +24,21 @@ import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.List;
 
 /**
  * Main game class with network setup UI.
  * Allows starting a server or connecting as a client.
  */
 public class Main extends ApplicationAdapter {
-    private Stage stage;
-    private Table table;
+    private Stage lobbyStage;
     private TextButton startServerButton;
     private TextButton connectButton;
     private TextField ipAddressField;
     private Label statusLabel;
     private Random random;
+
+    private Stage debugStage;
+    private Label debugClientIPAddressLabel;
 
     private GameServer gameServer;
     private GameClient gameClient;
@@ -60,7 +62,7 @@ public class Main extends ApplicationAdapter {
 
     // Networking
     private float positionUpdateTimer = 0;
-    private static final float POSITION_UPDATE_INTERVAL = 1/20f; // 20 updates per second
+    private static final float POSITION_UPDATE_INTERVAL = 1/60f; // 20 updates per second
 
     /**
      * Creates a new instance of the game.
@@ -93,16 +95,19 @@ public class Main extends ApplicationAdapter {
         // Initialize voxel renderer
         voxelMapRenderer = new VoxelMapRenderer();
 
-        // Create stage for UI
-        stage = new Stage(new ScreenViewport());
+        createLobbyStage();
+        createDebugStage();
+        Gdx.input.setInputProcessor(lobbyStage);
+    }
 
-        // Set initial input processor to stage
-        Gdx.input.setInputProcessor(stage);
+    private void createLobbyStage() {
+        // Create stage for UI
+        lobbyStage = new Stage(new ScreenViewport());
 
         // If we were launched with command line args, skip the UI
-        table = new Table();
-        table.setFillParent(true);
-        stage.addActor(table);
+        Table lobbyTable = new Table();
+        lobbyTable.setFillParent(true);
+        lobbyStage.addActor(lobbyTable);
 
         // Create UI elements
         Skin skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
@@ -127,13 +132,51 @@ public class Main extends ApplicationAdapter {
         });
 
         // Layout
-        table.add(statusLabel).colspan(2).pad(10);
-        table.row();
-        table.add(ipAddressField).width(200).pad(5);
-        table.add(connectButton).pad(5);
-        table.row();
-        table.add(startServerButton).colspan(2).pad(5);
+        lobbyTable.add(statusLabel).colspan(2).pad(10);
+        lobbyTable.row();
+        lobbyTable.add(ipAddressField).width(200).pad(5);
+        lobbyTable.add(connectButton).pad(5);
+        lobbyTable.row();
+        lobbyTable.add(startServerButton).colspan(2).pad(5);
     }
+    private void createDebugStage() {
+        debugStage = new Stage(new ScreenViewport());
+
+        Table debugTable = new Table();
+        debugTable.setFillParent(true);
+        debugTable.align(Align.topLeft);
+        debugStage.addActor(debugTable);
+
+        Skin skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
+        // Get local IP address
+        String ipAddress = "Local IP: ";
+        try {
+            Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                java.net.NetworkInterface iface = interfaces.nextElement();
+                // Skip loopback and inactive interfaces
+                if (iface.isLoopback() || !iface.isUp()) continue;
+
+                Enumeration<java.net.InetAddress> addresses = iface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    java.net.InetAddress addr = addresses.nextElement();
+                    // Skip loopback and link-local addresses
+                    if (addr.isLoopbackAddress() || addr.isLinkLocalAddress()) continue;
+
+                    // Use the first non-loopback, non-link-local address
+                    ipAddress += addr.getHostAddress();
+                    break;
+                }
+                if (!ipAddress.equals("Local IP: ")) break;
+            }
+        } catch (Exception e) {
+            ipAddress = "Could not determine IP";
+        }
+
+        debugClientIPAddressLabel = new Label(ipAddress, skin);
+        debugTable.add(debugClientIPAddressLabel).pad(10);
+    }
+
 
     private void startServer() {
         try {
@@ -265,10 +308,6 @@ public class Main extends ApplicationAdapter {
         }
     }
 
-    private void assignCommonListeners() {
-
-    }
-
     private void setPlayer(long localPlayerId) {
         this.localPlayerId = localPlayerId;
         if (players != null && !players.isEmpty()) {
@@ -284,9 +323,9 @@ public class Main extends ApplicationAdapter {
     }
 
     private void updateUIForServer() {
-        if (stage != null) {
-            stage.clear();
-            stage.addActor(statusLabel);
+        if (lobbyStage != null) {
+            lobbyStage.clear();
+            lobbyStage.addActor(statusLabel);
         }
         if (startServerButton != null) startServerButton.setDisabled(true);
         if (connectButton != null) connectButton.setDisabled(true);
@@ -342,15 +381,18 @@ public class Main extends ApplicationAdapter {
 
         // Update and draw UI if visible
         if (showUI) {
-            stage.act(Math.min(deltaTime, 1 / 30f));
-            stage.draw();
+            lobbyStage.act(Math.min(deltaTime, 1 / 30f));
+            lobbyStage.draw();
         }
+
+        debugStage.act(Math.min(deltaTime, 1 / 30f));
+        debugStage.draw();
     }
 
     @Override
     public void resize(int width, int height) {
         // Update viewport for 2D UI
-        stage.getViewport().update(width, height, true);
+        lobbyStage.getViewport().update(width, height, true);
 
         // Update camera for 3D view
         if (localPlayerController != null) {
@@ -369,6 +411,7 @@ public class Main extends ApplicationAdapter {
         if (voxelMapRenderer != null) {
             voxelMapRenderer.disposeAll();
         }
-        stage.dispose();
+        lobbyStage.dispose();
+        debugStage.dispose();
     }
 }
