@@ -108,19 +108,36 @@ public class GameServer {
      * Starts the server and binds it to the specified ports.
      * @throws IOException if the server fails to start or bind to the ports
      */
+    /**
+     * Starts the server, binds to the configured ports, and attempts to set up port forwarding.
+     * @throws IOException if the server fails to start or bind to the ports
+     */
     public void start() throws IOException {
         server.start();
         server.bind(Network.TCP_PORT, Network.UDP_PORT);
         Log.info("Server", "Server started on TCP port " + Network.TCP_PORT + " and UDP port " + Network.UDP_PORT);
+        
+        // Attempt to set up port forwarding
+        if (Network.setupPortForwarding("Game Server")) {
+            Log.info("Server", "Successfully set up port forwarding");
+        } else {
+            Log.warn("Server", "Failed to set up automatic port forwarding. Players may not be able to connect from the internet.");
+            Log.warn("Server", "Please configure port forwarding manually in your router settings if needed.");
+        }
     }
 
     /**
      * Stops the server and releases all resources.
      */
+    /**
+     * Stops the server and cleans up any port forwarding rules.
+     */
     public void stop() {
         if (server != null) {
+            // Remove port forwarding rules
+            Network.removePortForwarding();
             server.stop();
-            Log.info("Server", "Server stopped");
+            Log.info("Server", "Server stopped and port forwarding rules removed");
         }
     }
 

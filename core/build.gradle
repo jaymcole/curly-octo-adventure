@@ -16,6 +16,7 @@ dependencies {
   
   // Networking
   api "com.github.crykn:kryonet:$kryoNetVersion"
+  implementation 'org.bitlet:weupnp:0.1.4'
   
   // Desktop-specific
   api "com.badlogicgames.gdx:gdx-backend-lwjgl3:$gdxVersion"

@@ -1,8 +1,11 @@
 package curly.octo.network;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
+import org.bitlet.weupnp.GatewayDevice;
+import org.bitlet.weupnp.GatewayDiscover;
 import curly.octo.map.VoxelMap;
 import curly.octo.map.VoxelType;
 import curly.octo.network.messages.MapDataUpdate;
@@ -10,6 +13,8 @@ import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerRosterUpdate;
 import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.player.PlayerController;
+
+import java.net.InetAddress;
 
 /**
  * Base class for network-related functionality.
@@ -19,6 +24,7 @@ public class Network {
     // This is the TCP and UDP port that the server will listen on.
     public static final int TCP_PORT = 54555;
     public static final int UDP_PORT = 54777;
+    private static GatewayDevice activeGateway = null;
 
     // This registers objects that will be sent over the network.
     public static void register(EndPoint endPoint) {
@@ -54,10 +60,72 @@ public class Network {
         kryo.register(PlayerController[].class);
         kryo.register(PlayerController.class);
         kryo.register(Color.class);
+//        kryo.register(PlayerRosterUpdate.RosterEntry[].class);
         kryo.register(PlayerRosterUpdate.class);
         kryo.register(PlayerAssignmentUpdate.class);
 
         // Register VoxelMap class
         kryo.register(VoxelMap.class);
+    }
+
+    /**
+     * Attempts to forward ports using UPnP.
+     * @param description Description for the port mapping
+     * @return true if port forwarding was successful, false otherwise
+     */
+    public static boolean setupPortForwarding(String description) {
+        try {
+            // Discover the gateway device
+            GatewayDiscover discover = new GatewayDiscover();
+            discover.discover();
+
+            activeGateway = discover.getValidGateway();
+            if (activeGateway == null) {
+                Gdx.app.log("Network", "No valid gateway device found");
+                return false;
+            }
+
+            // Get local IP address
+            InetAddress localAddress = activeGateway.getLocalAddress();
+            String localIP = localAddress.getHostAddress();
+
+            // Forward TCP port
+            boolean tcpSuccess = activeGateway.addPortMapping(
+                    TCP_PORT, TCP_PORT, localIP, "TCP",
+                    "Curly Octo " + description + " (TCP)");
+
+            // Forward UDP port
+            boolean udpSuccess = activeGateway.addPortMapping(
+                    UDP_PORT, UDP_PORT, localIP, "UDP",
+                    "Curly Octo " + description + " (UDP)");
+
+            if (tcpSuccess && udpSuccess) {
+                Gdx.app.log("Network", "Successfully forwarded ports " + TCP_PORT + "(TCP) and " +
+                        UDP_PORT + "(UDP) to " + localIP);
+                return true;
+            } else {
+                Gdx.app.error("Network", "Failed to forward one or more ports");
+                return false;
+            }
+
+        } catch (Exception e) {
+            Gdx.app.error("Network", "Error setting up port forwarding: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Removes the port forwarding rules that were previously set up.
+     */
+    public static void removePortForwarding() {
+        if (activeGateway != null) {
+            try {
+                activeGateway.deletePortMapping(TCP_PORT, "TCP");
+                activeGateway.deletePortMapping(UDP_PORT, "UDP");
+                Gdx.app.log("Network", "Removed port forwarding rules");
+            } catch (Exception e) {
+                Gdx.app.error("Network", "Error removing port forwarding: " + e.getMessage());
+            }
+        }
     }
 }
