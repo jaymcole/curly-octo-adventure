@@ -149,28 +149,38 @@ public class Main extends ApplicationAdapter {
 
         Skin skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
         // Get local IP address
-        String ipAddress = "Local IP: ";
+        // String ipAddress = "Local IP: ";
+        // try {
+        //     Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
+        //     while (interfaces.hasMoreElements()) {
+        //         java.net.NetworkInterface iface = interfaces.nextElement();
+        //         // Skip loopback and inactive interfaces
+        //         if (iface.isLoopback() || !iface.isUp()) continue;
+
+        //         Enumeration<java.net.InetAddress> addresses = iface.getInetAddresses();
+        //         while (addresses.hasMoreElements()) {
+        //             java.net.InetAddress addr = addresses.nextElement();
+        //             // Skip loopback and link-local addresses
+        //             if (addr.isLoopbackAddress() || addr.isLinkLocalAddress()) continue;
+
+        //             // Use the first non-loopback, non-link-local address
+        //             ipAddress += addr.getHostAddress();
+        //             break;
+        //         }
+        //         if (!ipAddress.equals("Local IP: ")) break;
+        //     }
+        // } catch (Exception e) {
+        //     ipAddress = "Could not determine IP";
+        // }
+
+        String ipAddress = "Public IP: ";
         try {
-            Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()) {
-                java.net.NetworkInterface iface = interfaces.nextElement();
-                // Skip loopback and inactive interfaces
-                if (iface.isLoopback() || !iface.isUp()) continue;
-
-                Enumeration<java.net.InetAddress> addresses = iface.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    java.net.InetAddress addr = addresses.nextElement();
-                    // Skip loopback and link-local addresses
-                    if (addr.isLoopbackAddress() || addr.isLinkLocalAddress()) continue;
-
-                    // Use the first non-loopback, non-link-local address
-                    ipAddress += addr.getHostAddress();
-                    break;
-                }
-                if (!ipAddress.equals("Local IP: ")) break;
-            }
+            URL url = new URL("https://api.ipify.org");
+            Scanner s = new Scanner(url.openStream(), "UTF-8").useDelimiter("\\A");
+            ipAddress += s.hasNext() ? s.next() : "Unavailable";
+            s.close();
         } catch (Exception e) {
-            ipAddress = "Could not determine IP";
+            ipAddress = "Could not determine public IP";
         }
 
         debugClientIPAddressLabel = new Label(ipAddress, skin);
