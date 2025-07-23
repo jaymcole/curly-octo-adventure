@@ -356,8 +356,8 @@ public class Main extends ApplicationAdapter {
         float radius = 100f; // Radius of the sun's circular path
         float sunX = (float) Math.cos(sunAngle) * radius;
         float sunZ = (float) Math.sin(sunAngle) * radius;
-        sun.setDirection(new Vector3(-sunX, 0.9f, -sunZ).nor());
-
+        sun.setDirection(new Vector3(-sunX, -0.8f, sunZ + random.nextFloat()).nor());
+//        -1f, -0.8f, -0.2f
         float deltaTime = Gdx.graphics.getDeltaTime();
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);

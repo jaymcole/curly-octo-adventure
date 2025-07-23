@@ -50,8 +50,8 @@ public class GameMapRenderer implements Disposable {
         Material dirtMaterial = new Material();
         dirtMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.BROWN));
 
-        Material spawnMaterial = new Material();
-        spawnMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.GREEN));
+        Material grassMaterial = new Material();
+        grassMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.GREEN));
 
         // Create mesh parts for each material type
 
@@ -61,11 +61,24 @@ public class GameMapRenderer implements Disposable {
                 for (int z = 0; z < map.getDepth(); z++) {
                     MapTile tile = map.getTile(x, y, z);
                     if (tile.geometryType != MapTileGeometryType.EMPTY) {
+
+                        Material material = stoneMaterial;
+                        switch (tile.material) {
+                            case DIRT:
+                                material = dirtMaterial;
+                                break;
+                            case GRASS:
+                                material = grassMaterial;
+                                break;
+                            case STONE:
+                                material = stoneMaterial;
+                        }
+
                         modelBuilder.node();
-                        MeshPartBuilder meshPartBuilder = modelBuilder.part("stone",
+                        MeshPartBuilder meshPartBuilder = modelBuilder.part("ground",
                             GL20.GL_TRIANGLES,
                             Usage.Position | Usage.Normal,
-                            stoneMaterial);
+                            material);
 
                         switch(tile.geometryType) {
                         case HALF:

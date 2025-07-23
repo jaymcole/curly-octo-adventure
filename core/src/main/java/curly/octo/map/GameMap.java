@@ -3,6 +3,9 @@ package curly.octo.map;
 import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.enums.MapTileMaterial;
+
+import java.util.Random;
 
 /**
  * Handles the generation and management of a voxel-based dungeon map.
@@ -12,7 +15,7 @@ public class GameMap {
     private final int height;
     private final int depth;
     private final MapTile[][][] map;
-//    private transient Random random;
+    private transient Random random;
     private final long seed;
 
     // Default constructor required for Kryo
@@ -27,7 +30,7 @@ public class GameMap {
         this.depth = depth;
         this.seed = seed;
         this.map = new MapTile[width][height][depth];
-//        this.random = new Random(seed);
+        this.random = new Random(seed);
 
         // Initialize the entire map as empty air
         for (int x = 0; x < width; x++) {
@@ -48,32 +51,43 @@ public class GameMap {
      */
     public void generateDungeon() {
 
+        for(int x = 0; x < width; x++) {
+            for (int z = 0; z < depth; z++) {
+                map[x][0][z].geometryType = MapTileGeometryType.FULL;
+                if (random.nextBoolean()) {
+                    map[x][0][z].material = MapTileMaterial.GRASS;
+                } else {
+                    map[x][0][z].material = MapTileMaterial.DIRT;
+                }
+            }
+        }
+
         int xIndex = 6;
         int zIndex = 0;
         for (MapTileGeometryType type : MapTileGeometryType.values()) {
             for (MapTileFillType fill : MapTileFillType.values()) {
-                map[xIndex][0][zIndex].geometryType = type;
-                map[xIndex][0][zIndex].fillType = fill;
+                map[xIndex][1][zIndex].geometryType = type;
+                map[xIndex][1][zIndex].fillType = fill;
                 zIndex += 2;
             }
             zIndex = 0;
             xIndex += 2;
         }
 
-        map[2][0][1].direction = CardinalDirection.NORTH;
-        map[2][0][1].geometryType = MapTileGeometryType.SLAT;
+        map[2][1][1].direction = CardinalDirection.NORTH;
+        map[2][1][1].geometryType = MapTileGeometryType.SLAT;
 
-        map[1][0][2].direction = CardinalDirection.EAST;
-        map[1][0][2].geometryType = MapTileGeometryType.SLAT;
+        map[1][1][2].direction = CardinalDirection.EAST;
+        map[1][1][2].geometryType = MapTileGeometryType.SLAT;
 
-        map[0][0][1].direction = CardinalDirection.SOUTH;
-        map[0][0][1].geometryType = MapTileGeometryType.SLAT;
+        map[0][1][1].direction = CardinalDirection.SOUTH;
+        map[0][1][1].geometryType = MapTileGeometryType.SLAT;
 
-        map[1][0][0].direction = CardinalDirection.WEST;
-        map[1][0][0].geometryType = MapTileGeometryType.SLAT;
+        map[1][1][0].direction = CardinalDirection.WEST;
+        map[1][1][0].geometryType = MapTileGeometryType.SLAT;
 
 
-        map[1][0][1].geometryType = MapTileGeometryType.FULL;
+        map[1][1][1].geometryType = MapTileGeometryType.FULL;
     }
 
     public MapTile getTile(int x, int y, int z) {
