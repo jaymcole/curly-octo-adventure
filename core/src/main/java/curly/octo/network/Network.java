@@ -6,8 +6,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
 import org.bitlet.weupnp.GatewayDevice;
 import org.bitlet.weupnp.GatewayDiscover;
-import curly.octo.map.VoxelMap;
-import curly.octo.map.VoxelType;
+import curly.octo.map.GameMap;
+import curly.octo.map.enums.MapTileFillType;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerRosterUpdate;
@@ -47,10 +47,10 @@ public class Network {
         kryo.register(com.badlogic.gdx.math.Quaternion.class);
 
         // Register enum types
-        kryo.register(VoxelType.class);
-        kryo.register(VoxelType[].class);
-        kryo.register(VoxelType[][].class);
-        kryo.register(VoxelType[][][].class);
+        kryo.register(MapTileFillType.class);
+        kryo.register(MapTileFillType[].class);
+        kryo.register(MapTileFillType[][].class);
+        kryo.register(MapTileFillType[][][].class);
 
         // Register network message classes
         kryo.register(MapDataUpdate.class);
@@ -65,7 +65,7 @@ public class Network {
         kryo.register(PlayerAssignmentUpdate.class);
 
         // Register VoxelMap class
-        kryo.register(VoxelMap.class);
+        kryo.register(GameMap.class);
     }
 
     /**

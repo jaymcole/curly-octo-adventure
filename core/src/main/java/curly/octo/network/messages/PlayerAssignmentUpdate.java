@@ -1,7 +1,5 @@
 package curly.octo.network.messages;
 
-import curly.octo.map.VoxelMap;
-
 public class PlayerAssignmentUpdate {
     public long playerId;
 

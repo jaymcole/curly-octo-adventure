@@ -1,12 +1,11 @@
 package curly.octo.network;
 
-import com.badlogic.gdx.math.Quaternion;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.map.VoxelMap;
+import curly.octo.map.GameMap;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerRosterUpdate;
@@ -24,10 +23,10 @@ import java.util.Random;
 public class GameServer {
     private final Server server;
     private final NetworkListener networkListener;
-    private final VoxelMap map;
+    private final GameMap map;
     private final List<PlayerController> players;
 
-    public GameServer(Random random, VoxelMap map, List<PlayerController> players) {
+    public GameServer(Random random, GameMap map, List<PlayerController> players) {
         this.map = map;
         this.players = players;
         this.server = new Server(655360, 655360);
@@ -116,7 +115,7 @@ public class GameServer {
         server.start();
         server.bind(Network.TCP_PORT, Network.UDP_PORT);
         Log.info("Server", "Server started on TCP port " + Network.TCP_PORT + " and UDP port " + Network.UDP_PORT);
-        
+
         // Attempt to set up port forwarding
         if (Network.setupPortForwarding("Game Server")) {
             Log.info("Server", "Successfully set up port forwarding");

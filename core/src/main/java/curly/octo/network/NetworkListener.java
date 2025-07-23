@@ -81,7 +81,6 @@ public class NetworkListener implements Listener {
                     update.map.getWidth() + "x" +
                     update.map.getHeight() + "x" +
                     update.map.getDepth());
-                update.map.postDeserialize();
                 if (mapReceivedListener != null) {
                     mapReceivedListener.onMapReceived(update.toVoxelMap());
                 } else {
@@ -100,7 +99,7 @@ public class NetworkListener implements Listener {
             playerAssignmentListener.onPlayerAssignmentReceived(update);
         } else if (object instanceof PlayerUpdate) {
             PlayerUpdate update = (PlayerUpdate) object;
-            Log.info("Network", "Received player update for " + update.playerId + " at (" + 
+            Log.info("Network", "Received player update for " + update.playerId + " at (" +
                 update.x + ", " + update.y + ", " + update.z + ")");
             if (playerUpdateListener != null) {
                 playerUpdateListener.onPlayerUpdateReceived(update);

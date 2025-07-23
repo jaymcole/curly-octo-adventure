@@ -15,8 +15,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.map.VoxelMap;
-import curly.octo.map.VoxelMapRenderer;
+import curly.octo.map.GameMap;
+import curly.octo.map.GameMapRenderer;
 import curly.octo.network.GameClient;
 import curly.octo.network.GameServer;
 import curly.octo.network.Network;
@@ -40,13 +40,14 @@ public class Main extends ApplicationAdapter {
 
     private Stage debugStage;
     private Label debugClientIPAddressLabel;
+    private Label fpsLabel;
 
     private GameServer gameServer;
     private GameClient gameClient;
 
     // Voxel map components
-    private VoxelMap voxelMap;
-    private VoxelMapRenderer voxelMapRenderer;
+    private GameMap voxelMap;
+    private GameMapRenderer voxelMapRenderer;
     private boolean showUI = true;
 
     private final boolean isServer;
@@ -64,6 +65,8 @@ public class Main extends ApplicationAdapter {
     // Networking
     private float positionUpdateTimer = 0;
     private static final float POSITION_UPDATE_INTERVAL = 1/60f; // 20 updates per second
+
+    private DirectionalLight sun;
 
     /**
      * Creates a new instance of the game.
@@ -91,10 +94,12 @@ public class Main extends ApplicationAdapter {
         // Setup 3D environment
         environment = new Environment();
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
-        environment.add(new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f));
+        sun = new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f);
+
+        environment.add(sun);
 
         // Initialize voxel renderer
-        voxelMapRenderer = new VoxelMapRenderer();
+        voxelMapRenderer = new GameMapRenderer();
 
         createLobbyStage();
         createDebugStage();
@@ -186,11 +191,16 @@ public class Main extends ApplicationAdapter {
 
         debugClientIPAddressLabel = new Label(ipAddress, skin);
         debugTable.add(debugClientIPAddressLabel).pad(10);
-    }
 
+        debugTable.row();
+
+        fpsLabel = new Label("...", skin);
+        debugTable.add(fpsLabel).pad(10);
+    }
 
     private void startServer() {
         try {
+
             localPlayerController = PlayerUtilities.createPlayerController(random);
             localPlayerId = localPlayerController.getPlayerId();
             localPlayerController.setVelocity(20f); // Adjust movement speed as needed
@@ -199,7 +209,7 @@ public class Main extends ApplicationAdapter {
 
             // Generate map before starting server
             if (voxelMap == null) {
-                voxelMap = new VoxelMap(64, 16, 64, System.currentTimeMillis());
+                voxelMap = new GameMap(16, 16, 16, System.currentTimeMillis());
                 voxelMap.generateDungeon();
                 voxelMapRenderer.updateMap(voxelMap);
             }
@@ -355,17 +365,27 @@ public class Main extends ApplicationAdapter {
         }
     }
 
+
+    private float sunAngle = 0f;
+
     @Override
     public void render() {
+        // Update sun position in a circular motion
+        sunAngle += Gdx.graphics.getDeltaTime() * 1f; // Adjust rotation speed as needed
+        float radius = 100f; // Radius of the sun's circular path
+        float sunX = (float) Math.cos(sunAngle) * radius;
+        float sunZ = (float) Math.sin(sunAngle) * radius;
+        sun.setDirection(new Vector3(-sunX, -0.7f, -sunZ).nor());
+
         float deltaTime = Gdx.graphics.getDeltaTime();
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
-
+        fpsLabel.setText("FPS: " + Gdx.graphics.getFramesPerSecond());
         if (show3DView) {
             // Update camera and player position
             if (localPlayerController != null) {
                 localPlayerController.update(deltaTime);
-                voxelMapRenderer.render(localPlayerController.getCamera());
+                voxelMapRenderer.render(localPlayerController.getCamera(), environment);
 
                 // Handle periodic position updates
                 positionUpdateTimer += deltaTime;

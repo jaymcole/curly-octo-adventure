@@ -4,33 +4,33 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoSerializable;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import curly.octo.map.VoxelMap;
+import curly.octo.map.GameMap;
 
 /**
  * Network message for sending map data from server to clients.
  */
 public class MapDataUpdate implements KryoSerializable {
-    public VoxelMap map;
+    public GameMap map;
 
     public MapDataUpdate() {
         // Default constructor required for Kryo
     }
 
-    public MapDataUpdate(VoxelMap map) {
+    public MapDataUpdate(GameMap map) {
         this.map = map;
     }
 
     @Override
     public void write(Kryo kryo, Output output) {
-        kryo.writeObjectOrNull(output, map, VoxelMap.class);
+        kryo.writeObjectOrNull(output, map, GameMap.class);
     }
 
     @Override
     public void read(Kryo kryo, Input input) {
-        this.map = kryo.readObjectOrNull(input, VoxelMap.class);
+        this.map = kryo.readObjectOrNull(input, GameMap.class);
     }
 
-    public VoxelMap toVoxelMap() {
+    public GameMap toVoxelMap() {
         return map;
     }
 }
