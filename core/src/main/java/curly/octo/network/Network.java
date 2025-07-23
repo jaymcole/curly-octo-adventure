@@ -4,6 +4,9 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
+import curly.octo.map.MapTile;
+import curly.octo.map.enums.CardinalDirection;
+import curly.octo.map.enums.MapTileGeometryType;
 import org.bitlet.weupnp.GatewayDevice;
 import org.bitlet.weupnp.GatewayDiscover;
 import curly.octo.map.GameMap;
@@ -48,9 +51,12 @@ public class Network {
 
         // Register enum types
         kryo.register(MapTileFillType.class);
-        kryo.register(MapTileFillType[].class);
-        kryo.register(MapTileFillType[][].class);
-        kryo.register(MapTileFillType[][][].class);
+        kryo.register(MapTileGeometryType.class);
+        kryo.register(CardinalDirection.class);
+        kryo.register(MapTile.class);
+        kryo.register(MapTile[].class);
+        kryo.register(MapTile[][].class);
+        kryo.register(MapTile[][][].class);
 
         // Register network message classes
         kryo.register(MapDataUpdate.class);

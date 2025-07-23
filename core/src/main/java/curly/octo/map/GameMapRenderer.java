@@ -72,6 +72,7 @@ public class GameMapRenderer implements Disposable {
                             BoxShapeBuilder.build(meshPartBuilder, tile.x, tile.y - (MapTile.TILE_SIZE / 4.0f), tile.z, MapTile.TILE_SIZE, MapTile.TILE_SIZE / 2.0f, MapTile.TILE_SIZE);
                             break;
                         case SLAT:
+                        case HALF_SLANT:
                             buildSlant(meshPartBuilder, tile);
                             break;
                         default:
@@ -110,6 +111,10 @@ public class GameMapRenderer implements Disposable {
         float maxY = tile.y + vertexOffset;
         float minZ = tile.z - vertexOffset;
         float maxZ = tile.z + vertexOffset;
+
+        if (tile.geometryType == MapTileGeometryType.HALF_SLANT) {
+            maxY -= (vertexOffset);
+        }
 
         Vector3 v000 = new Vector3(minX, minY, minZ);
         Vector3 v001 = new Vector3(minX, minY, maxZ);

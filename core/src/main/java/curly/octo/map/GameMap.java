@@ -4,18 +4,16 @@ import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
 
-import java.util.Random;
-
 /**
  * Handles the generation and management of a voxel-based dungeon map.
  */
 public class GameMap {
-    private int width;
-    private int height;
-    private int depth;
-    private MapTile[][][] map;
-    private transient Random random;
-    private long seed;
+    private final int width;
+    private final int height;
+    private final int depth;
+    private final MapTile[][][] map;
+//    private transient Random random;
+    private final long seed;
 
     // Default constructor required for Kryo
     public GameMap() {
@@ -29,7 +27,7 @@ public class GameMap {
         this.depth = depth;
         this.seed = seed;
         this.map = new MapTile[width][height][depth];
-        this.random = new Random(seed);
+//        this.random = new Random(seed);
 
         // Initialize the entire map as empty air
         for (int x = 0; x < width; x++) {
@@ -49,6 +47,7 @@ public class GameMap {
      * Generates a dungeon with rooms and corridors.
      */
     public void generateDungeon() {
+
         int xIndex = 6;
         int zIndex = 0;
         for (MapTileGeometryType type : MapTileGeometryType.values()) {
@@ -84,5 +83,4 @@ public class GameMap {
     public int getWidth() { return width; }
     public int getHeight() { return height; }
     public int getDepth() { return depth; }
-    public long getSeed() { return seed; }
 }

@@ -39,7 +39,6 @@ public class Main extends ApplicationAdapter {
     private Random random;
 
     private Stage debugStage;
-    private Label debugClientIPAddressLabel;
     private Label fpsLabel;
 
     private GameServer gameServer;
@@ -49,9 +48,6 @@ public class Main extends ApplicationAdapter {
     private GameMap voxelMap;
     private GameMapRenderer voxelMapRenderer;
     private boolean showUI = true;
-
-    private final boolean isServer;
-    private final String host;
 
     private ArrayList<PlayerController> players;
     private PlayerController localPlayerController;
@@ -68,22 +64,7 @@ public class Main extends ApplicationAdapter {
 
     private DirectionalLight sun;
 
-    /**
-     * Creates a new instance of the game.
-     * @param isServer Whether to start as a server (true) or client (false)
-     * @param host The host to connect to (only used in client mode)
-     */
-    public Main(boolean isServer, String host) {
-        this.isServer = isServer;
-        this.host = host != null ? host : "localhost";
-    }
-
-    /**
-     * Default constructor for backward compatibility.
-     * Starts as a client connecting to localhost.
-     */
     public Main() {
-        this(false, "localhost");
     }
 
     @Override
@@ -189,7 +170,7 @@ public class Main extends ApplicationAdapter {
             ipAddress = "Could not determine public IP";
         }
 
-        debugClientIPAddressLabel = new Label(ipAddress, skin);
+        Label debugClientIPAddressLabel = new Label(ipAddress, skin);
         debugTable.add(debugClientIPAddressLabel).pad(10);
 
         debugTable.row();
@@ -209,7 +190,7 @@ public class Main extends ApplicationAdapter {
 
             // Generate map before starting server
             if (voxelMap == null) {
-                voxelMap = new GameMap(16, 16, 16, System.currentTimeMillis());
+                voxelMap = new GameMap(64, 6, 64, System.currentTimeMillis());
                 voxelMap.generateDungeon();
                 voxelMapRenderer.updateMap(voxelMap);
             }
@@ -375,7 +356,7 @@ public class Main extends ApplicationAdapter {
         float radius = 100f; // Radius of the sun's circular path
         float sunX = (float) Math.cos(sunAngle) * radius;
         float sunZ = (float) Math.sin(sunAngle) * radius;
-        sun.setDirection(new Vector3(-sunX, -0.7f, -sunZ).nor());
+        sun.setDirection(new Vector3(-sunX, 0.9f, -sunZ).nor());
 
         float deltaTime = Gdx.graphics.getDeltaTime();
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
