@@ -39,6 +39,12 @@ public class PlayerController extends InputAdapter  {
     private final Vector3 direction = new Vector3();
     private final float dragCoefficient = 0.95f;
 
+    // Add these fields to track yaw and pitch
+    private float yaw = 0f;   // Horizontal angle, in degrees
+    private float pitch = 0f; // Vertical angle, in degrees
+    private static final float MAX_PITCH = 89f;
+    private static final float MIN_PITCH = -89f;
+
     private long playerId;
     private float velocity = 500f;
     private GameMap gameMap;
@@ -49,8 +55,9 @@ public class PlayerController extends InputAdapter  {
     public PlayerController() {
         // Initialize camera with default values
         position.set(15, 100, 15);
-        direction.set(0, 0, -1);
-
+        yaw = 0f;
+        pitch = 0f;
+        updateDirectionFromAngles();
         // Initialize camera on the OpenGL thread
         Gdx.app.postRunnable(this::initialize);
     }
@@ -123,7 +130,7 @@ public class PlayerController extends InputAdapter  {
 
         try {
             // Position the model 2 units in front of the camera
-            Vector3 modelPosition = new Vector3(camera.position);
+            Vector3 modelPosition = new Vector3(position);
 
             // Update model transform
             placeHolderModelInstance.transform.idt();
@@ -252,7 +259,7 @@ public class PlayerController extends InputAdapter  {
 
     private boolean collidesWithMap(Vector3 pos) {
         if (gameMap == null) return false;
-        MapTile tile = gameMap.getTileFromWorldCoordinates(pos.x, pos.y - playerHeight, pos.z);
+        MapTile tile = gameMap.getTileFromWorldCoordinates(pos.x, pos.y, pos.z);
         if (tile != null && tile.geometryType != MapTileGeometryType.EMPTY) {
             return true;
         }
