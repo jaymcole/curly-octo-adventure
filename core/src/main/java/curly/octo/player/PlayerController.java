@@ -242,8 +242,9 @@ public class PlayerController extends InputAdapter  {
     private void updateCamera() {
         // Update camera position and direction
         camera.position.set(position);
+        camera.position.y += playerHeight;
         // Calculate target point in front of the camera
-        tmp.set(direction).add(position);
+        tmp.set(direction).add(camera.position);
         camera.lookAt(tmp);
         camera.up.set(Vector3.Y);
         camera.update();
@@ -291,26 +292,27 @@ public class PlayerController extends InputAdapter  {
             lastX = screenX;
             lastY = screenY;
 
-            // Rotate horizontally (around Y axis)
-            direction.rotate(Vector3.Y, -deltaX);
+            // Update yaw and pitch
+            yaw -= deltaX;
+            pitch += deltaY;
+            if (pitch > MAX_PITCH) pitch = MAX_PITCH;
+            if (pitch < MIN_PITCH) pitch = MIN_PITCH;
 
-            // Calculate right vector for vertical rotation
-            Vector3 right = new Vector3().set(direction).crs(Vector3.Y).nor();
-
-            // Rotate vertically (limit to prevent over-rotation)
-            float newAngle = (float)Math.acos(Vector3.Y.dot(direction.nor()));
-            if ((deltaY < 0 && newAngle > 0.1f) || (deltaY > 0 && newAngle < Math.PI - 0.1f)) {
-                direction.rotate(right, deltaY);
-            }
-
-            // Normalize direction to prevent drift
-            direction.nor();
-
-            // Update camera after rotation
+            updateDirectionFromAngles();
             updateCamera();
             return true;
         }
         return false;
+    }
+
+    // Helper to update the direction vector from yaw and pitch
+    private void updateDirectionFromAngles() {
+        float yawRad = (float)Math.toRadians(-yaw);
+        float pitchRad = (float)Math.toRadians(pitch);
+        direction.x = (float)(Math.cos(pitchRad) * Math.sin(yawRad));
+        direction.y = (float)(Math.sin(pitchRad));
+        direction.z = (float)(-Math.cos(pitchRad) * Math.cos(yawRad));
+        direction.nor();
     }
 
     @Override
