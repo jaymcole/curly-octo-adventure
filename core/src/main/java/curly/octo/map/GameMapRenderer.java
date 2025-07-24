@@ -82,14 +82,26 @@ public class GameMapRenderer implements Disposable {
 
                         switch(tile.geometryType) {
                         case HALF:
-                            BoxShapeBuilder.build(meshPartBuilder, tile.x, tile.y - (MapTile.TILE_SIZE / 4.0f), tile.z, MapTile.TILE_SIZE, MapTile.TILE_SIZE / 2.0f, MapTile.TILE_SIZE);
+                            BoxShapeBuilder.build(
+                                meshPartBuilder,
+                                tile.x + MapTile.TILE_SIZE / 2f,
+                                tile.y + MapTile.TILE_SIZE / 2f,
+                                tile.z + MapTile.TILE_SIZE / 2f,
+                                MapTile.TILE_SIZE, MapTile.TILE_SIZE, MapTile.TILE_SIZE
+                            );
                             break;
                         case SLAT:
                         case HALF_SLANT:
                             buildSlant(meshPartBuilder, tile);
                             break;
                         default:
-                            BoxShapeBuilder.build(meshPartBuilder, tile.x, tile.y, tile.z, MapTile.TILE_SIZE, MapTile.TILE_SIZE, MapTile.TILE_SIZE);
+                            BoxShapeBuilder.build(
+                                meshPartBuilder,
+                                tile.x + MapTile.TILE_SIZE / 2f,
+                                tile.y + MapTile.TILE_SIZE / 2f,
+                                tile.z + MapTile.TILE_SIZE / 2f,
+                                MapTile.TILE_SIZE, MapTile.TILE_SIZE, MapTile.TILE_SIZE
+                            );
                         }
 
                     }
@@ -104,26 +116,17 @@ public class GameMapRenderer implements Disposable {
         // Create a model instance for rendering
         instances.clear();
         instances.add(new ModelInstance(model));
-
-        // Center the model in the world
-        for (ModelInstance instance : instances) {
-            instance.transform.translate(
-                -map.getWidth() / 2f,
-                -map.getHeight() / 4f,  // Lower the model a bit
-                -map.getDepth() / 2f
-            );
-        }
     }
 
     private void buildSlant(MeshPartBuilder meshPartBuilder, MapTile tile) {
         float vertexOffset = MapTile.TILE_SIZE / 2.0f;
 
-        float minX = tile.x - vertexOffset;
-        float maxX = tile.x + vertexOffset;
-        float minY = tile.y - vertexOffset;
-        float maxY = tile.y + vertexOffset;
-        float minZ = tile.z - vertexOffset;
-        float maxZ = tile.z + vertexOffset;
+        float minX = tile.x + MapTile.TILE_SIZE / 2.0f - vertexOffset;
+        float maxX = tile.x + MapTile.TILE_SIZE / 2.0f + vertexOffset;
+        float minY = tile.y + MapTile.TILE_SIZE / 2.0f - vertexOffset;
+        float maxY = tile.y + MapTile.TILE_SIZE / 2.0f + vertexOffset;
+        float minZ = tile.z + MapTile.TILE_SIZE / 2.0f - vertexOffset;
+        float maxZ = tile.z + MapTile.TILE_SIZE / 2.0f + vertexOffset;
 
         if (tile.geometryType == MapTileGeometryType.HALF_SLANT) {
             maxY -= (vertexOffset);
@@ -138,14 +141,14 @@ public class GameMapRenderer implements Disposable {
         Vector3 v101 = new Vector3(maxX, minY, maxZ);
         Vector3 v110 = new Vector3(maxX, maxY, minZ);
         Vector3 v111 = new Vector3(maxX, maxY, maxZ);
-        //        1	v000	(minX, minY, minZ)
-        //        2	v001	(minX, minY, maxZ)
-        //        3	v010	(minX, maxY, minZ)
-        //        4	v011	(minX, maxY, maxZ)
-        //        5	v100	(maxX, minY, minZ)
-        //        6	v101	(maxX, minY, maxZ)
-        //        7	v110	(maxX, maxY, minZ)
-        //        8	v111	(maxX, maxY, maxZ)
+        //        1   v000    (minX, minY, minZ)
+        //        2   v001    (minX, minY, maxZ)
+        //        3   v010    (minX, maxY, minZ)
+        //        4   v011    (minX, maxY, maxZ)
+        //        5   v100    (maxX, minY, minZ)
+        //        6   v101    (maxX, minY, maxZ)
+        //        7   v110    (maxX, maxY, minZ)
+        //        8   v111    (maxX, maxY, maxZ)
 
         switch(tile.direction) {
             case NORTH:

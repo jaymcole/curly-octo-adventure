@@ -90,6 +90,21 @@ public class GameMap {
         map[1][1][1].geometryType = MapTileGeometryType.FULL;
     }
 
+    public MapTile getTileFromWorldCoordinates(float worldX, float worldY, float worldZ) {
+        int xIndex = (int)(worldX / MapTile.TILE_SIZE);
+        int yIndex = (int)(worldY / MapTile.TILE_SIZE);
+        int zIndex = (int)(worldZ / MapTile.TILE_SIZE);
+
+        if (xIndex < 0 || xIndex >= width) {
+          return null;
+        } else if (yIndex < 0 || yIndex >= height) {
+            return null;
+        } else if (zIndex < 0 || zIndex >= depth) {
+            return null;
+        }
+        return map[xIndex][yIndex][zIndex];
+    }
+
     public MapTile getTile(int x, int y, int z) {
         return map[x][y][z];
     }

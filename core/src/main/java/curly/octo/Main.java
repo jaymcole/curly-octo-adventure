@@ -185,6 +185,13 @@ public class Main extends ApplicationAdapter {
             localPlayerController = PlayerUtilities.createPlayerController(random);
             localPlayerId = localPlayerController.getPlayerId();
             localPlayerController.setVelocity(20f); // Adjust movement speed as needed
+            // Provide map for collision
+            if (voxelMap == null) {
+                voxelMap = new GameMap(64, 6, 64, System.currentTimeMillis());
+                voxelMap.generateDungeon();
+                voxelMapRenderer.updateMap(voxelMap);
+            }
+            localPlayerController.setGameMap(voxelMap);
             players = new ArrayList<>();
             players.add(localPlayerController);
 
@@ -353,10 +360,10 @@ public class Main extends ApplicationAdapter {
     public void render() {
         // Update sun position in a circular motion
         sunAngle += Gdx.graphics.getDeltaTime() * 1f; // Adjust rotation speed as needed
-        float radius = 100f; // Radius of the sun's circular path
+        float radius = 10f; // Radius of the sun's circular path
         float sunX = (float) Math.cos(sunAngle) * radius;
         float sunZ = (float) Math.sin(sunAngle) * radius;
-        sun.setDirection(new Vector3(-sunX, -0.8f, sunZ + random.nextFloat()).nor());
+        sun.setDirection(new Vector3(-sunX, -0.8f, sunZ).nor());
 //        -1f, -0.8f, -0.2f
         float deltaTime = Gdx.graphics.getDeltaTime();
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());

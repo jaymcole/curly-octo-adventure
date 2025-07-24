@@ -12,13 +12,20 @@ import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.map.GameMap;
+import curly.octo.map.MapTile;
+import curly.octo.map.enums.MapTileGeometryType;
 
 /**
  * Handles camera movement and input for 3D navigation.
  */
 public class PlayerController extends InputAdapter  {
 
+    private static final float playerHeight = 5;
     private static final float sensitivity = 1f;
+    private static final float ACCELERATION = 10.0f; // Tune as needed
+    private static final float MAX_SPEED = 20.0f; // Optional: clamp max speed
+
     private transient PerspectiveCamera camera;
     private transient final Vector3 tmp = new Vector3();
     private transient boolean mouseCaptured = false;
@@ -28,14 +35,20 @@ public class PlayerController extends InputAdapter  {
     private transient boolean initialized = false;
 
     private final Vector3 position = new Vector3();
+    private final Vector3 momentum = new Vector3();
     private final Vector3 direction = new Vector3();
+    private final float dragCoefficient = 0.95f;
 
     private long playerId;
-    private float velocity = 10f;
+    private float velocity = 500f;
+    private GameMap gameMap;
+    private boolean isOnGround = false;
+    private static final float GRAVITY = -30f;
+    private static final float JUMP_VELOCITY = 20f;
 
     public PlayerController() {
         // Initialize camera with default values
-        position.set(0, 10, 10);
+        position.set(15, 100, 15);
         direction.set(0, 0, -1);
 
         // Initialize camera on the OpenGL thread
@@ -69,6 +82,10 @@ public class PlayerController extends InputAdapter  {
 
     public PerspectiveCamera getCamera() {
         return camera;
+    }
+
+    public void setGameMap(GameMap map) {
+        this.gameMap = map;
     }
 
     private void initialize() {
@@ -127,62 +144,100 @@ public class PlayerController extends InputAdapter  {
     }
 
     public void update(float delta) {
+        // Apply gravity
+        momentum.y += GRAVITY * delta;
+
         // Handle keyboard movement
+        momentum.x *= dragCoefficient;
+        momentum.z *= dragCoefficient;
         float moveSpeed = velocity * delta;
-        boolean moved = false;
 
         if (Gdx.input.isKeyPressed(Input.Keys.W)) {
             moveForward(moveSpeed);
-            moved = true;
         }
         if (Gdx.input.isKeyPressed(Input.Keys.S)) {
             moveForward(-moveSpeed);
-            moved = true;
         }
         if (Gdx.input.isKeyPressed(Input.Keys.A)) {
             moveLeft(moveSpeed);
-            moved = true;
         }
         if (Gdx.input.isKeyPressed(Input.Keys.D)) {
             moveRight(moveSpeed);
-            moved = true;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
-            moveUp(moveSpeed);
-            moved = true;
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)) {
-            moveUp(-moveSpeed);
-            moved = true;
+        // Jumping
+        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && isOnGround) {
+            momentum.y = JUMP_VELOCITY;
+            isOnGround = false;
         }
 
-        // Update camera position and direction
-        if (moved) {
-            updateCamera();
+        // Predict new position
+        Vector3 intendedPosition = new Vector3(position).add(momentum.cpy().scl(delta));
+        isOnGround = false;
+        if (gameMap != null) {
+            // Check collision for each axis separately (simple AABB)
+            // X axis
+            Vector3 testPos = new Vector3(intendedPosition.x, position.y, position.z);
+            if (collidesWithMap(testPos)) {
+                momentum.x = 0;
+            } else {
+                position.x = testPos.x;
+            }
+            // Z axis
+            testPos.set(position.x, position.y, intendedPosition.z);
+            if (collidesWithMap(testPos)) {
+                momentum.z = 0;
+            } else {
+                position.z = testPos.z;
+            }
+            // Y axis
+            testPos.set(position.x, intendedPosition.y, position.z);
+            if (collidesWithMap(testPos)) {
+                if (momentum.y < 0) {
+                    isOnGround = true;
+                }
+                momentum.y = 0;
+            } else {
+                position.y = testPos.y;
+            }
+        } else {
+            position.add(momentum.cpy().scl(delta));
         }
+        updateCamera();
     }
 
     private void moveForward(float distance) {
-        tmp.set(direction).nor().scl(distance);
-        position.add(tmp);
+        // Add acceleration in the forward direction
+        Vector3 tempDirection = new Vector3(direction);
+        tempDirection.y = 0;
+        Vector3 accel = new Vector3(tempDirection).nor().scl(distance * ACCELERATION);
+        momentum.add(accel);
+        clampMomentum();
     }
 
     private void moveLeft(float distance) {
-        // Calculate right vector and move left
-        tmp.set(direction).crs(Vector3.Y).nor().scl(-distance);
-        position.add(tmp);
+        // Add acceleration to the left (negative right vector)
+        Vector3 left = new Vector3(direction).crs(Vector3.Y).nor().scl(-distance * ACCELERATION);
+        momentum.add(left);
+        clampMomentum();
     }
 
     private void moveRight(float distance) {
-        // Calculate right vector and move right
-        tmp.set(direction).crs(Vector3.Y).nor().scl(distance);
-        position.add(tmp);
+        // Add acceleration to the right (right vector)
+        Vector3 right = new Vector3(direction).crs(Vector3.Y).nor().scl(distance * ACCELERATION);
+        momentum.add(right);
+        clampMomentum();
     }
 
-    private void moveUp(float distance) {
-        position.y += distance;
+    // Clamp horizontal momentum to a maximum speed for control
+    private void clampMomentum() {
+        Vector3 horizontal = new Vector3(momentum.x, 0, momentum.z);
+        float speed = horizontal.len();
+        if (speed > MAX_SPEED) {
+            horizontal.nor().scl(MAX_SPEED);
+            momentum.x = horizontal.x;
+            momentum.z = horizontal.z;
+        }
     }
-
 
     private void updateCamera() {
         // Update camera position and direction
@@ -192,6 +247,15 @@ public class PlayerController extends InputAdapter  {
         camera.lookAt(tmp);
         camera.up.set(Vector3.Y);
         camera.update();
+    }
+
+    private boolean collidesWithMap(Vector3 pos) {
+        if (gameMap == null) return false;
+        MapTile tile = gameMap.getTileFromWorldCoordinates(pos.x, pos.y - playerHeight, pos.z);
+        if (tile != null && tile.geometryType != MapTileGeometryType.EMPTY) {
+            return true;
+        }
+        return false;
     }
 
     @Override
