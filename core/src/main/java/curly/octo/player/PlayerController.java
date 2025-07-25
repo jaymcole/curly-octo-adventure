@@ -11,9 +11,12 @@ import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
+import com.badlogic.gdx.physics.bullet.collision.ClosestRayResultCallback;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
+import curly.octo.map.PhysicsManager;
 import curly.octo.map.enums.MapTileGeometryType;
 
 /**
@@ -51,6 +54,10 @@ public class PlayerController extends InputAdapter  {
     private boolean isOnGround = false;
     private static final float GRAVITY = -30f;
     private static final float JUMP_VELOCITY = 20f;
+    private static final float velocityLen = 10f; // Player movement speed
+    private PhysicsManager physicsManager;
+    private final Vector3 lastRayFrom = new Vector3();
+    private final Vector3 lastRayTo = new Vector3();
 
     public PlayerController() {
         // Initialize camera with default values
@@ -75,6 +82,10 @@ public class PlayerController extends InputAdapter  {
         }
     }
 
+    public void setPhysicsManager(PhysicsManager physicsManager) {
+        this.physicsManager = physicsManager;
+    }
+
     public long getPlayerId() {
         return playerId;
     }
@@ -97,7 +108,6 @@ public class PlayerController extends InputAdapter  {
 
     private void initialize() {
         if (initialized) return;
-
         try {
             // Create camera
             this.camera = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
@@ -151,63 +161,46 @@ public class PlayerController extends InputAdapter  {
     }
 
     public void update(float delta) {
-        // Apply gravity
-        momentum.y += GRAVITY * delta;
-
-        // Handle keyboard movement
-        momentum.x *= dragCoefficient;
-        momentum.z *= dragCoefficient;
-        float moveSpeed = velocity * delta;
-
-        if (Gdx.input.isKeyPressed(Input.Keys.W)) {
-            moveForward(moveSpeed);
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.S)) {
-            moveForward(-moveSpeed);
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.A)) {
-            moveLeft(moveSpeed);
-        }
-        if (Gdx.input.isKeyPressed(Input.Keys.D)) {
-            moveRight(moveSpeed);
-        }
-        // Jumping
-        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && isOnGround) {
-            momentum.y = JUMP_VELOCITY;
-            isOnGround = false;
-        }
-
-        // Predict new position
-        Vector3 intendedPosition = new Vector3(position).add(momentum.cpy().scl(delta));
-        isOnGround = false;
-        if (gameMap != null) {
-            // Check collision for each axis separately (simple AABB)
-            // X axis
-            Vector3 testPos = new Vector3(intendedPosition.x, position.y, position.z);
-            if (collidesWithMap(testPos)) {
-                momentum.x = 0;
-            } else {
-                position.x = testPos.x;
+        // Apply movement input as velocity to Bullet
+        if (gameMap != null && physicsManager != null) {
+            btRigidBody playerBody = physicsManager.getPlayerBody();
+            Vector3 velocity = playerBody.getLinearVelocity();
+            float moveSpeed = velocityLen; // e.g., 10f
+            Vector3 move = new Vector3();
+            if (Gdx.input.isKeyPressed(Input.Keys.W)) {
+                move.add(direction.x, 0, direction.z);
             }
-            // Z axis
-            testPos.set(position.x, position.y, intendedPosition.z);
-            if (collidesWithMap(testPos)) {
-                momentum.z = 0;
-            } else {
-                position.z = testPos.z;
+            if (Gdx.input.isKeyPressed(Input.Keys.S)) {
+                move.add(-direction.x, 0, -direction.z);
             }
-            // Y axis
-            testPos.set(position.x, intendedPosition.y, position.z);
-            if (collidesWithMap(testPos)) {
-                if (momentum.y < 0) {
-                    isOnGround = true;
-                }
-                momentum.y = 0;
-            } else {
-                position.y = testPos.y;
+            Vector3 right = new Vector3(direction).crs(Vector3.Y).nor();
+            if (Gdx.input.isKeyPressed(Input.Keys.A)) {
+                move.add(-right.x, 0, -right.z);
             }
-        } else {
-            position.add(momentum.cpy().scl(delta));
+            if (Gdx.input.isKeyPressed(Input.Keys.D)) {
+                move.add(right.x, 0, right.z);
+            }
+            if (move.len2() > 0) {
+                move.nor().scl(moveSpeed);
+                velocity.x = move.x;
+                velocity.z = move.z;
+            } else {
+                velocity.x = 0;
+                velocity.z = 0;
+            }
+            // Simple grounded check: Y velocity near zero and player at/near ground
+            boolean isOnGround = isPlayerOnGround();
+            // Jumping
+
+            if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && isOnGround) {
+                Log.info("PlayerController.update", "Jumping");
+                velocity.y = JUMP_VELOCITY;
+                playerBody.setLinearVelocity(velocity);
+                playerBody.activate();
+            } else {
+                playerBody.setLinearVelocity(velocity);
+            }
+            playerBody.activate();
         }
         updateCamera();
     }
@@ -336,5 +329,26 @@ public class PlayerController extends InputAdapter  {
         camera.viewportWidth = width;
         camera.viewportHeight = height;
         camera.update();
+    }
+
+    private boolean isPlayerOnGround() {
+        if (physicsManager == null) {
+            Log.info("isPlayerOnGround", "physicsManager is null");
+            return false;
+        }
+
+        btRigidBody playerBody = physicsManager.getPlayerBody();
+        Vector3 playerPos = playerBody.getWorldTransform().getTranslation(new Vector3());
+        Vector3 from = new Vector3(playerPos.x, playerPos.y - 0.01f, playerPos.z); // just below feet
+        Vector3 to = new Vector3(playerPos.x, playerPos.y - 1.5f, playerPos.z);    // a bit further down
+        lastRayFrom.set(from);
+        lastRayTo.set(to);
+
+        ClosestRayResultCallback rayCallback = new ClosestRayResultCallback(from, to);
+        rayCallback.setCollisionFilterGroup(-1);
+        physicsManager.getDynamicsWorld().rayTest(from, to, rayCallback);
+        boolean onGround = rayCallback.hasHit() ;
+        rayCallback.dispose();
+        return onGround;
     }
 }

@@ -21,6 +21,10 @@ import curly.octo.network.GameClient;
 import curly.octo.network.GameServer;
 import curly.octo.network.Network;
 import curly.octo.player.PlayerUtilities;
+import curly.octo.map.PhysicsManager;
+import curly.octo.map.MapTile;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 
 import java.io.IOException;
 import java.net.URL;
@@ -40,6 +44,7 @@ public class Main extends ApplicationAdapter {
 
     private Stage debugStage;
     private Label fpsLabel;
+    private Label playerPositionLabel;
 
     private GameServer gameServer;
     private GameClient gameClient;
@@ -64,6 +69,10 @@ public class Main extends ApplicationAdapter {
 
     private DirectionalLight sun;
 
+    private PhysicsManager physicsManager;
+
+    private ShapeRenderer shapeRenderer;
+
     public Main() {
     }
 
@@ -85,6 +94,8 @@ public class Main extends ApplicationAdapter {
         createLobbyStage();
         createDebugStage();
         Gdx.input.setInputProcessor(lobbyStage);
+        shapeRenderer = new ShapeRenderer();
+        Log.info("Main.create", "Done");
     }
 
     private void createLobbyStage() {
@@ -174,9 +185,12 @@ public class Main extends ApplicationAdapter {
         debugTable.add(debugClientIPAddressLabel).pad(10);
 
         debugTable.row();
-
         fpsLabel = new Label("...", skin);
         debugTable.add(fpsLabel).pad(10);
+
+        debugTable.row();
+        playerPositionLabel = new Label("...", skin);
+        debugTable.add(playerPositionLabel).pad(10);
     }
 
     private void startServer() {
@@ -191,6 +205,25 @@ public class Main extends ApplicationAdapter {
                 voxelMap.generateDungeon();
                 voxelMapRenderer.updateMap(voxelMap);
             }
+            physicsManager = new PhysicsManager();
+            // Add static blocks for the map (only ground layer)
+            for (int x = 0; x < voxelMap.getWidth(); x++) {
+                for (int y = 0; y < voxelMap.getHeight(); y++ ) {
+                    for (int z = 0; z < voxelMap.getDepth(); z++) {
+                        MapTile tile = voxelMap.getTile(x, y, z);
+                        if (tile.geometryType != curly.octo.map.enums.MapTileGeometryType.EMPTY) {
+                            physicsManager.addStaticBlock(tile.x, tile.y, tile.z, MapTile.TILE_SIZE);
+                        }
+                    }
+                }
+            }
+                // Add player to physics world
+            float playerRadius = 1.0f;
+            float playerHeight = 5.0f;
+            float playerMass = 10.0f;
+            Vector3 playerStart = new Vector3(15, 15, 15);
+            physicsManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
+
             localPlayerController.setGameMap(voxelMap);
             players = new ArrayList<>();
             players.add(localPlayerController);
@@ -369,6 +402,14 @@ public class Main extends ApplicationAdapter {
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
         fpsLabel.setText("FPS: " + Gdx.graphics.getFramesPerSecond());
+
+        if (localPlayerController != null) {
+            float x = Math.round(localPlayerController.getPosition().x);
+            float y = Math.round(localPlayerController.getPosition().y);
+            float z = Math.round(localPlayerController.getPosition().z);
+            playerPositionLabel.setText("Position: " + x + ", " + y + ", " + z);
+        }
+
         if (show3DView) {
             // Update camera and player position
             if (localPlayerController != null) {
@@ -406,6 +447,21 @@ public class Main extends ApplicationAdapter {
 
         debugStage.act(Math.min(deltaTime, 1 / 30f));
         debugStage.draw();
+
+        // Step physics world
+        if (physicsManager != null) {
+            localPlayerController.setPhysicsManager(physicsManager);
+            physicsManager.step(deltaTime);
+            // Update player position from Bullet
+            Vector3 bulletPlayerPos = physicsManager.getPlayerPosition();
+            if (localPlayerController != null) {
+                localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z);
+            }
+        }
+        int error = Gdx.gl.glGetError();
+        if (error != GL20.GL_NO_ERROR) {
+            System.out.println("OpenGL Error: " + error);
+        }
     }
 
     @Override
@@ -432,5 +488,7 @@ public class Main extends ApplicationAdapter {
         }
         lobbyStage.dispose();
         debugStage.dispose();
+        if (physicsManager != null) physicsManager.dispose();
+        shapeRenderer.dispose();
     }
 }
