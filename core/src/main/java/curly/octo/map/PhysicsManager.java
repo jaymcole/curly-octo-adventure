@@ -18,6 +18,7 @@ public class PhysicsManager {
     private btDiscreteDynamicsWorld dynamicsWorld;
 
     private final List<btRigidBody> staticBodies = new ArrayList<>();
+    private final List<btCollisionShape> staticShapes = new ArrayList<>();
     private btRigidBody playerBody;
     private btCollisionShape playerShape;
 
@@ -43,6 +44,7 @@ public class PhysicsManager {
         btRigidBody body = new btRigidBody(info);
         dynamicsWorld.addRigidBody(body, GROUND_GROUP, PLAYER_GROUP); // Only collide with player
         staticBodies.add(body);
+        staticShapes.add(blockShape);
         info.dispose(); // Dispose after use
     }
 
@@ -84,9 +86,24 @@ public class PhysicsManager {
     }
 
     public void dispose() {
-        if (playerBody != null) playerBody.dispose();
-        if (playerShape != null) playerShape.dispose();
-        for (btRigidBody body : staticBodies) body.dispose();
+        if (playerBody != null) {
+            dynamicsWorld.removeRigidBody(playerBody);
+            playerBody.dispose();
+            playerBody = null;
+        }
+        if (playerShape != null) {
+            playerShape.dispose();
+            playerShape = null;
+        }
+        for (btRigidBody body : staticBodies) {
+            dynamicsWorld.removeRigidBody(body);
+            body.dispose();
+        }
+        staticBodies.clear();
+        for (btCollisionShape shape : staticShapes) {
+            shape.dispose();
+        }
+        staticShapes.clear();
         dynamicsWorld.dispose();
         solver.dispose();
         broadphase.dispose();
