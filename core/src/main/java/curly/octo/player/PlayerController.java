@@ -188,15 +188,27 @@ public class PlayerController extends InputAdapter  {
                 if (walkDirection.len2() > 0) {
                     walkDirection.nor().scl(moveSpeed * delta); // Character controller expects per-frame distance
                 }
-                
+
                 // Always set walk direction to ensure stopping works
                 controller.setWalkDirection(walkDirection);
 
                 // Jump handling
                 boolean isOnGround = controller.onGround();
                 if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && isOnGround) {
-                    Log.info("PlayerController.update", "Jumping");
-                    controller.jump();
+                    Log.info("PlayerController.update", "Jumping - onGround: " + isOnGround);
+
+                    // Debug: Check if position changed after jump
+                    Vector3 posBeforeJump = physicsManager.getPlayerPosition();
+                    Log.info("PlayerController", "Position before jump: " + posBeforeJump);
+
+                    // Use setVelocityForTimeInterval for more direct vertical movement
+//                    Vector3 jumpVelocity = new Vector3(0, 1500f, 0); // Vertical jump velocity
+//                    controller.setVelocityForTimeInterval(jumpVelocity, 1);
+
+                    controller.jump(new Vector3(0, 15f, 0));
+                    // Debug: Check if position changed after jump
+                    Vector3 posAfterJump = physicsManager.getPlayerPosition();
+                    Log.info("PlayerController", "Position after jump: " + posAfterJump);
                 }
             }
         }
