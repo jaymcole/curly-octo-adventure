@@ -21,9 +21,7 @@ import curly.octo.network.GameClient;
 import curly.octo.network.GameServer;
 import curly.octo.network.Network;
 import curly.octo.player.PlayerUtilities;
-import curly.octo.map.MapTile;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 
 import java.io.IOException;
 import java.net.URL;

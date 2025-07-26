@@ -200,7 +200,7 @@ public class PlayerController extends InputAdapter  {
 //                    Vector3 jumpVelocity = new Vector3(0, 1500f, 0); // Vertical jump velocity
 //                    controller.setVelocityForTimeInterval(jumpVelocity, 1);
 
-                    controller.jump(new Vector3(0, 15f, 0));
+                    controller.jump(new Vector3(0, 30f, 0));
                     // Debug: Check if position changed after jump
                     Vector3 posAfterJump = gameMap.getPlayerPosition();
                     Log.info("PlayerController", "Position after jump: " + posAfterJump);
