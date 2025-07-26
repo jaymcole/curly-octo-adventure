@@ -45,9 +45,9 @@ public class GameWorld {
     }
 
     private void setupEnvironment() {
-        // Very low ambient light for dungeon atmosphere
-//        environment.set(new com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute(
-//            com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.AmbientLight, 0.1f, 0.1f, 0.15f, 1f));
+        // Extremely low ambient light for very hard shadows
+        environment.set(new com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute(
+            com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.AmbientLight, 0.02f, 0.02f, 0.03f, 1f));
 
         // Create atmospheric point lights around the dungeon
         createDungeonLights();
@@ -152,7 +152,7 @@ public class GameWorld {
             PointLight light = dungeonLights.get(i);
             if (i < 3) { // First 3 are torches
                 float flicker = 0.9f + 0.1f * (float) Math.sin(System.currentTimeMillis() * 0.005f + i);
-                light.intensity = 250f * flicker;
+                light.intensity = flicker;
             }
         }
     }
@@ -160,11 +160,11 @@ public class GameWorld {
     private void updatePlayerLantern(Vector3 playerPos) {
         if (playerLantern != null) {
             // Position lantern slightly above and in front of player
-            playerLantern.position.set(playerPos.x, playerPos.y + 3f, playerPos.z);
+            playerLantern.position.set(playerPos.x + 15, playerPos.y + 3f, playerPos.z);
 
             // Add subtle sway to lantern light
-//            float sway = 0.95f + 0.05f * (float) Math.sin(System.currentTimeMillis() * 0.003f);
-//            playerLantern.intensity = 20f * sway;
+            float sway = 0.95f + 0.05f * (float) Math.sin(System.currentTimeMillis() * 0.003f);
+            playerLantern.intensity = 1f;
         }
     }
 
@@ -224,6 +224,9 @@ public class GameWorld {
             }
             mapRenderer = null;
         }
+
+        // Clear player lantern reference
+        playerLantern = null;
 
         // Clear dungeon lights
         if (dungeonLights != null) {

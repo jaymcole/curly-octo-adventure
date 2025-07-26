@@ -5,6 +5,9 @@ import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.IntAttribute;
+import com.badlogic.gdx.graphics.g3d.attributes.FloatAttribute;
+import com.badlogic.gdx.graphics.g3d.attributes.PointLightsAttribute;
+import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.graphics.g3d.utils.MeshPartBuilder;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.graphics.g3d.utils.shapebuilders.BoxShapeBuilder;
@@ -13,25 +16,55 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.rendering.ShadowMapRenderer;
 
 /**
- * Handles rendering of the VoxelMap in 3D space.
+ * Handles rendering of the VoxelMap in 3D space with shadow mapping.
  */
 public class GameMapRenderer implements Disposable {
-    private final ModelBatch modelBatch;
+    private final ShadowMapRenderer shadowMapRenderer;
     private final Array<ModelInstance> instances;
     private Model model;
     private boolean disposed = false;
 
     public GameMapRenderer() {
-        modelBatch = new ModelBatch();
+        shadowMapRenderer = new ShadowMapRenderer();
         instances = new Array<>();
+        Log.info("GameMapRenderer", "Initialized with shadow mapping support");
     }
 
     public void render(PerspectiveCamera camera, Environment environment) {
-        modelBatch.begin(camera);
-        modelBatch.render(instances, environment);
-        modelBatch.end();
+        // Extract the main light (player lantern)
+        PointLight mainLight = getMainLight(environment);
+        if (mainLight == null) {
+            Log.warn("GameMapRenderer", "No main light found, skipping shadow rendering");
+            return;
+        }
+        
+        // Generate shadow map pointing toward player
+        shadowMapRenderer.generateShadowMap(instances, mainLight, camera.position);
+        
+        // Render scene with shadows
+        Vector3 ambientLight = getAmbientLight(environment);
+        shadowMapRenderer.renderWithShadows(instances, camera, mainLight, ambientLight);
+    }
+    
+    private PointLight getMainLight(Environment environment) {
+        // Find the first point light in the environment (player lantern)
+        PointLightsAttribute pointLights = environment.get(PointLightsAttribute.class, PointLightsAttribute.Type);
+        if (pointLights != null && pointLights.lights.size > 0) {
+            return pointLights.lights.first();
+        }
+        return null;
+    }
+    
+    private Vector3 getAmbientLight(Environment environment) {
+        // Extract ambient light color from environment
+        ColorAttribute ambient = environment.get(ColorAttribute.class, ColorAttribute.AmbientLight);
+        if (ambient != null) {
+            return new Vector3(ambient.color.r, ambient.color.g, ambient.color.b);
+        }
+        return new Vector3(0.02f, 0.02f, 0.03f); // Default very low ambient
     }
 
     public void updateMap(GameMap map) {
@@ -41,17 +74,23 @@ public class GameMapRenderer implements Disposable {
         ModelBuilder modelBuilder = new ModelBuilder();
         modelBuilder.begin();
 
-        // Create a material for each voxel type with shadow support
+        // Create a material for each voxel type with improved lighting
         Material stoneMaterial = new Material();
         stoneMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.GRAY));
+        stoneMaterial.set(new ColorAttribute(ColorAttribute.Specular, 0.2f, 0.2f, 0.2f, 1f));
+        stoneMaterial.set(new FloatAttribute(FloatAttribute.Shininess, 8f));
         stoneMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
 
         Material dirtMaterial = new Material();
         dirtMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.BROWN));
+        dirtMaterial.set(new ColorAttribute(ColorAttribute.Specular, 0.1f, 0.1f, 0.1f, 1f));
+        dirtMaterial.set(new FloatAttribute(FloatAttribute.Shininess, 4f));
         dirtMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
 
         Material grassMaterial = new Material();
         grassMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.GREEN));
+        grassMaterial.set(new ColorAttribute(ColorAttribute.Specular, 0.1f, 0.1f, 0.1f, 1f));
+        grassMaterial.set(new FloatAttribute(FloatAttribute.Shininess, 4f));
         grassMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
 
         // Create mesh parts for each material type
@@ -79,7 +118,7 @@ public class GameMapRenderer implements Disposable {
                         modelBuilder.node();
                         MeshPartBuilder meshPartBuilder = modelBuilder.part("ground",
                             GL20.GL_TRIANGLES,
-                            Usage.Position | Usage.Normal,
+                            Usage.Position | Usage.Normal | Usage.TextureCoordinates,
                             material);
 
                         switch(tile.geometryType) {
@@ -196,12 +235,12 @@ public class GameMapRenderer implements Disposable {
 
     public void disposeAll() {
         dispose();
-        if (modelBatch != null && !disposed) {
+        if (shadowMapRenderer != null && !disposed) {
             try {
-                modelBatch.dispose();
-                Log.info("GameMapRenderer", "Model batch disposed");
+                shadowMapRenderer.dispose();
+                Log.info("GameMapRenderer", "Shadow map renderer disposed");
             } catch (Exception e) {
-                Log.error("GameMapRenderer", "Error disposing model batch: " + e.getMessage());
+                Log.error("GameMapRenderer", "Error disposing shadow map renderer: " + e.getMessage());
             }
         }
     }
