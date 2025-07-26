@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
+import com.badlogic.gdx.graphics.g3d.attributes.IntAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.MeshPartBuilder;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.graphics.g3d.utils.shapebuilders.BoxShapeBuilder;
@@ -18,7 +19,6 @@ import curly.octo.map.enums.MapTileGeometryType;
  */
 public class GameMapRenderer implements Disposable {
     private final ModelBatch modelBatch;
-//    private final Environment environment;
     private final Array<ModelInstance> instances;
     private Model model;
     private boolean disposed = false;
@@ -41,15 +41,18 @@ public class GameMapRenderer implements Disposable {
         ModelBuilder modelBuilder = new ModelBuilder();
         modelBuilder.begin();
 
-        // Create a material for each voxel type
+        // Create a material for each voxel type with shadow support
         Material stoneMaterial = new Material();
         stoneMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.GRAY));
+        stoneMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
 
         Material dirtMaterial = new Material();
         dirtMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.BROWN));
+        dirtMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
 
         Material grassMaterial = new Material();
         grassMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.GREEN));
+        grassMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
 
         // Create mesh parts for each material type
 
@@ -176,7 +179,7 @@ public class GameMapRenderer implements Disposable {
             Log.info("GameMapRenderer", "Already disposed, skipping");
             return;
         }
-        
+
         if (model != null) {
             try {
                 model.dispose();
@@ -187,7 +190,7 @@ public class GameMapRenderer implements Disposable {
             model = null;
             instances.clear();
         }
-        
+
         disposed = true;
     }
 

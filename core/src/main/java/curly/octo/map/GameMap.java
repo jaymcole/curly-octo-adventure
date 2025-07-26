@@ -92,11 +92,11 @@ public class GameMap {
         broadphase = new btDbvtBroadphase();
         solver = new btSequentialImpulseConstraintSolver();
         dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfig);
-        dynamicsWorld.setGravity(new Vector3(0, -30f, 0));
-        
+        dynamicsWorld.setGravity(new Vector3(0, -50f, 0));
+
         // Don't create DebugDrawer here - it needs OpenGL context
         // It will be created later when needed on the OpenGL thread
-        
+
         physicsInitialized = true;
     }
 
@@ -252,7 +252,7 @@ public class GameMap {
         playerGhostObject.setCollisionFlags(playerGhostObject.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_CHARACTER_OBJECT);
 
         playerController = new btKinematicCharacterController(playerGhostObject, capsule, 1.0f);
-        playerController.setGravity(new Vector3(0, -30f, 0));
+        playerController.setGravity(new Vector3(0, -50f, 0));
         playerController.setMaxSlope((float)Math.toRadians(60));
         playerController.setJumpSpeed(15f);
         playerController.setMaxJumpHeight(4f);
@@ -301,7 +301,7 @@ public class GameMap {
         }
         return debugDrawer;
     }
-    
+
     // Method to ensure physics is ready for clients who receive the map via network
     public void ensurePhysicsReady() {
         if (!physicsInitialized) {

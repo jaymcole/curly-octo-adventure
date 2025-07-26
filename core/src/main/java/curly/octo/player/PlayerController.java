@@ -22,7 +22,7 @@ public class PlayerController extends InputAdapter  {
 
     private static final float playerHeight = 5;
     private static final float sensitivity = 1f;
-    private static final float velocityLen = 100f; // Player movement speed
+    private static final float velocityLen = 25f; // Player movement speed
 
     private transient PerspectiveCamera camera;
     private transient final Vector3 tmp = new Vector3();
