@@ -3,8 +3,6 @@ package curly.octo;
 import com.badlogic.gdx.*;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g3d.*;
-import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
-import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.*;
@@ -19,50 +17,50 @@ import java.util.Random;
  * Delegates game logic to specific game modes (Server/Client).
  */
 public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
-    
+
     private Random random;
     private ModelBatch modelBatch;
-    
+
     // UI Components
     private LobbyUI lobbyUI;
     private DebugUI debugUI;
     private boolean showLobby = true;
-    
+
     // Game Components
     private GameWorld gameWorld;
     private GameMode currentGameMode;
 
     public Main() {
     }
-    
+
     // LobbyUI.LobbyListener implementation
     @Override
     public void onStartServer() {
         Log.info("Main", "Starting server mode");
         startServerMode();
     }
-    
+
     @Override
     public void onConnectToServer(String host) {
         Log.info("Main", "Connecting to server: " + host);
         startClientMode(host);
     }
-    
+
     private void startServerMode() {
         gameWorld = new GameWorld(random);
         currentGameMode = new ServerGameMode(gameWorld);
         currentGameMode.initialize();
-        
+
         lobbyUI.setStatus("Server started on port " + Network.TCP_PORT);
         lobbyUI.disableInputs();
         showLobby = false;
     }
-    
+
     private void startClientMode(String host) {
         gameWorld = new GameWorld(random);
         currentGameMode = new ClientGameMode(gameWorld, host);
         currentGameMode.initialize();
-        
+
         lobbyUI.setStatus("Connected to " + host);
         lobbyUI.disableInputs();
         showLobby = false;
@@ -73,17 +71,17 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
         try {
             Log.info("Main", "Starting initialization...");
             Log.info("Main", "Working directory: " + System.getProperty("user.dir"));
-            
+
             this.random = new Random();
             this.modelBatch = new ModelBatch();
-            
+
             // Initialize UI
             this.lobbyUI = new LobbyUI(this);
             this.debugUI = new DebugUI();
-            
+
             // Set input processor to lobby
             lobbyUI.setInputProcessor();
-            
+
             Log.info("Main", "Initialized successfully");
         } catch (Exception e) {
             Log.error("Main", "Failed to initialize: " + e.getMessage());
@@ -95,32 +93,32 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
     @Override
     public void render() {
         float deltaTime = Gdx.graphics.getDeltaTime();
-        
+
         // Clear screen
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
-        
+
         // Update and render game mode if active
         if (currentGameMode != null && currentGameMode.isActive()) {
             currentGameMode.update(deltaTime);
             currentGameMode.render(modelBatch, gameWorld.getEnvironment());
-            
+
             // Update debug info
             if (gameWorld.getLocalPlayerController() != null) {
                 Vector3 pos = gameWorld.getLocalPlayerController().getPosition();
                 debugUI.setPlayerPosition(pos.x, pos.y, pos.z);
             }
         }
-        
+
         // Update and render UI
         if (showLobby) {
             lobbyUI.update(deltaTime);
             lobbyUI.render();
         }
-        
+
         debugUI.update(deltaTime);
         debugUI.render();
-        
+
         // Check for OpenGL errors
         int error = Gdx.gl.glGetError();
         if (error != GL20.GL_NO_ERROR) {
@@ -132,7 +130,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
     public void resize(int width, int height) {
         lobbyUI.resize(width, height);
         debugUI.resize(width, height);
-        
+
         if (currentGameMode != null) {
             currentGameMode.resize(width, height);
         }
@@ -141,7 +139,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
     @Override
     public void dispose() {
         Log.info("Main", "Disposing resources...");
-        
+
         // Dispose game mode first (it handles its own resources)
         if (currentGameMode != null) {
             try {
@@ -151,7 +149,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
                 Log.error("Main", "Error disposing game mode: " + e.getMessage());
             }
         }
-        
+
         // Dispose game world (it handles map and renderer)
         if (gameWorld != null) {
             try {
@@ -161,7 +159,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
                 Log.error("Main", "Error disposing game world: " + e.getMessage());
             }
         }
-        
+
         // Dispose UI components
         try {
             if (lobbyUI != null) {
@@ -171,7 +169,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
         } catch (Exception e) {
             Log.error("Main", "Error disposing lobby UI: " + e.getMessage());
         }
-        
+
         try {
             if (debugUI != null) {
                 debugUI.dispose();
@@ -180,7 +178,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
         } catch (Exception e) {
             Log.error("Main", "Error disposing debug UI: " + e.getMessage());
         }
-        
+
         // Dispose model batch last
         try {
             if (modelBatch != null) {
@@ -190,7 +188,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
         } catch (Exception e) {
             Log.error("Main", "Error disposing model batch: " + e.getMessage());
         }
-        
+
         Log.info("Main", "All resources disposed");
     }
 }
