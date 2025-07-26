@@ -81,9 +81,9 @@ public class GameMapRenderer implements Disposable {
                             BoxShapeBuilder.build(
                                 meshPartBuilder,
                                 tile.x + MapTile.TILE_SIZE / 2f,
-                                tile.y + MapTile.TILE_SIZE / 2f,
+                                tile.y + MapTile.TILE_SIZE / 4f,
                                 tile.z + MapTile.TILE_SIZE / 2f,
-                                MapTile.TILE_SIZE, MapTile.TILE_SIZE, MapTile.TILE_SIZE
+                                MapTile.TILE_SIZE, MapTile.TILE_SIZE / 2, MapTile.TILE_SIZE
                             );
                             break;
                         case SLAT:

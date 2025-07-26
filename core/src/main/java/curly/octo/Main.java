@@ -212,7 +212,7 @@ public class Main extends ApplicationAdapter {
                     for (int z = 0; z < voxelMap.getDepth(); z++) {
                         MapTile tile = voxelMap.getTile(x, y, z);
                         if (tile.geometryType != curly.octo.map.enums.MapTileGeometryType.EMPTY) {
-                            physicsManager.addStaticBlock(tile.x, tile.y, tile.z, MapTile.TILE_SIZE);
+                            physicsManager.addStaticBlock(tile.x, tile.y, tile.z, MapTile.TILE_SIZE, tile.geometryType, tile.direction);
                         }
                     }
                 }
@@ -221,7 +221,7 @@ public class Main extends ApplicationAdapter {
             float playerRadius = 1.0f;
             float playerHeight = 5.0f;
             float playerMass = 10.0f;
-            Vector3 playerStart = new Vector3(15, 15, 15);
+            Vector3 playerStart = new Vector3(15, 25, 15); // Start higher above ground
             physicsManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
 
             localPlayerController.setGameMap(voxelMap);
@@ -457,6 +457,12 @@ public class Main extends ApplicationAdapter {
             if (localPlayerController != null) {
                 localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z);
             }
+            // Render Bullet wireframes
+//            if (localPlayerController != null && localPlayerController.getCamera() != null) {
+//                physicsManager.getDebugDrawer().begin(localPlayerController.getCamera());
+//                physicsManager.getDynamicsWorld().debugDrawWorld();
+//                physicsManager.getDebugDrawer().end();
+//            }
         }
         int error = Gdx.gl.glGetError();
         if (error != GL20.GL_NO_ERROR) {

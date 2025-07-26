@@ -161,46 +161,69 @@ public class PlayerController extends InputAdapter  {
     }
 
     public void update(float delta) {
-        // Apply movement input as velocity to Bullet
         if (gameMap != null && physicsManager != null) {
             btRigidBody playerBody = physicsManager.getPlayerBody();
-            Vector3 velocity = playerBody.getLinearVelocity();
-            float moveSpeed = velocityLen; // e.g., 10f
-            Vector3 move = new Vector3();
-            if (Gdx.input.isKeyPressed(Input.Keys.W)) {
-                move.add(direction.x, 0, direction.z);
-            }
-            if (Gdx.input.isKeyPressed(Input.Keys.S)) {
-                move.add(-direction.x, 0, -direction.z);
-            }
-            Vector3 right = new Vector3(direction).crs(Vector3.Y).nor();
-            if (Gdx.input.isKeyPressed(Input.Keys.A)) {
-                move.add(-right.x, 0, -right.z);
-            }
-            if (Gdx.input.isKeyPressed(Input.Keys.D)) {
-                move.add(right.x, 0, right.z);
-            }
-            if (move.len2() > 0) {
-                move.nor().scl(moveSpeed);
-                velocity.x = move.x;
-                velocity.z = move.z;
-            } else {
-                velocity.x = 0;
-                velocity.z = 0;
-            }
-            // Simple grounded check: Y velocity near zero and player at/near ground
-            boolean isOnGround = isPlayerOnGround();
-            // Jumping
+            if (playerBody != null) {
+                Vector3 desiredVelocity = new Vector3();
+                float moveSpeed = 15f; // Target movement speed
 
-            if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && isOnGround) {
-                Log.info("PlayerController.update", "Jumping");
-                velocity.y = JUMP_VELOCITY;
-                playerBody.setLinearVelocity(velocity);
-                playerBody.activate();
-            } else {
-                playerBody.setLinearVelocity(velocity);
+                // Calculate desired movement velocity based on input
+                if (Gdx.input.isKeyPressed(Input.Keys.W)) {
+                    desiredVelocity.add(direction.x, 0, direction.z);
+                }
+                if (Gdx.input.isKeyPressed(Input.Keys.S)) {
+                    desiredVelocity.add(-direction.x, 0, -direction.z);
+                }
+                Vector3 right = new Vector3(direction).crs(Vector3.Y).nor();
+                if (Gdx.input.isKeyPressed(Input.Keys.A)) {
+                    desiredVelocity.add(-right.x, 0, -right.z);
+                }
+                if (Gdx.input.isKeyPressed(Input.Keys.D)) {
+                    desiredVelocity.add(right.x, 0, right.z);
+                }
+
+                // Get current velocity and ground state
+                Vector3 currentVelocity = playerBody.getLinearVelocity();
+                boolean isOnGround = isPlayerOnGround();
+
+                // Ground sticking for better slope handling
+                if (isOnGround && desiredVelocity.len2() == 0) {
+                    // When stopped on ground, gently reduce horizontal movement
+                    float horizontalSpeed = new Vector3(currentVelocity.x, 0, currentVelocity.z).len();
+
+                    if (horizontalSpeed > 0.5f) {
+                        // Apply moderate stopping force to prevent sliding
+                        Vector3 stopForce = new Vector3(-currentVelocity.x, 0, -currentVelocity.z).nor().scl(80f);
+                        playerBody.applyCentralForce(stopForce);
+                    } else {
+                        // When slow enough, gradually reduce movement
+                        float dampFactor = 0.7f;
+                        playerBody.setLinearVelocity(new Vector3(
+                            currentVelocity.x * dampFactor,
+                            currentVelocity.y,
+                            currentVelocity.z * dampFactor
+                        ));
+                    }
+                } else if (desiredVelocity.len2() > 0) {
+                    desiredVelocity.nor().scl(moveSpeed);
+
+                    if (isOnGround) {
+                        // On ground: apply slight downward bias to stick to slopes
+                        float yVel = Math.min(currentVelocity.y, -2f); // Cap upward velocity on slopes
+                        playerBody.setLinearVelocity(new Vector3(desiredVelocity.x, yVel, desiredVelocity.z));
+                    } else {
+                        // In air: maintain Y velocity for proper gravity
+                        playerBody.setLinearVelocity(new Vector3(desiredVelocity.x, currentVelocity.y, desiredVelocity.z));
+                    }
+                }
+
+                // Jump handling
+                if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && isOnGround) {
+                    Log.info("PlayerController.update", "Jumping");
+                    Vector3 currentVel = playerBody.getLinearVelocity();
+                    playerBody.setLinearVelocity(new Vector3(currentVel.x, 15f, currentVel.z)); // Set Y velocity directly
+                }
             }
-            playerBody.activate();
         }
         updateCamera();
     }
@@ -339,7 +362,7 @@ public class PlayerController extends InputAdapter  {
 
         btRigidBody playerBody = physicsManager.getPlayerBody();
         Vector3 playerPos = playerBody.getWorldTransform().getTranslation(new Vector3());
-        Vector3 from = new Vector3(playerPos.x, playerPos.y - 0.01f, playerPos.z); // just below feet
+        Vector3 from = new Vector3(playerPos.x, playerPos.y - 0.10f, playerPos.z); // just below feet
         Vector3 to = new Vector3(playerPos.x, playerPos.y - 1.5f, playerPos.z);    // a bit further down
         lastRayFrom.set(from);
         lastRayTo.set(to);
