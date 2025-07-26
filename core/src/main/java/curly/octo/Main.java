@@ -6,487 +6,122 @@ import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
 import com.badlogic.gdx.math.Vector3;
-import com.badlogic.gdx.utils.Align;
-import curly.octo.network.messages.PlayerUpdate;
-import curly.octo.player.PlayerController;
-import com.badlogic.gdx.scenes.scene2d.InputEvent;
-import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.*;
-import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.map.GameMap;
-import curly.octo.map.GameMapRenderer;
-import curly.octo.network.GameClient;
-import curly.octo.network.GameServer;
+import curly.octo.game.*;
+import curly.octo.ui.LobbyUI;
+import curly.octo.ui.DebugUI;
 import curly.octo.network.Network;
-import curly.octo.player.PlayerUtilities;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 
-import java.io.IOException;
-import java.net.URL;
-import java.util.*;
+import java.util.Random;
 
 /**
  * Main game class with network setup UI.
- * Allows starting a server or connecting as a client.
+ * Delegates game logic to specific game modes (Server/Client).
  */
-public class Main extends ApplicationAdapter {
-    private Stage lobbyStage;
-    private TextButton startServerButton;
-    private TextButton connectButton;
-    private TextField ipAddressField;
-    private Label statusLabel;
+public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
+    
     private Random random;
-
-    private Stage debugStage;
-    private Label fpsLabel;
-    private Label playerPositionLabel;
-
-    private GameServer gameServer;
-    private GameClient gameClient;
-
-    // Voxel map components
-    private GameMap mapManager;
-    private GameMapRenderer mapRenderer;
-    private boolean showUI = true;
-
-    private ArrayList<PlayerController> players;
-    private PlayerController localPlayerController;
-    private long localPlayerId;
-
-    // Client setup flags
-    private boolean mapReceived = false;
-    private boolean playerAssigned = false;
-
-    // 3D rendering variables
     private ModelBatch modelBatch;
-    private boolean show3DView = false;
-    private Environment environment;
-
-    // Networking
-    private float positionUpdateTimer = 0;
-    private static final float POSITION_UPDATE_INTERVAL = 1/60f; // 20 updates per second
-
-    private DirectionalLight sun;
-
-
-    private ShapeRenderer shapeRenderer;
+    
+    // UI Components
+    private LobbyUI lobbyUI;
+    private DebugUI debugUI;
+    private boolean showLobby = true;
+    
+    // Game Components
+    private GameWorld gameWorld;
+    private GameMode currentGameMode;
 
     public Main() {
+    }
+    
+    // LobbyUI.LobbyListener implementation
+    @Override
+    public void onStartServer() {
+        Log.info("Main", "Starting server mode");
+        startServerMode();
+    }
+    
+    @Override
+    public void onConnectToServer(String host) {
+        Log.info("Main", "Connecting to server: " + host);
+        startClientMode(host);
+    }
+    
+    private void startServerMode() {
+        gameWorld = new GameWorld(random);
+        currentGameMode = new ServerGameMode(gameWorld);
+        currentGameMode.initialize();
+        
+        lobbyUI.setStatus("Server started on port " + Network.TCP_PORT);
+        lobbyUI.disableInputs();
+        showLobby = false;
+    }
+    
+    private void startClientMode(String host) {
+        gameWorld = new GameWorld(random);
+        currentGameMode = new ClientGameMode(gameWorld, host);
+        currentGameMode.initialize();
+        
+        lobbyUI.setStatus("Connected to " + host);
+        lobbyUI.disableInputs();
+        showLobby = false;
     }
 
     @Override
     public void create() {
-        this.random = new Random();
-        modelBatch = new ModelBatch();
-
-        // Setup 3D environment
-        environment = new Environment();
-        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
-        sun = new DirectionalLight().set(0.8f, 0.8f, 0.8f, -1f, -0.8f, -0.2f);
-
-        environment.add(sun);
-
-        // Initialize voxel renderer
-        mapRenderer = new GameMapRenderer();
-
-        createLobbyStage();
-        createDebugStage();
-        Gdx.input.setInputProcessor(lobbyStage);
-        shapeRenderer = new ShapeRenderer();
-        Log.info("Main.create", "Done");
-    }
-
-    private void createLobbyStage() {
-        // Create stage for UI
-        lobbyStage = new Stage(new ScreenViewport());
-
-        // If we were launched with command line args, skip the UI
-        Table lobbyTable = new Table();
-        lobbyTable.setFillParent(true);
-        lobbyStage.addActor(lobbyTable);
-
-        // Create UI elements
-        Skin skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
-
-        statusLabel = new Label("Not connected", skin);
-        ipAddressField = new TextField("localhost", skin);
-
-        startServerButton = new TextButton("Start Server", skin);
-        startServerButton.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                startServer();
-            }
-        });
-
-        connectButton = new TextButton("Connect", skin);
-        connectButton.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                connectToServer(ipAddressField.getText());
-            }
-        });
-
-        // Layout
-        lobbyTable.add(statusLabel).colspan(2).pad(10);
-        lobbyTable.row();
-        lobbyTable.add(ipAddressField).width(200).pad(5);
-        lobbyTable.add(connectButton).pad(5);
-        lobbyTable.row();
-        lobbyTable.add(startServerButton).colspan(2).pad(5);
-    }
-    private void createDebugStage() {
-        debugStage = new Stage(new ScreenViewport());
-
-        Table debugTable = new Table();
-        debugTable.setFillParent(true);
-        debugTable.align(Align.topLeft);
-        debugStage.addActor(debugTable);
-
-        Skin skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
-        // Get local IP address
-        // String ipAddress = "Local IP: ";
-        // try {
-        //     Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
-        //     while (interfaces.hasMoreElements()) {
-        //         java.net.NetworkInterface iface = interfaces.nextElement();
-        //         // Skip loopback and inactive interfaces
-        //         if (iface.isLoopback() || !iface.isUp()) continue;
-
-        //         Enumeration<java.net.InetAddress> addresses = iface.getInetAddresses();
-        //         while (addresses.hasMoreElements()) {
-        //             java.net.InetAddress addr = addresses.nextElement();
-        //             // Skip loopback and link-local addresses
-        //             if (addr.isLoopbackAddress() || addr.isLinkLocalAddress()) continue;
-
-        //             // Use the first non-loopback, non-link-local address
-        //             ipAddress += addr.getHostAddress();
-        //             break;
-        //         }
-        //         if (!ipAddress.equals("Local IP: ")) break;
-        //     }
-        // } catch (Exception e) {
-        //     ipAddress = "Could not determine IP";
-        // }
-
-        String ipAddress = "Public IP: ";
         try {
-            URL url = new URL("https://api.ipify.org");
-            Scanner s = new Scanner(url.openStream(), "UTF-8").useDelimiter("\\A");
-            ipAddress += s.hasNext() ? s.next() : "Unavailable";
-            s.close();
+            Log.info("Main", "Starting initialization...");
+            Log.info("Main", "Working directory: " + System.getProperty("user.dir"));
+            
+            this.random = new Random();
+            this.modelBatch = new ModelBatch();
+            
+            // Initialize UI
+            this.lobbyUI = new LobbyUI(this);
+            this.debugUI = new DebugUI();
+            
+            // Set input processor to lobby
+            lobbyUI.setInputProcessor();
+            
+            Log.info("Main", "Initialized successfully");
         } catch (Exception e) {
-            ipAddress = "Could not determine public IP";
-        }
-
-        Label debugClientIPAddressLabel = new Label(ipAddress, skin);
-        debugTable.add(debugClientIPAddressLabel).pad(10);
-
-        debugTable.row();
-        fpsLabel = new Label("...", skin);
-        debugTable.add(fpsLabel).pad(10);
-
-        debugTable.row();
-        playerPositionLabel = new Label("...", skin);
-        debugTable.add(playerPositionLabel).pad(10);
-    }
-
-    private void startServer() {
-        try {
-
-            localPlayerController = PlayerUtilities.createPlayerController(random);
-            localPlayerId = localPlayerController.getPlayerId();
-
-            // Provide map for collision
-            if (mapManager == null) {
-                mapManager = new GameMap(64, 60, 64, System.currentTimeMillis());
-                mapRenderer.updateMap(mapManager);
-            }
-
-            // Add player to physics world
-            float playerRadius = 1.0f;
-            float playerHeight = 5.0f;
-            float playerMass = 10.0f;
-            Vector3 playerStart = new Vector3(15, 25, 15); // Start higher above ground
-            mapManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
-
-            localPlayerController.setGameMap(mapManager);
-            players = new ArrayList<>();
-            players.add(localPlayerController);
-
-            gameServer = new GameServer(random, mapManager, players);
-
-            gameServer.start();
-            updateUIForServer();
-            statusLabel.setText("Server started on port " + Network.TCP_PORT);
-            // Switch to 3D view after a short delay
-            Gdx.app.postRunnable(() -> {
-                try {
-                    Thread.sleep(1000); // Wait for the message to be visible
-                    show3DView = true;
-                    Gdx.input.setInputProcessor(localPlayerController); // Use Main class as input processor
-                    Log.info("Server", "Switched to 3D view and set input processor to Main");
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            });
-            showUI = false;
-        } catch (IOException e) {
-            statusLabel.setText("Failed to start server: " + e.getMessage());
+            Log.error("Main", "Failed to initialize: " + e.getMessage());
             e.printStackTrace();
+            throw e; // Re-throw to ensure the error is visible
         }
     }
-
-    private void setupClientPlayer() {
-        if (localPlayerController != null && mapManager != null) {
-            Log.info("Client", "Setting up local player physics");
-
-            // Add player to physics world - same as server
-            float playerRadius = 1.0f;
-            float playerHeight = 5.0f;
-            float playerMass = 10.0f;
-            Vector3 playerStart = new Vector3(15, 25, 15); // Start higher above ground
-            mapManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
-
-            // Link player controller to the map
-            localPlayerController.setGameMap(mapManager);
-
-            // Set player's initial position
-            localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z);
-
-            Log.info("Client", "Client player setup complete at position: " + playerStart);
-        } else {
-            Log.warn("Client", "Cannot setup player - localPlayerController or mapManager is null");
-        }
-    }
-
-    private void connectToServer(String host) {
-        try {
-            gameClient = new GameClient(host);
-            this.players = new ArrayList<>();
-            // Set up the map received listener
-            gameClient.setMapReceivedListener(receivedMap -> {
-                Gdx.app.postRunnable(() -> {
-                    Log.info("Client", "Received map with size: " +
-                        receivedMap.getWidth() + "x " +
-                        receivedMap.getHeight() + "y " +
-                        receivedMap.getDepth() + "z");
-
-                    // Update the local map and renderer
-                    mapManager = receivedMap;
-                    mapManager.ensurePhysicsReady(); // Initialize physics for received map
-                    if (mapRenderer != null) {
-                        mapRenderer.updateMap(mapManager);
-                        Log.info("Client", "Updated local map and renderer");
-                    } else {
-                        Log.error("Client", "VoxelMapRenderer is null");
-                    }
-
-                });
-            });
-
-            gameClient.setPlayerAssignmentListener(receivedPlayerId -> {
-                Gdx.app.postRunnable(() -> {
-                    setPlayer(receivedPlayerId.playerId);
-                    setupClientPlayer();
-                });
-            });
-
-            gameClient.setPlayerRosterListener(roster -> {
-                Gdx.app.postRunnable(() -> {
-                    HashSet<Long> currentPlayers = new HashSet<>();
-                    for (PlayerController player : players) {
-                        currentPlayers.add(player.getPlayerId());
-                    }
-
-                    for (PlayerController player : roster.players) {
-                        if (!currentPlayers.contains(player.getPlayerId())) {
-                            // Ensure other players don't have physics bodies
-                            player.setGameMap(null);
-                            players.add(player);
-                        }
-                    }
-                });
-            });
-
-            gameClient.setPlayerUpdateListener(playerUpdate -> {
-                Gdx.app.postRunnable(() -> {
-                    Log.info("PlayerUpdate", "Received position update for player " + playerUpdate.playerId + ": " +
-                            playerUpdate.x + ", " + playerUpdate.y + ", " + playerUpdate.z);
-                    
-                    // Skip updates for the local player
-                    if (playerUpdate.playerId == localPlayerId) {
-                        return;
-                    }
-                    
-                    // Find the player in our list
-                    PlayerController targetPlayer = null;
-                    for (PlayerController player : players) {
-                        if (player.getPlayerId() == playerUpdate.playerId) {
-                            targetPlayer = player;
-                            break;
-                        }
-                    }
-                    
-                    // If player not found, create a new one (this can happen if roster update was missed)
-                    if (targetPlayer == null) {
-                        Log.info("PlayerUpdate", "Creating new player controller for player " + playerUpdate.playerId);
-                        targetPlayer = PlayerUtilities.createPlayerController(random);
-                        targetPlayer.setPlayerId(playerUpdate.playerId);
-                        // Don't set gameMap for other players - they don't need physics
-                        // targetPlayer.setGameMap(mapManager);
-                        players.add(targetPlayer);
-                    }
-                    
-                    // Update the player's position
-                    targetPlayer.setPlayerPosition(playerUpdate.x, playerUpdate.y, playerUpdate.z);
-                });
-            });
-
-
-            // Connect to the server
-            gameClient.connect(5000);
-
-            // Set up periodic updates
-            Gdx.app.postRunnable(() -> {
-                updateUIForServer();
-                statusLabel.setText("Connected to " + host);
-
-                // Switch to 3D view after a short delay
-                Gdx.app.postRunnable(() -> {
-                    try {
-                        Thread.sleep(1000); // Wait for the message to be visible
-                        show3DView = true;
-
-                        Gdx.input.setInputProcessor(localPlayerController);
-                        Log.info("Client", "Switched to 3D view and set input processor to Main");
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                });
-            });
-            showUI = false;
-
-        } catch (IOException e) {
-            Gdx.app.postRunnable(() -> {
-                statusLabel.setText("Failed to connect: " + e.getMessage());
-                e.printStackTrace();
-            });
-        }
-    }
-
-    private void setPlayer(long localPlayerId) {
-        this.localPlayerId = localPlayerId;
-        if (players != null && !players.isEmpty()) {
-            for (PlayerController player : players) {
-                if(player.getPlayerId() == localPlayerId) {
-                    localPlayerController = player;
-                    localPlayerController.setPlayerId(localPlayerId); // Ensure the controller's id matches the server-assigned id
-                    // Ensure local player has physics set up
-                    if (mapManager != null) {
-                        localPlayerController.setGameMap(mapManager);
-                    }
-                    Gdx.input.setInputProcessor(localPlayerController);
-                    break;
-                }
-            }
-        }
-    }
-
-    private void updateUIForServer() {
-        if (lobbyStage != null) {
-            lobbyStage.clear();
-            lobbyStage.addActor(statusLabel);
-        }
-        if (startServerButton != null) startServerButton.setDisabled(true);
-        if (connectButton != null) connectButton.setDisabled(true);
-        if (ipAddressField != null) ipAddressField.setDisabled(true);
-    }
-
-    private void sendPositionUpdate() {
-        if (gameClient != null && localPlayerController != null) {
-            Vector3 position = localPlayerController.getPosition();
-            PlayerUpdate update = new PlayerUpdate(
-                localPlayerId,
-                position
-            );
-            gameClient.sendUDP(update);
-            Log.debug("Client", "Sent position update: " + position.x + ", " + position.y + ", " + position.z);
-        }
-    }
-
-
-    private float sunAngle = 0f;
 
     @Override
     public void render() {
-        // Update sun position in a circular motion
-        sunAngle += Gdx.graphics.getDeltaTime() * 1f; // Adjust rotation speed as needed
-        float radius = 10f; // Radius of the sun's circular path
-        float sunX = (float) Math.cos(sunAngle) * radius;
-        float sunZ = (float) Math.sin(sunAngle) * radius;
-        sun.setDirection(new Vector3(-sunX, -0.8f, sunZ).nor());
-//        -1f, -0.8f, -0.2f
         float deltaTime = Gdx.graphics.getDeltaTime();
+        
+        // Clear screen
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
-        fpsLabel.setText("FPS: " + Gdx.graphics.getFramesPerSecond());
-
-        if (localPlayerController != null) {
-            float x = Math.round(localPlayerController.getPosition().x);
-            float y = Math.round(localPlayerController.getPosition().y);
-            float z = Math.round(localPlayerController.getPosition().z);
-            playerPositionLabel.setText("Position: " + x + ", " + y + ", " + z);
-        }
-
-        if (show3DView) {
-            // Update camera and player position
-            if (localPlayerController != null) {
-                localPlayerController.update(deltaTime);
-                mapRenderer.render(localPlayerController.getCamera(), environment);
-
-                // Handle periodic position updates
-                positionUpdateTimer += deltaTime;
-                if (positionUpdateTimer >= POSITION_UPDATE_INTERVAL) {
-                    positionUpdateTimer = 0;
-                    sendPositionUpdate();
-                    // If running as server/host, broadcast host's position to all clients
-                    if (gameServer != null) {
-                        gameServer.broadcastPlayerPosition(localPlayerId, localPlayerController.getPosition());
-                    }
-                }
-            }
-
-            // Render all players (only render other players, local player is handled separately)
-            if (players != null) {
-                for(PlayerController player : players) {
-                    // Only render other players if we have a local player controller
-                    if (localPlayerController != null && player.getPlayerId() != localPlayerController.getPlayerId()) {
-                        // Don't call update() for other players - they don't have physics
-                        player.render(modelBatch, environment, localPlayerController.getCamera());
-                    }
-                }
+        
+        // Update and render game mode if active
+        if (currentGameMode != null && currentGameMode.isActive()) {
+            currentGameMode.update(deltaTime);
+            currentGameMode.render(modelBatch, gameWorld.getEnvironment());
+            
+            // Update debug info
+            if (gameWorld.getLocalPlayerController() != null) {
+                Vector3 pos = gameWorld.getLocalPlayerController().getPosition();
+                debugUI.setPlayerPosition(pos.x, pos.y, pos.z);
             }
         }
-
-        // Update and draw UI if visible
-        if (showUI) {
-            lobbyStage.act(Math.min(deltaTime, 1 / 30f));
-            lobbyStage.draw();
+        
+        // Update and render UI
+        if (showLobby) {
+            lobbyUI.update(deltaTime);
+            lobbyUI.render();
         }
-
-        debugStage.act(Math.min(deltaTime, 1 / 30f));
-        debugStage.draw();
-
-        // Step physics world
-        if (mapManager != null && localPlayerController != null) {
-            mapManager.stepPhysics(deltaTime);
-            // Update local player position from Bullet physics
-            Vector3 bulletPlayerPos = mapManager.getPlayerPosition();
-            localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z);
-        }
+        
+        debugUI.update(deltaTime);
+        debugUI.render();
+        
+        // Check for OpenGL errors
         int error = Gdx.gl.glGetError();
         if (error != GL20.GL_NO_ERROR) {
             System.out.println("OpenGL Error: " + error);
@@ -495,29 +130,67 @@ public class Main extends ApplicationAdapter {
 
     @Override
     public void resize(int width, int height) {
-        // Update viewport for 2D UI
-        lobbyStage.getViewport().update(width, height, true);
-
-        // Update camera for 3D view
-        if (localPlayerController != null) {
-            localPlayerController.resize(width, height);
+        lobbyUI.resize(width, height);
+        debugUI.resize(width, height);
+        
+        if (currentGameMode != null) {
+            currentGameMode.resize(width, height);
         }
     }
 
     @Override
     public void dispose() {
-        if (gameServer != null) {
-            gameServer.stop();
+        Log.info("Main", "Disposing resources...");
+        
+        // Dispose game mode first (it handles its own resources)
+        if (currentGameMode != null) {
+            try {
+                currentGameMode.dispose();
+                Log.info("Main", "Game mode disposed");
+            } catch (Exception e) {
+                Log.error("Main", "Error disposing game mode: " + e.getMessage());
+            }
         }
-        if (gameClient != null) {
-            gameClient.disconnect();
+        
+        // Dispose game world (it handles map and renderer)
+        if (gameWorld != null) {
+            try {
+                gameWorld.dispose();
+                Log.info("Main", "Game world disposed");
+            } catch (Exception e) {
+                Log.error("Main", "Error disposing game world: " + e.getMessage());
+            }
         }
-        if (mapRenderer != null) {
-            mapRenderer.disposeAll();
+        
+        // Dispose UI components
+        try {
+            if (lobbyUI != null) {
+                lobbyUI.dispose();
+                Log.info("Main", "Lobby UI disposed");
+            }
+        } catch (Exception e) {
+            Log.error("Main", "Error disposing lobby UI: " + e.getMessage());
         }
-        lobbyStage.dispose();
-        debugStage.dispose();
-        if (mapManager != null) mapManager.dispose();
-        shapeRenderer.dispose();
+        
+        try {
+            if (debugUI != null) {
+                debugUI.dispose();
+                Log.info("Main", "Debug UI disposed");
+            }
+        } catch (Exception e) {
+            Log.error("Main", "Error disposing debug UI: " + e.getMessage());
+        }
+        
+        // Dispose model batch last
+        try {
+            if (modelBatch != null) {
+                modelBatch.dispose();
+                Log.info("Main", "Model batch disposed");
+            }
+        } catch (Exception e) {
+            Log.error("Main", "Error disposing model batch: " + e.getMessage());
+        }
+        
+        Log.info("Main", "All resources disposed");
     }
 }

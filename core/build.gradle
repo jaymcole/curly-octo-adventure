@@ -31,11 +31,15 @@ dependencies {
 // Task to create a runnable JAR with all dependencies
 task dist(type: Jar) {
     manifest {
-        attributes 'Main-Class': 'curly.octo.desktop.DesktopLauncher'
+        attributes 'Main-Class': 'curly.octo.lwjgl3.Lwjgl3Launcher'
     }
     dependsOn configurations.runtimeClasspath
     from {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    // Include assets in the JAR
+    from('../assets') {
+        into 'assets'
     }
     with jar
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE

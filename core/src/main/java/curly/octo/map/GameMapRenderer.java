@@ -21,6 +21,7 @@ public class GameMapRenderer implements Disposable {
 //    private final Environment environment;
     private final Array<ModelInstance> instances;
     private Model model;
+    private boolean disposed = false;
 
     public GameMapRenderer() {
         modelBatch = new ModelBatch();
@@ -171,14 +172,34 @@ public class GameMapRenderer implements Disposable {
 
     @Override
     public void dispose() {
+        if (disposed) {
+            Log.info("GameMapRenderer", "Already disposed, skipping");
+            return;
+        }
+        
         if (model != null) {
-            model.dispose();
+            try {
+                model.dispose();
+                Log.info("GameMapRenderer", "Model disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing model: " + e.getMessage());
+            }
+            model = null;
             instances.clear();
         }
+        
+        disposed = true;
     }
 
     public void disposeAll() {
         dispose();
-        modelBatch.dispose();
+        if (modelBatch != null && !disposed) {
+            try {
+                modelBatch.dispose();
+                Log.info("GameMapRenderer", "Model batch disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing model batch: " + e.getMessage());
+            }
+        }
     }
 }
