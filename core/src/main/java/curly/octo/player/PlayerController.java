@@ -97,7 +97,7 @@ public class PlayerController extends InputAdapter  {
 
             // Create model on OpenGL thread
             ModelBuilder modelBuilder = new ModelBuilder();
-            placeholderModel = modelBuilder.createSphere(1f, 1f, 1f, 16, 16,
+            placeholderModel = modelBuilder.createSphere(3f, 3f, 3f, 16, 16,
                 new Material(ColorAttribute.createDiffuse(Color.BLUE)),
                 VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal);
             placeHolderModelInstance = new ModelInstance(placeholderModel);
@@ -117,8 +117,9 @@ public class PlayerController extends InputAdapter  {
 
         try {
             // Position the model 2 units in front of the camera
-            Vector3 modelPosition = new Vector3(position);
 
+            Vector3 modelPosition = new Vector3(position);
+            modelPosition.y += playerHeight;
             // Update model transform
             placeHolderModelInstance.transform.idt();
             placeHolderModelInstance.transform.setToTranslation(modelPosition);

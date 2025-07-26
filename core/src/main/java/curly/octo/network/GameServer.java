@@ -14,7 +14,9 @@ import curly.octo.player.PlayerController;
 import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 /**
@@ -25,6 +27,7 @@ public class GameServer {
     private final NetworkListener networkListener;
     private final GameMap map;
     private final List<PlayerController> players;
+    private final Map<Integer, Long> connectionToPlayerMap = new HashMap<>();
 
     public GameServer(Random random, GameMap map, List<PlayerController> players) {
         this.map = map;
@@ -49,6 +52,7 @@ public class GameServer {
                 sendMapRefreshToUser(connection);
                 PlayerController newPlayer = PlayerUtilities.createPlayerController(random);
                 players.add(newPlayer);
+                connectionToPlayerMap.put(connection.getID(), newPlayer.getPlayerId());
                 broadcastNewPlayerRoster();
                 assignPlayer(connection, newPlayer.getPlayerId());
 
@@ -72,30 +76,29 @@ public class GameServer {
                         }
                     }
 
-                    // Broadcast to all other clients
-                    for (Connection other : server.getConnections()) {
-                        if (other.getID() != connection.getID()) {
-                            other.sendUDP(update);
-                        }
-                    }
+                    // Broadcast to all clients (including the sender for host player visibility)
+                    server.sendToAllUDP(update);
                 }
             }
 
             @Override
             public void disconnected(Connection connection) {
-                // Find and remove the disconnected player
-                PlayerController disconnectedPlayer = null;
-                for (PlayerController player : players) {
-                    if (player.getPlayerId() == connection.getID()) {
-                        disconnectedPlayer = player;
-                        break;
+                // Find and remove the disconnected player using the connection mapping
+                Long playerId = connectionToPlayerMap.remove(connection.getID());
+                if (playerId != null) {
+                    PlayerController disconnectedPlayer = null;
+                    for (PlayerController player : players) {
+                        if (player.getPlayerId() == playerId) {
+                            disconnectedPlayer = player;
+                            break;
+                        }
                     }
-                }
-
-                if (disconnectedPlayer != null) {
-                    players.remove(disconnectedPlayer);
-                    broadcastNewPlayerRoster();
-                    Log.info("Server", "Player " + disconnectedPlayer.getPlayerId() + " disconnected");
+                    
+                    if (disconnectedPlayer != null) {
+                        players.remove(disconnectedPlayer);
+                        broadcastNewPlayerRoster();
+                        Log.info("Server", "Player " + disconnectedPlayer.getPlayerId() + " disconnected");
+                    }
                 }
             }
         });

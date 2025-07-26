@@ -54,7 +54,7 @@ public class Main extends ApplicationAdapter {
     private ArrayList<PlayerController> players;
     private PlayerController localPlayerController;
     private long localPlayerId;
-    
+
     // Client setup flags
     private boolean mapReceived = false;
     private boolean playerAssigned = false;
@@ -242,20 +242,20 @@ public class Main extends ApplicationAdapter {
     private void setupClientPlayer() {
         if (localPlayerController != null && mapManager != null) {
             Log.info("Client", "Setting up local player physics");
-            
+
             // Add player to physics world - same as server
             float playerRadius = 1.0f;
             float playerHeight = 5.0f;
             float playerMass = 10.0f;
             Vector3 playerStart = new Vector3(15, 25, 15); // Start higher above ground
             mapManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
-            
+
             // Link player controller to the map
             localPlayerController.setGameMap(mapManager);
-            
+
             // Set player's initial position
             localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z);
-            
+
             Log.info("Client", "Client player setup complete at position: " + playerStart);
         } else {
             Log.warn("Client", "Cannot setup player - localPlayerController or mapManager is null");
@@ -270,9 +270,9 @@ public class Main extends ApplicationAdapter {
             gameClient.setMapReceivedListener(receivedMap -> {
                 Gdx.app.postRunnable(() -> {
                     Log.info("Client", "Received map with size: " +
-                        receivedMap.getWidth() + "x" +
-                        receivedMap.getHeight() + "x" +
-                        receivedMap.getDepth());
+                        receivedMap.getWidth() + "x " +
+                        receivedMap.getHeight() + "y " +
+                        receivedMap.getDepth() + "z");
 
                     // Update the local map and renderer
                     mapManager = receivedMap;
@@ -303,6 +303,8 @@ public class Main extends ApplicationAdapter {
 
                     for (PlayerController player : roster.players) {
                         if (!currentPlayers.contains(player.getPlayerId())) {
+                            // Ensure other players don't have physics bodies
+                            player.setGameMap(null);
                             players.add(player);
                         }
                     }
@@ -313,19 +315,33 @@ public class Main extends ApplicationAdapter {
                 Gdx.app.postRunnable(() -> {
                     Log.info("PlayerUpdate", "Received position update for player " + playerUpdate.playerId + ": " +
                             playerUpdate.x + ", " + playerUpdate.y + ", " + playerUpdate.z);
+                    
+                    // Skip updates for the local player
+                    if (playerUpdate.playerId == localPlayerId) {
+                        return;
+                    }
+                    
+                    // Find the player in our list
+                    PlayerController targetPlayer = null;
                     for (PlayerController player : players) {
                         if (player.getPlayerId() == playerUpdate.playerId) {
-                            // Skip updating the local player to prevent position override
-                            if (player != localPlayerController) {
-                                player.setPlayerPosition(playerUpdate.x, playerUpdate.y, playerUpdate.z);
-                                localPlayerController.setGameMap(mapManager);
-                                players = new ArrayList<>();
-                                players.add(localPlayerController);
-
-                            }
+                            targetPlayer = player;
                             break;
                         }
                     }
+                    
+                    // If player not found, create a new one (this can happen if roster update was missed)
+                    if (targetPlayer == null) {
+                        Log.info("PlayerUpdate", "Creating new player controller for player " + playerUpdate.playerId);
+                        targetPlayer = PlayerUtilities.createPlayerController(random);
+                        targetPlayer.setPlayerId(playerUpdate.playerId);
+                        // Don't set gameMap for other players - they don't need physics
+                        // targetPlayer.setGameMap(mapManager);
+                        players.add(targetPlayer);
+                    }
+                    
+                    // Update the player's position
+                    targetPlayer.setPlayerPosition(playerUpdate.x, playerUpdate.y, playerUpdate.z);
                 });
             });
 
@@ -368,6 +384,10 @@ public class Main extends ApplicationAdapter {
                 if(player.getPlayerId() == localPlayerId) {
                     localPlayerController = player;
                     localPlayerController.setPlayerId(localPlayerId); // Ensure the controller's id matches the server-assigned id
+                    // Ensure local player has physics set up
+                    if (mapManager != null) {
+                        localPlayerController.setGameMap(mapManager);
+                    }
                     Gdx.input.setInputProcessor(localPlayerController);
                     break;
                 }
@@ -387,7 +407,7 @@ public class Main extends ApplicationAdapter {
 
     private void sendPositionUpdate() {
         if (gameClient != null && localPlayerController != null) {
-            Vector3 position = localPlayerController.getCamera().position;
+            Vector3 position = localPlayerController.getPosition();
             PlayerUpdate update = new PlayerUpdate(
                 localPlayerId,
                 position
@@ -439,11 +459,12 @@ public class Main extends ApplicationAdapter {
                 }
             }
 
-            // Render all players
+            // Render all players (only render other players, local player is handled separately)
             if (players != null) {
                 for(PlayerController player : players) {
                     // Only render other players if we have a local player controller
                     if (localPlayerController != null && player.getPlayerId() != localPlayerController.getPlayerId()) {
+                        // Don't call update() for other players - they don't have physics
                         player.render(modelBatch, environment, localPlayerController.getCamera());
                     }
                 }
@@ -460,14 +481,11 @@ public class Main extends ApplicationAdapter {
         debugStage.draw();
 
         // Step physics world
-        if (mapManager != null) {
-            localPlayerController.setGameMap(mapManager);
+        if (mapManager != null && localPlayerController != null) {
             mapManager.stepPhysics(deltaTime);
-            // Update player position from Bullet
+            // Update local player position from Bullet physics
             Vector3 bulletPlayerPos = mapManager.getPlayerPosition();
-            if (localPlayerController != null) {
-                localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z);
-            }
+            localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z);
         }
         int error = Gdx.gl.glGetError();
         if (error != GL20.GL_NO_ERROR) {
