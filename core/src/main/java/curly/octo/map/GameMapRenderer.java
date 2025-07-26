@@ -11,6 +11,8 @@ import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.graphics.g3d.utils.MeshPartBuilder;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.graphics.g3d.utils.shapebuilders.BoxShapeBuilder;
+import com.badlogic.gdx.graphics.g3d.utils.shapebuilders.SphereShapeBuilder;
+import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
@@ -40,15 +42,15 @@ public class GameMapRenderer implements Disposable {
             Log.warn("GameMapRenderer", "No main light found, skipping shadow rendering");
             return;
         }
-        
+
         // Generate shadow map pointing toward player
         shadowMapRenderer.generateShadowMap(instances, mainLight, camera.position);
-        
+
         // Render scene with shadows
         Vector3 ambientLight = getAmbientLight(environment);
         shadowMapRenderer.renderWithShadows(instances, camera, mainLight, ambientLight);
     }
-    
+
     private PointLight getMainLight(Environment environment) {
         // Find the first point light in the environment (player lantern)
         PointLightsAttribute pointLights = environment.get(PointLightsAttribute.class, PointLightsAttribute.Type);
@@ -57,7 +59,7 @@ public class GameMapRenderer implements Disposable {
         }
         return null;
     }
-    
+
     private Vector3 getAmbientLight(Environment environment) {
         // Extract ambient light color from environment
         ColorAttribute ambient = environment.get(ColorAttribute.class, ColorAttribute.AmbientLight);
@@ -93,16 +95,31 @@ public class GameMapRenderer implements Disposable {
         grassMaterial.set(new FloatAttribute(FloatAttribute.Shininess, 4f));
         grassMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
 
+        Material spawnMaterial = new Material();
+        grassMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.LIME));
+        grassMaterial.set(new ColorAttribute(ColorAttribute.Specular, 0.1f, 0.1f, 0.1f, 1f));
+        grassMaterial.set(new FloatAttribute(FloatAttribute.Shininess, 4f));
+        grassMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
+
         // Create mesh parts for each material type
 
         // Generate cubes for each voxel
         for (int x = 0; x < map.getWidth(); x++) {
             for (int y = 0; y < map.getHeight(); y++) {
                 for (int z = 0; z < map.getDepth(); z++) {
-                    Log.info("GameMapRenderer.updateMap", "x:" + x + " y:" + y + " z:" + z);
                     MapTile tile = map.getTile(x, y, z);
-                    if (tile.geometryType != MapTileGeometryType.EMPTY) {
 
+                    if (tile.isSpawnTile()) {
+                        modelBuilder.node();
+                        MeshPartBuilder meshPartBuilder = modelBuilder.part("spawn",
+                            GL20.GL_TRIANGLES,
+                            Usage.Position | Usage.Normal | Usage.TextureCoordinates,
+                            spawnMaterial);
+                        Matrix4 spawnPosition = new Matrix4().translate(new Vector3(tile.x, tile.y, tile.z));
+                        SphereShapeBuilder.build(meshPartBuilder, spawnPosition, 2,2,2, 10, 10);
+                    }
+
+                    if (tile.geometryType != MapTileGeometryType.EMPTY) {
                         Material material = stoneMaterial;
                         switch (tile.material) {
                             case DIRT:

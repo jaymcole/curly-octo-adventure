@@ -7,11 +7,12 @@ import com.badlogic.gdx.physics.bullet.DebugDrawer;
 import com.badlogic.gdx.physics.bullet.collision.*;
 import com.badlogic.gdx.physics.bullet.dynamics.*;
 import com.badlogic.gdx.physics.bullet.linearmath.btDefaultMotionState;
-import com.badlogic.gdx.physics.bullet.linearmath.btIDebugDraw;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.generators.PlaygroundGenerator;
+import curly.octo.map.hints.MapHint;
+import curly.octo.map.hints.SpawnPointHint;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +31,8 @@ public class GameMap {
     public int getWidth() { return map.length; }
     public int getHeight() { return map[0].length; }
     public int getDepth() { return map[0][0].length; }
+
+    public transient ArrayList<MapTile> spawnTiles;
 
     private transient boolean physicsInitialized;
     private transient btDefaultCollisionConfiguration collisionConfig;
@@ -58,9 +61,35 @@ public class GameMap {
     }
 
     public void generateDungeon(int width, int height, int depth) {
+        Log.info("GameMap.generateDungeon", "Generating tiles");
         PlaygroundGenerator generator = new PlaygroundGenerator(random);
         map = generator.generate();
+        Log.info("GameMap.generateDungeon", "Done generating tiles");
+
+        Log.info("GameMap.generateDungeon", "Loading physics bodies");
         generatePhysicsBodies();
+        Log.info("GameMap.generateDungeon", "Done loading physics bodies");
+
+        Log.info("GameMap.generateDungeon", "Loading hints");
+        cacheMapHints();
+        Log.info("GameMap.generateDungeon", "Done loading hints");
+    }
+
+    public void cacheMapHints() {
+        spawnTiles = new ArrayList<>();
+
+        for(int x  = 0; x < getWidth(); x++) {
+            for (int y = 0; y < getHeight(); y++) {
+                for(int z = 0; z < getDepth(); z++) {
+                    MapTile tile = map[x][y][z];
+                    for (MapHint hint : tile.getHints()) {
+                        if (hint instanceof SpawnPointHint) {
+                            spawnTiles.add(tile);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public MapTile getTileFromWorldCoordinates(float worldX, float worldY, float worldZ) {
@@ -117,11 +146,6 @@ public class GameMap {
             }
         }
         Log.info("GameMap", "Generated " + blockCount + " physics bodies for map tiles");
-    }
-
-    // Physics methods (moved from PhysicsManager)
-    public void addStaticBlock(float x, float y, float z, float size) {
-        addStaticBlock(x, y, z, size, MapTileGeometryType.FULL, CardinalDirection.NORTH);
     }
 
     public void addStaticBlock(float x, float y, float z, float size, MapTileGeometryType geometryType, CardinalDirection direction) {
@@ -282,33 +306,6 @@ public class GameMap {
             return transform.getTranslation(new Vector3());
         }
         return new Vector3();
-    }
-
-    public btDiscreteDynamicsWorld getDynamicsWorld() {
-        return dynamicsWorld;
-    }
-
-    public DebugDrawer getDebugDrawer() {
-        // Lazy initialize DebugDrawer on OpenGL thread
-        if (debugDrawer == null && dynamicsWorld != null) {
-            try {
-                debugDrawer = new DebugDrawer();
-                debugDrawer.setDebugMode(btIDebugDraw.DebugDrawModes.DBG_DrawWireframe);
-                dynamicsWorld.setDebugDrawer(debugDrawer);
-            } catch (Exception e) {
-                Log.warn("GameMap", "Could not create DebugDrawer (no OpenGL context): " + e.getMessage());
-            }
-        }
-        return debugDrawer;
-    }
-
-    // Method to ensure physics is ready for clients who receive the map via network
-    public void ensurePhysicsReady() {
-        if (!physicsInitialized) {
-            Log.info("GameMap", "Initializing physics for received map");
-            initializePhysics();
-            generatePhysicsBodies();
-        }
     }
 
     public void dispose() {

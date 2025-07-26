@@ -4,6 +4,10 @@ import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.enums.MapTileMaterial;
+import curly.octo.map.hints.MapHint;
+import curly.octo.map.hints.SpawnPointHint;
+
+import java.util.ArrayList;
 
 public class MapTile {
     public static final float TILE_SIZE = 5;
@@ -13,10 +17,31 @@ public class MapTile {
     public CardinalDirection direction;
     public MapTileMaterial material;
 
+
+    private final ArrayList<MapHint> hints;
+    private boolean isSpawn;
+
     public MapTile() {
+        hints = new ArrayList<>();
         fillType = MapTileFillType.AIR;
         geometryType = MapTileGeometryType.EMPTY;
         direction = CardinalDirection.NORTH;
         material = MapTileMaterial.STONE;
+        isSpawn = false;
+    }
+
+    public void AddHint(MapHint hint) {
+        hints.add(hint);
+        if (hint instanceof SpawnPointHint) {
+            isSpawn = true;
+        }
+    }
+
+    public ArrayList<MapHint> getHints() {
+        return hints;
+    }
+
+    public boolean isSpawnTile() {
+        return isSpawn;
     }
 }

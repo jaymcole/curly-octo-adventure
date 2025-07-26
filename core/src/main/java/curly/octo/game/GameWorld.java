@@ -9,11 +9,14 @@ import com.badlogic.gdx.utils.Array;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.GameMapRenderer;
+import curly.octo.map.MapTile;
 import curly.octo.player.PlayerController;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+
+import static curly.octo.player.PlayerUtilities.createPlayerController;
 
 /**
  * Shared game world that contains the map, physics, and environment.
@@ -102,7 +105,7 @@ public class GameWorld {
     public void setupLocalPlayer() {
         if (localPlayerController == null) {
             Log.info("GameWorld", "Creating local player controller");
-            localPlayerController = curly.octo.player.PlayerUtilities.createPlayerController(random);
+            localPlayerController = createPlayerController(random);
             // Don't set localPlayerId here - it will be set by the server assignment
             players.add(localPlayerController);
             Log.info("GameWorld", "Local player controller created and added to players list");
@@ -114,6 +117,11 @@ public class GameWorld {
             float playerHeight = 5.0f;
             float playerMass = 10.0f;
             Vector3 playerStart = new Vector3(15, 25, 15);
+            if (!mapManager.spawnTiles.isEmpty()) {
+                MapTile spawnTile = mapManager.spawnTiles.get(0);
+                playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
+            }
+
             mapManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
 
             localPlayerController.setGameMap(mapManager);

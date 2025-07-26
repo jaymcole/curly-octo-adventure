@@ -8,6 +8,8 @@ import curly.octo.map.MapTile;
 import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.enums.MapTileMaterial;
+import curly.octo.map.hints.MapHint;
+import curly.octo.map.hints.SpawnPointHint;
 import org.bitlet.weupnp.GatewayDevice;
 import org.bitlet.weupnp.GatewayDiscover;
 import curly.octo.map.GameMap;
@@ -19,6 +21,7 @@ import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.player.PlayerController;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 
 /**
  * Base class for network-related functionality.
@@ -55,6 +58,9 @@ public class Network {
         kryo.register(MapTileGeometryType.class);
         kryo.register(MapTileMaterial.class);
         kryo.register(CardinalDirection.class);
+        kryo.register(ArrayList.class);
+        kryo.register(MapHint.class);
+        kryo.register(SpawnPointHint.class);
         kryo.register(MapTile.class);
         kryo.register(MapTile[].class);
         kryo.register(MapTile[][].class);

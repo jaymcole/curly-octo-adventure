@@ -5,13 +5,14 @@ import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.enums.MapTileMaterial;
+import curly.octo.map.hints.SpawnPointHint;
 
 import java.util.Random;
 
 public class PlaygroundGenerator extends MapGenerator{
 
     public PlaygroundGenerator(Random random) {
-        super(random, 64, 6, 64);
+        super(random, 22, 6, 22);
     }
 
     @Override
@@ -58,7 +59,18 @@ public class PlaygroundGenerator extends MapGenerator{
             map[xIndex][i+1][i+4].direction = CardinalDirection.EAST;
             map[xIndex][i+1][i+4].geometryType = MapTileGeometryType.SLAT;
 
+            map[xIndex+2][i+1][(i*2)+4].direction = CardinalDirection.EAST;
+            map[xIndex+2][i+1][(i*2)+4].geometryType = MapTileGeometryType.HALF_SLANT;
+            map[xIndex+2][i+1][(i*2)+5].direction = CardinalDirection.EAST;
+            map[xIndex+2][i+1][(i*2)+5].geometryType = MapTileGeometryType.HALF;
         }
+
+        MapTile tile = map[random.nextInt(width)][2][random.nextInt(depth)];
+        while (tile.geometryType != MapTileGeometryType.EMPTY) {
+            tile = map[random.nextInt(width)][2][random.nextInt(depth)];
+        }
+        tile.AddHint(new SpawnPointHint());
+
         return map;
     }
 }
