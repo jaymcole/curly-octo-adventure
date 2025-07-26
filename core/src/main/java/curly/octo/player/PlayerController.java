@@ -18,7 +18,6 @@ import com.badlogic.gdx.physics.bullet.collision.ClosestRayResultCallback;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
-import curly.octo.map.PhysicsManager;
 import curly.octo.map.enums.MapTileGeometryType;
 
 /**
@@ -57,7 +56,6 @@ public class PlayerController extends InputAdapter  {
     private static final float GRAVITY = -30f;
     private static final float JUMP_VELOCITY = 20f;
     private static final float velocityLen = 10f; // Player movement speed
-    private PhysicsManager physicsManager;
     private final Vector3 lastRayFrom = new Vector3();
     private final Vector3 lastRayTo = new Vector3();
 
@@ -84,9 +82,6 @@ public class PlayerController extends InputAdapter  {
         }
     }
 
-    public void setPhysicsManager(PhysicsManager physicsManager) {
-        this.physicsManager = physicsManager;
-    }
 
     public long getPlayerId() {
         return playerId;
@@ -163,8 +158,8 @@ public class PlayerController extends InputAdapter  {
     }
 
     public void update(float delta) {
-        if (gameMap != null && physicsManager != null) {
-            btKinematicCharacterController controller = physicsManager.getPlayerController();
+        if (gameMap != null) {
+            btKinematicCharacterController controller = gameMap.getPlayerController();
             if (controller != null) {
                 Vector3 walkDirection = new Vector3();
                 float moveSpeed = velocityLen; // Use existing movement speed
@@ -198,7 +193,7 @@ public class PlayerController extends InputAdapter  {
                     Log.info("PlayerController.update", "Jumping - onGround: " + isOnGround);
 
                     // Debug: Check if position changed after jump
-                    Vector3 posBeforeJump = physicsManager.getPlayerPosition();
+                    Vector3 posBeforeJump = gameMap.getPlayerPosition();
                     Log.info("PlayerController", "Position before jump: " + posBeforeJump);
 
                     // Use setVelocityForTimeInterval for more direct vertical movement
@@ -207,7 +202,7 @@ public class PlayerController extends InputAdapter  {
 
                     controller.jump(new Vector3(0, 15f, 0));
                     // Debug: Check if position changed after jump
-                    Vector3 posAfterJump = physicsManager.getPlayerPosition();
+                    Vector3 posAfterJump = gameMap.getPlayerPosition();
                     Log.info("PlayerController", "Position after jump: " + posAfterJump);
                 }
             }
@@ -342,12 +337,12 @@ public class PlayerController extends InputAdapter  {
     }
 
     private boolean isPlayerOnGround() {
-        if (physicsManager == null) {
-            Log.info("isPlayerOnGround", "physicsManager is null");
+        if (gameMap == null) {
+            Log.info("isPlayerOnGround", "gameMap is null");
             return false;
         }
 
-        btPairCachingGhostObject playerGhost = physicsManager.getPlayerGhostObject();
+        btPairCachingGhostObject playerGhost = gameMap.getPlayerGhostObject();
         if (playerGhost == null) return false;
         Vector3 playerPos = playerGhost.getWorldTransform().getTranslation(new Vector3());
         Vector3 from = new Vector3(playerPos.x, playerPos.y - 0.10f, playerPos.z); // just below feet
@@ -357,7 +352,7 @@ public class PlayerController extends InputAdapter  {
 
         ClosestRayResultCallback rayCallback = new ClosestRayResultCallback(from, to);
         rayCallback.setCollisionFilterGroup(-1);
-        physicsManager.getDynamicsWorld().rayTest(from, to, rayCallback);
+        gameMap.getDynamicsWorld().rayTest(from, to, rayCallback);
         boolean onGround = rayCallback.hasHit() ;
         rayCallback.dispose();
         return onGround;

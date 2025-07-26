@@ -21,7 +21,6 @@ import curly.octo.network.GameClient;
 import curly.octo.network.GameServer;
 import curly.octo.network.Network;
 import curly.octo.player.PlayerUtilities;
-import curly.octo.map.PhysicsManager;
 import curly.octo.map.MapTile;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
@@ -69,7 +68,6 @@ public class Main extends ApplicationAdapter {
 
     private DirectionalLight sun;
 
-    private PhysicsManager physicsManager;
 
     private ShapeRenderer shapeRenderer;
 
@@ -205,24 +203,12 @@ public class Main extends ApplicationAdapter {
                 voxelMap.generateDungeon();
                 voxelMapRenderer.updateMap(voxelMap);
             }
-            physicsManager = new PhysicsManager();
-            // Add static blocks for the map (only ground layer)
-            for (int x = 0; x < voxelMap.getWidth(); x++) {
-                for (int y = 0; y < voxelMap.getHeight(); y++ ) {
-                    for (int z = 0; z < voxelMap.getDepth(); z++) {
-                        MapTile tile = voxelMap.getTile(x, y, z);
-                        if (tile.geometryType != curly.octo.map.enums.MapTileGeometryType.EMPTY) {
-                            physicsManager.addStaticBlock(tile.x, tile.y, tile.z, MapTile.TILE_SIZE, tile.geometryType, tile.direction);
-                        }
-                    }
-                }
-            }
-                // Add player to physics world
+            // Add player to physics world
             float playerRadius = 1.0f;
             float playerHeight = 5.0f;
             float playerMass = 10.0f;
             Vector3 playerStart = new Vector3(15, 25, 15); // Start higher above ground
-            physicsManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
+            voxelMap.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
 
             localPlayerController.setGameMap(voxelMap);
             players = new ArrayList<>();
@@ -449,20 +435,14 @@ public class Main extends ApplicationAdapter {
         debugStage.draw();
 
         // Step physics world
-        if (physicsManager != null) {
-            localPlayerController.setPhysicsManager(physicsManager);
-            physicsManager.step(deltaTime);
+        if (voxelMap != null) {
+            localPlayerController.setGameMap(voxelMap);
+            voxelMap.stepPhysics(deltaTime);
             // Update player position from Bullet
-            Vector3 bulletPlayerPos = physicsManager.getPlayerPosition();
+            Vector3 bulletPlayerPos = voxelMap.getPlayerPosition();
             if (localPlayerController != null) {
                 localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z);
             }
-            // Render Bullet wireframes
-//            if (localPlayerController != null && localPlayerController.getCamera() != null) {
-//                physicsManager.getDebugDrawer().begin(localPlayerController.getCamera());
-//                physicsManager.getDynamicsWorld().debugDrawWorld();
-//                physicsManager.getDebugDrawer().end();
-//            }
         }
         int error = Gdx.gl.glGetError();
         if (error != GL20.GL_NO_ERROR) {
@@ -494,7 +474,7 @@ public class Main extends ApplicationAdapter {
         }
         lobbyStage.dispose();
         debugStage.dispose();
-        if (physicsManager != null) physicsManager.dispose();
+        if (voxelMap != null) voxelMap.dispose();
         shapeRenderer.dispose();
     }
 }
