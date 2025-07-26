@@ -63,7 +63,12 @@ public class PhysicsManager {
         btDefaultMotionState motionState = new btDefaultMotionState(transform);
         btRigidBody.btRigidBodyConstructionInfo info = new btRigidBody.btRigidBodyConstructionInfo(0, motionState, blockShape, Vector3.Zero);
         btRigidBody body = new btRigidBody(info);
-        dynamicsWorld.addRigidBody(body, GROUND_GROUP, PLAYER_GROUP); // Static objects in ground group, collide with player
+        // Add static body to physics world
+        // Static objects should be in ground group and collide with player group
+        dynamicsWorld.addRigidBody(body, GROUND_GROUP, PLAYER_GROUP);
+
+        // Ensure static bodies have proper collision flags for character controller interaction
+        body.setCollisionFlags(body.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_STATIC_OBJECT);
         staticBodies.add(body);
         staticShapes.add(blockShape);
         info.dispose(); // Dispose after use
@@ -157,6 +162,16 @@ public class PhysicsManager {
 
     public void addPlayer(float x, float y, float z, float radius, float height, float mass) {
         // Remove old player if exists
+        if (playerController != null) {
+            dynamicsWorld.removeAction(playerController);
+            playerController.dispose();
+            playerController = null;
+        }
+        if (playerGhostObject != null) {
+            dynamicsWorld.removeCollisionObject(playerGhostObject);
+            playerGhostObject.dispose();
+            playerGhostObject = null;
+        }
         if (playerRigidBody != null) {
             dynamicsWorld.removeRigidBody(playerRigidBody);
             playerRigidBody.dispose();
@@ -166,30 +181,41 @@ public class PhysicsManager {
         // Create capsule shape for the player
         btCapsuleShape capsule = new btCapsuleShape(radius, height - 2*radius);
         Matrix4 transform = new Matrix4().setToTranslation(x, y, z);
-        btDefaultMotionState motionState = new btDefaultMotionState(transform);
 
-        // Create player as a dynamic rigid body (not static)
-        Vector3 localInertia = new Vector3();
-        capsule.calculateLocalInertia(mass, localInertia);
-        btRigidBody.btRigidBodyConstructionInfo info = new btRigidBody.btRigidBodyConstructionInfo(mass, motionState, capsule, localInertia);
-        playerRigidBody = new btRigidBody(info);
+        // Create ghost object for character controller
+        playerGhostObject = new btPairCachingGhostObject();
+        playerGhostObject.setWorldTransform(transform);
+        playerGhostObject.setCollisionShape(capsule);
+        playerGhostObject.setCollisionFlags(playerGhostObject.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_CHARACTER_OBJECT);
 
-        // Lock rotation on X and Z axes to prevent capsule from falling over
-        playerRigidBody.setAngularFactor(new Vector3(0, 1, 0)); // Allow Y rotation only
+        // Create kinematic character controller with proper step height
+        // Step height should be reasonable for climbing small obstacles
+        playerController = new btKinematicCharacterController(playerGhostObject, capsule, 1.0f);
 
-        // Set friction and damping for better control
-        playerRigidBody.setFriction(1.0f); // Balanced friction for slopes without being sticky
-        playerRigidBody.setDamping(0.3f, 0.9f); // Moderate linear damping for natural movement
-        playerRigidBody.setRestitution(0.0f); // No bounciness to prevent bouncing on slopes
+        // Configure character controller for better movement
+        playerController.setGravity(new Vector3(0, -30f, 0));
+        playerController.setMaxSlope((float)Math.toRadians(60)); // 60 degree max slope for better climbing
+        playerController.setJumpSpeed(15f);
+        playerController.setMaxJumpHeight(4f);
+
+        // Set up proper collision detection
+        playerController.setUseGhostSweepTest(false); // Use convex sweep test for better collision
+        //playerController.setUpAxis(1); // Y axis is up
 
 
-        // Add to physics world with collision filtering
-        dynamicsWorld.addRigidBody(playerRigidBody, PLAYER_GROUP, GROUND_GROUP);
+        // Add to physics world with proper collision filtering
+        // Ghost object should collide with ground objects
+        dynamicsWorld.addCollisionObject(playerGhostObject, PLAYER_GROUP, GROUND_GROUP);
+        dynamicsWorld.addAction(playerController);
 
-        info.dispose();
+        // IMPORTANT: Set up ghost object for proper collision detection
+        playerGhostObject.setUserPointer(0L); // Clear any user data
+
+        // Enable collision detection between ghost object and static world
+        // The character controller relies on the ghost object detecting collisions
 
         // Debug: Log that player was added
-        Log.info("PhysicsManager", "Added player RIGID BODY at position: " + x + ", " + y + ", " + z);
+        Log.info("PhysicsManager", "Added player CHARACTER CONTROLLER at position: " + x + ", " + y + ", " + z);
     }
 
     public btKinematicCharacterController getPlayerController() {
@@ -211,18 +237,18 @@ public class PhysicsManager {
     }
 
     public Vector3 getPlayerPosition() {
-        if (playerRigidBody != null) {
+        if (playerGhostObject != null) {
             Matrix4 transform = new Matrix4();
-            playerRigidBody.getWorldTransform(transform);
+            playerGhostObject.getWorldTransform(transform);
             return transform.getTranslation(new Vector3());
         }
         return new Vector3();
     }
 
     public void setPlayerPosition(float x, float y, float z) {
-        if (playerRigidBody != null) {
+        if (playerGhostObject != null) {
             Matrix4 transform = new Matrix4().setToTranslation(x, y, z);
-            playerRigidBody.setWorldTransform(transform);
+            playerGhostObject.setWorldTransform(transform);
         }
     }
 
