@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.g3d.utils.shapebuilders.BoxShapeBuilder;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
+import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.MapTileGeometryType;
 
 /**
@@ -55,6 +56,7 @@ public class GameMapRenderer implements Disposable {
         for (int x = 0; x < map.getWidth(); x++) {
             for (int y = 0; y < map.getHeight(); y++) {
                 for (int z = 0; z < map.getDepth(); z++) {
+                    Log.info("GameMapRenderer.updateMap", "x:" + x + " y:" + y + " z:" + z);
                     MapTile tile = map.getTile(x, y, z);
                     if (tile.geometryType != MapTileGeometryType.EMPTY) {
 

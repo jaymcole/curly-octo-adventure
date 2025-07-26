@@ -11,14 +11,9 @@ import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
-import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController;
-import com.badlogic.gdx.physics.bullet.collision.btPairCachingGhostObject;
-import com.badlogic.gdx.physics.bullet.collision.ClosestRayResultCallback;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
-import curly.octo.map.MapTile;
-import curly.octo.map.enums.MapTileGeometryType;
 
 /**
  * Handles camera movement and input for 3D navigation.
@@ -27,8 +22,7 @@ public class PlayerController extends InputAdapter  {
 
     private static final float playerHeight = 5;
     private static final float sensitivity = 1f;
-    private static final float ACCELERATION = 10.0f; // Tune as needed
-    private static final float MAX_SPEED = 20.0f; // Optional: clamp max speed
+    private static final float velocityLen = 100f; // Player movement speed
 
     private transient PerspectiveCamera camera;
     private transient final Vector3 tmp = new Vector3();
@@ -39,9 +33,7 @@ public class PlayerController extends InputAdapter  {
     private transient boolean initialized = false;
 
     private final Vector3 position = new Vector3();
-    private final Vector3 momentum = new Vector3();
     private final Vector3 direction = new Vector3();
-    private final float dragCoefficient = 0.95f;
 
     // Add these fields to track yaw and pitch
     private float yaw = 0f;   // Horizontal angle, in degrees
@@ -50,14 +42,7 @@ public class PlayerController extends InputAdapter  {
     private static final float MIN_PITCH = -89f;
 
     private long playerId;
-    private float velocity = 500f;
-    private GameMap gameMap;
-    private boolean isOnGround = false;
-    private static final float GRAVITY = -30f;
-    private static final float JUMP_VELOCITY = 20f;
-    private static final float velocityLen = 10f; // Player movement speed
-    private final Vector3 lastRayFrom = new Vector3();
-    private final Vector3 lastRayTo = new Vector3();
+    private transient GameMap gameMap;
 
     public PlayerController() {
         // Initialize camera with default values
@@ -82,17 +67,12 @@ public class PlayerController extends InputAdapter  {
         }
     }
 
-
     public long getPlayerId() {
         return playerId;
     }
 
     public Vector3 getPosition() {
         return position.cpy();
-    }
-
-    public void setVelocity(float velocity) {
-        this.velocity = velocity;
     }
 
     public PerspectiveCamera getCamera() {
@@ -190,59 +170,13 @@ public class PlayerController extends InputAdapter  {
                 // Jump handling
                 boolean isOnGround = controller.onGround();
                 if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE) && isOnGround) {
-                    Log.info("PlayerController.update", "Jumping - onGround: " + isOnGround);
-
-                    // Debug: Check if position changed after jump
-                    Vector3 posBeforeJump = gameMap.getPlayerPosition();
-                    Log.info("PlayerController", "Position before jump: " + posBeforeJump);
-
-                    // Use setVelocityForTimeInterval for more direct vertical movement
-//                    Vector3 jumpVelocity = new Vector3(0, 1500f, 0); // Vertical jump velocity
-//                    controller.setVelocityForTimeInterval(jumpVelocity, 1);
-
                     controller.jump(new Vector3(0, 30f, 0));
-                    // Debug: Check if position changed after jump
-                    Vector3 posAfterJump = gameMap.getPlayerPosition();
-                    Log.info("PlayerController", "Position after jump: " + posAfterJump);
                 }
             }
         }
         updateCamera();
     }
 
-    private void moveForward(float distance) {
-        // Add acceleration in the forward direction
-        Vector3 tempDirection = new Vector3(direction);
-        tempDirection.y = 0;
-        Vector3 accel = new Vector3(tempDirection).nor().scl(distance * ACCELERATION);
-        momentum.add(accel);
-        clampMomentum();
-    }
-
-    private void moveLeft(float distance) {
-        // Add acceleration to the left (negative right vector)
-        Vector3 left = new Vector3(direction).crs(Vector3.Y).nor().scl(-distance * ACCELERATION);
-        momentum.add(left);
-        clampMomentum();
-    }
-
-    private void moveRight(float distance) {
-        // Add acceleration to the right (right vector)
-        Vector3 right = new Vector3(direction).crs(Vector3.Y).nor().scl(distance * ACCELERATION);
-        momentum.add(right);
-        clampMomentum();
-    }
-
-    // Clamp horizontal momentum to a maximum speed for control
-    private void clampMomentum() {
-        Vector3 horizontal = new Vector3(momentum.x, 0, momentum.z);
-        float speed = horizontal.len();
-        if (speed > MAX_SPEED) {
-            horizontal.nor().scl(MAX_SPEED);
-            momentum.x = horizontal.x;
-            momentum.z = horizontal.z;
-        }
-    }
 
     private void updateCamera() {
         // Update camera position and direction
@@ -255,14 +189,6 @@ public class PlayerController extends InputAdapter  {
         camera.update();
     }
 
-    private boolean collidesWithMap(Vector3 pos) {
-        if (gameMap == null) return false;
-        MapTile tile = gameMap.getTileFromWorldCoordinates(pos.x, pos.y, pos.z);
-        if (tile != null && tile.geometryType != MapTileGeometryType.EMPTY) {
-            return true;
-        }
-        return false;
-    }
 
     @Override
     public boolean touchDown(int screenX, int screenY, int pointer, int button) {
@@ -334,27 +260,5 @@ public class PlayerController extends InputAdapter  {
         camera.viewportWidth = width;
         camera.viewportHeight = height;
         camera.update();
-    }
-
-    private boolean isPlayerOnGround() {
-        if (gameMap == null) {
-            Log.info("isPlayerOnGround", "gameMap is null");
-            return false;
-        }
-
-        btPairCachingGhostObject playerGhost = gameMap.getPlayerGhostObject();
-        if (playerGhost == null) return false;
-        Vector3 playerPos = playerGhost.getWorldTransform().getTranslation(new Vector3());
-        Vector3 from = new Vector3(playerPos.x, playerPos.y - 0.10f, playerPos.z); // just below feet
-        Vector3 to = new Vector3(playerPos.x, playerPos.y - 1.5f, playerPos.z);    // a bit further down
-        lastRayFrom.set(from);
-        lastRayTo.set(to);
-
-        ClosestRayResultCallback rayCallback = new ClosestRayResultCallback(from, to);
-        rayCallback.setCollisionFilterGroup(-1);
-        gameMap.getDynamicsWorld().rayTest(from, to, rayCallback);
-        boolean onGround = rayCallback.hasHit() ;
-        rayCallback.dispose();
-        return onGround;
     }
 }

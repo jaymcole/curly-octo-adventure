@@ -47,8 +47,8 @@ public class Main extends ApplicationAdapter {
     private GameClient gameClient;
 
     // Voxel map components
-    private GameMap voxelMap;
-    private GameMapRenderer voxelMapRenderer;
+    private GameMap mapManager;
+    private GameMapRenderer mapRenderer;
     private boolean showUI = true;
 
     private ArrayList<PlayerController> players;
@@ -85,7 +85,7 @@ public class Main extends ApplicationAdapter {
         environment.add(sun);
 
         // Initialize voxel renderer
-        voxelMapRenderer = new GameMapRenderer();
+        mapRenderer = new GameMapRenderer();
 
         createLobbyStage();
         createDebugStage();
@@ -194,32 +194,25 @@ public class Main extends ApplicationAdapter {
 
             localPlayerController = PlayerUtilities.createPlayerController(random);
             localPlayerId = localPlayerController.getPlayerId();
-            localPlayerController.setVelocity(20f); // Adjust movement speed as needed
+
             // Provide map for collision
-            if (voxelMap == null) {
-                voxelMap = new GameMap(64, 6, 64, System.currentTimeMillis());
-                voxelMap.generateDungeon();
-                voxelMapRenderer.updateMap(voxelMap);
+            if (mapManager == null) {
+                mapManager = new GameMap(64, 60, 64, System.currentTimeMillis());
+                mapRenderer.updateMap(mapManager);
             }
+
             // Add player to physics world
             float playerRadius = 1.0f;
             float playerHeight = 5.0f;
             float playerMass = 10.0f;
             Vector3 playerStart = new Vector3(15, 25, 15); // Start higher above ground
-            voxelMap.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
+            mapManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
 
-            localPlayerController.setGameMap(voxelMap);
+            localPlayerController.setGameMap(mapManager);
             players = new ArrayList<>();
             players.add(localPlayerController);
 
-            // Generate map before starting server
-            if (voxelMap == null) {
-                voxelMap = new GameMap(64, 6, 64, System.currentTimeMillis());
-                voxelMap.generateDungeon();
-                voxelMapRenderer.updateMap(voxelMap);
-            }
-
-            gameServer = new GameServer(random, voxelMap, players);
+            gameServer = new GameServer(random, mapManager, players);
 
             gameServer.start();
             updateUIForServer();
@@ -255,9 +248,9 @@ public class Main extends ApplicationAdapter {
                         receivedMap.getDepth());
 
                     // Update the local map and renderer
-                    voxelMap = receivedMap;
-                    if (voxelMapRenderer != null) {
-                        voxelMapRenderer.updateMap(voxelMap);
+                    mapManager = receivedMap;
+                    if (mapRenderer != null) {
+                        mapRenderer.updateMap(mapManager);
                         Log.info("Client", "Updated local map and renderer");
                     } else {
                         Log.error("Client", "VoxelMapRenderer is null");
@@ -398,7 +391,7 @@ public class Main extends ApplicationAdapter {
             // Update camera and player position
             if (localPlayerController != null) {
                 localPlayerController.update(deltaTime);
-                voxelMapRenderer.render(localPlayerController.getCamera(), environment);
+                mapRenderer.render(localPlayerController.getCamera(), environment);
 
                 // Handle periodic position updates
                 positionUpdateTimer += deltaTime;
@@ -433,11 +426,11 @@ public class Main extends ApplicationAdapter {
         debugStage.draw();
 
         // Step physics world
-        if (voxelMap != null) {
-            localPlayerController.setGameMap(voxelMap);
-            voxelMap.stepPhysics(deltaTime);
+        if (mapManager != null) {
+            localPlayerController.setGameMap(mapManager);
+            mapManager.stepPhysics(deltaTime);
             // Update player position from Bullet
-            Vector3 bulletPlayerPos = voxelMap.getPlayerPosition();
+            Vector3 bulletPlayerPos = mapManager.getPlayerPosition();
             if (localPlayerController != null) {
                 localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z);
             }
@@ -467,12 +460,12 @@ public class Main extends ApplicationAdapter {
         if (gameClient != null) {
             gameClient.disconnect();
         }
-        if (voxelMapRenderer != null) {
-            voxelMapRenderer.disposeAll();
+        if (mapRenderer != null) {
+            mapRenderer.disposeAll();
         }
         lobbyStage.dispose();
         debugStage.dispose();
-        if (voxelMap != null) voxelMap.dispose();
+        if (mapManager != null) mapManager.dispose();
         shapeRenderer.dispose();
     }
 }

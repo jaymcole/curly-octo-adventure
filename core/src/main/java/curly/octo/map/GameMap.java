@@ -10,9 +10,8 @@ import com.badlogic.gdx.physics.bullet.linearmath.btDefaultMotionState;
 import com.badlogic.gdx.physics.bullet.linearmath.btIDebugDraw;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.CardinalDirection;
-import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
-import curly.octo.map.enums.MapTileMaterial;
+import curly.octo.map.generators.PlaygroundGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,13 +24,25 @@ public class GameMap {
     // Collision groups
     public static final int GROUND_GROUP = 1 << 0;
     public static final int PLAYER_GROUP = 1 << 1;
-    private final int width;
-    private final int height;
-    private final int depth;
-    private final MapTile[][][] map;
+    private MapTile[][][] map;
     private transient Random random;
-    private final long seed;
 
+    public int getWidth() { return map.length; }
+    public int getHeight() { return map[0].length; }
+    public int getDepth() { return map[0][0].length; }
+
+    private transient boolean physicsInitialized;
+    private transient btDefaultCollisionConfiguration collisionConfig;
+    private transient btCollisionDispatcher dispatcher;
+    private transient btDbvtBroadphase broadphase;
+    private transient btSequentialImpulseConstraintSolver solver;
+    private transient btDiscreteDynamicsWorld dynamicsWorld;
+    private transient DebugDrawer debugDrawer;
+    private transient final List<btRigidBody> staticBodies = new ArrayList<>();
+    private transient final List<btCollisionShape> staticShapes = new ArrayList<>();
+    private transient btPairCachingGhostObject playerGhostObject;
+    private transient btKinematicCharacterController playerController;
+    private transient btRigidBody playerRigidBody;
 
 
     // Default constructor required for Kryo
@@ -41,73 +52,14 @@ public class GameMap {
     }
 
     public GameMap(int width, int height, int depth, long seed) {
-        this.width = width;
-        this.height = height;
-        this.depth = depth;
-        this.seed = seed;
-        this.map = new MapTile[width][height][depth];
         this.random = new Random(seed);
-
-        // Initialize the entire map as empty air
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
-                for (int z = 0; z < depth; z++) {
-                    MapTile tile = new MapTile();
-                    tile.x = x * MapTile.TILE_SIZE;
-                    tile.y = y * MapTile.TILE_SIZE;
-                    tile.z = z * MapTile.TILE_SIZE;
-                    map[x][y][z] = tile;
-                }
-            }
-        }
-        
+        generateDungeon(width, height, depth);
         initializePhysics();
     }
 
-    /**
-     * Generates a dungeon with rooms and corridors.
-     */
-    public void generateDungeon() {
-
-        for(int x = 0; x < width; x++) {
-            for (int z = 0; z < depth; z++) {
-                map[x][0][z].geometryType = MapTileGeometryType.FULL;
-                if (random.nextBoolean()) {
-                    map[x][0][z].material = MapTileMaterial.GRASS;
-                } else {
-                    map[x][0][z].material = MapTileMaterial.DIRT;
-                }
-            }
-        }
-
-        int xIndex = 6;
-        int zIndex = 0;
-        for (MapTileGeometryType type : MapTileGeometryType.values()) {
-            for (MapTileFillType fill : MapTileFillType.values()) {
-                map[xIndex][1][zIndex].geometryType = type;
-                map[xIndex][1][zIndex].fillType = fill;
-                zIndex += 2;
-            }
-            zIndex = 0;
-            xIndex += 2;
-        }
-
-        map[2][1][1].direction = CardinalDirection.NORTH;
-        map[2][1][1].geometryType = MapTileGeometryType.SLAT;
-
-        map[1][1][2].direction = CardinalDirection.EAST;
-        map[1][1][2].geometryType = MapTileGeometryType.SLAT;
-
-        map[0][1][1].direction = CardinalDirection.SOUTH;
-        map[0][1][1].geometryType = MapTileGeometryType.SLAT;
-
-        map[1][1][0].direction = CardinalDirection.WEST;
-        map[1][1][0].geometryType = MapTileGeometryType.SLAT;
-
-
-        map[1][1][1].geometryType = MapTileGeometryType.FULL;
-        
-        // Generate physics bodies for all tiles
+    public void generateDungeon(int width, int height, int depth) {
+        PlaygroundGenerator generator = new PlaygroundGenerator(random);
+        map = generator.generate();
         generatePhysicsBodies();
     }
 
@@ -116,11 +68,11 @@ public class GameMap {
         int yIndex = (int)(worldY / MapTile.TILE_SIZE);
         int zIndex = (int)(worldZ / MapTile.TILE_SIZE);
 
-        if (xIndex < 0 || xIndex >= width) {
+        if (xIndex < 0 || xIndex >= getWidth()) {
           return null;
-        } else if (yIndex < 0 || yIndex >= height) {
+        } else if (yIndex < 0 || yIndex >= getHeight()) {
             return null;
-        } else if (zIndex < 0 || zIndex >= depth) {
+        } else if (zIndex < 0 || zIndex >= getDepth()) {
             return null;
         }
         return map[xIndex][yIndex][zIndex];
@@ -130,22 +82,6 @@ public class GameMap {
         return map[x][y][z];
     }
 
-    public int getWidth() { return width; }
-    public int getHeight() { return height; }
-    public int getDepth() { return depth; }
-
-    private boolean physicsInitialized;
-    private btDefaultCollisionConfiguration collisionConfig;
-    private btCollisionDispatcher dispatcher;
-    private btDbvtBroadphase broadphase;
-    private btSequentialImpulseConstraintSolver solver;
-    private btDiscreteDynamicsWorld dynamicsWorld;
-    private DebugDrawer debugDrawer;
-    private final List<btRigidBody> staticBodies = new ArrayList<>();
-    private final List<btCollisionShape> staticShapes = new ArrayList<>();
-    private btPairCachingGhostObject playerGhostObject;
-    private btKinematicCharacterController playerController;
-    private btRigidBody playerRigidBody;
     // Physics initialization
     private void initializePhysics() {
         if (physicsInitialized) return;
@@ -169,9 +105,9 @@ public class GameMap {
         if (!physicsInitialized) initializePhysics();
 
         int blockCount = 0;
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
-                for (int z = 0; z < depth; z++) {
+        for (int x = 0; x < getWidth(); x++) {
+            for (int y = 0; y < getHeight(); y++) {
+                for (int z = 0; z < getDepth(); z++) {
                     MapTile tile = map[x][y][z];
                     if (tile.geometryType != MapTileGeometryType.EMPTY) {
                         addStaticBlock(tile.x, tile.y, tile.z, MapTile.TILE_SIZE, tile.geometryType, tile.direction);
@@ -333,10 +269,6 @@ public class GameMap {
         return playerController;
     }
 
-    public btPairCachingGhostObject getPlayerGhostObject() {
-        return playerGhostObject;
-    }
-
     public void stepPhysics(float deltaTime) {
         if (dynamicsWorld != null) {
             dynamicsWorld.stepSimulation(deltaTime, 5, 1f/60f);
@@ -350,21 +282,6 @@ public class GameMap {
             return transform.getTranslation(new Vector3());
         }
         return new Vector3();
-    }
-
-    public void setPlayerPosition(float x, float y, float z) {
-        if (playerGhostObject != null) {
-            Matrix4 transform = new Matrix4().setToTranslation(x, y, z);
-            playerGhostObject.setWorldTransform(transform);
-        }
-    }
-
-    public btDiscreteDynamicsWorld getDynamicsWorld() {
-        return dynamicsWorld;
-    }
-
-    public DebugDrawer getDebugDrawer() {
-        return debugDrawer;
     }
 
     public void dispose() {
