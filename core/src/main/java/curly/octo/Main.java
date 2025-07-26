@@ -54,6 +54,10 @@ public class Main extends ApplicationAdapter {
     private ArrayList<PlayerController> players;
     private PlayerController localPlayerController;
     private long localPlayerId;
+    
+    // Client setup flags
+    private boolean mapReceived = false;
+    private boolean playerAssigned = false;
 
     // 3D rendering variables
     private ModelBatch modelBatch;
@@ -235,6 +239,29 @@ public class Main extends ApplicationAdapter {
         }
     }
 
+    private void setupClientPlayer() {
+        if (localPlayerController != null && mapManager != null) {
+            Log.info("Client", "Setting up local player physics");
+            
+            // Add player to physics world - same as server
+            float playerRadius = 1.0f;
+            float playerHeight = 5.0f;
+            float playerMass = 10.0f;
+            Vector3 playerStart = new Vector3(15, 25, 15); // Start higher above ground
+            mapManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
+            
+            // Link player controller to the map
+            localPlayerController.setGameMap(mapManager);
+            
+            // Set player's initial position
+            localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z);
+            
+            Log.info("Client", "Client player setup complete at position: " + playerStart);
+        } else {
+            Log.warn("Client", "Cannot setup player - localPlayerController or mapManager is null");
+        }
+    }
+
     private void connectToServer(String host) {
         try {
             gameClient = new GameClient(host);
@@ -249,18 +276,21 @@ public class Main extends ApplicationAdapter {
 
                     // Update the local map and renderer
                     mapManager = receivedMap;
+                    mapManager.ensurePhysicsReady(); // Initialize physics for received map
                     if (mapRenderer != null) {
                         mapRenderer.updateMap(mapManager);
                         Log.info("Client", "Updated local map and renderer");
                     } else {
                         Log.error("Client", "VoxelMapRenderer is null");
                     }
+
                 });
             });
 
             gameClient.setPlayerAssignmentListener(receivedPlayerId -> {
                 Gdx.app.postRunnable(() -> {
                     setPlayer(receivedPlayerId.playerId);
+                    setupClientPlayer();
                 });
             });
 
@@ -288,6 +318,10 @@ public class Main extends ApplicationAdapter {
                             // Skip updating the local player to prevent position override
                             if (player != localPlayerController) {
                                 player.setPlayerPosition(playerUpdate.x, playerUpdate.y, playerUpdate.z);
+                                localPlayerController.setGameMap(mapManager);
+                                players = new ArrayList<>();
+                                players.add(localPlayerController);
+
                             }
                             break;
                         }

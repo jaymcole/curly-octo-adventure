@@ -161,22 +161,6 @@ public class GameServer {
         }
     }
 
-//    /**
-//     * Broadcasts a cube rotation update to all connected clients
-//     * @param rotation the rotation to broadcast
-//     */
-//    public void broadcastCubeRotation(Quaternion rotation) {
-//        if (server != null) {
-//            curly.octo.network.messages.CubeRotationUpdate update = new CubeRotationUpdate(rotation);
-//            Log.info("Server", "Broadcasting rotation update: " +
-//                String.format("x=%.2f, y=%.2f, z=%.2f, w=%.2f",
-//                    update.x, update.y, update.z, update.w));
-//            server.sendToAllTCP(update);
-//        } else {
-//            Log.warn("Server", "Cannot broadcast rotation - server is null");
-//        }
-//    }
-
     public void broadcastNewPlayerRoster() {
         if (server != null) {
             PlayerRosterUpdate update = new PlayerRosterUpdate();

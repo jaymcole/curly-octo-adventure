@@ -46,10 +46,10 @@ public class PlayerController extends InputAdapter  {
 
     public PlayerController() {
         // Initialize camera with default values
-        position.set(15, 100, 15);
         yaw = 0f;
         pitch = 0f;
         updateDirectionFromAngles();
+
         // Initialize camera on the OpenGL thread
         Gdx.app.postRunnable(this::initialize);
     }

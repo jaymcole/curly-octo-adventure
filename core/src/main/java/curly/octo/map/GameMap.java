@@ -93,10 +93,10 @@ public class GameMap {
         solver = new btSequentialImpulseConstraintSolver();
         dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfig);
         dynamicsWorld.setGravity(new Vector3(0, -30f, 0));
-        debugDrawer = new DebugDrawer();
-        debugDrawer.setDebugMode(btIDebugDraw.DebugDrawModes.DBG_DrawWireframe);
-        dynamicsWorld.setDebugDrawer(debugDrawer);
-
+        
+        // Don't create DebugDrawer here - it needs OpenGL context
+        // It will be created later when needed on the OpenGL thread
+        
         physicsInitialized = true;
     }
 
@@ -282,6 +282,33 @@ public class GameMap {
             return transform.getTranslation(new Vector3());
         }
         return new Vector3();
+    }
+
+    public btDiscreteDynamicsWorld getDynamicsWorld() {
+        return dynamicsWorld;
+    }
+
+    public DebugDrawer getDebugDrawer() {
+        // Lazy initialize DebugDrawer on OpenGL thread
+        if (debugDrawer == null && dynamicsWorld != null) {
+            try {
+                debugDrawer = new DebugDrawer();
+                debugDrawer.setDebugMode(btIDebugDraw.DebugDrawModes.DBG_DrawWireframe);
+                dynamicsWorld.setDebugDrawer(debugDrawer);
+            } catch (Exception e) {
+                Log.warn("GameMap", "Could not create DebugDrawer (no OpenGL context): " + e.getMessage());
+            }
+        }
+        return debugDrawer;
+    }
+    
+    // Method to ensure physics is ready for clients who receive the map via network
+    public void ensurePhysicsReady() {
+        if (!physicsInitialized) {
+            Log.info("GameMap", "Initializing physics for received map");
+            initializePhysics();
+            generatePhysicsBodies();
+        }
     }
 
     public void dispose() {
