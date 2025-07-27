@@ -18,46 +18,68 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.MapTileGeometryType;
-import curly.octo.rendering.ShadowMapRenderer;
+import curly.octo.rendering.CubeShadowMapRenderer;
 
 /**
  * Handles rendering of the VoxelMap in 3D space with shadow mapping.
  */
 public class GameMapRenderer implements Disposable {
-    private final ShadowMapRenderer shadowMapRenderer;
+    private final CubeShadowMapRenderer cubeShadowMapRenderer;
     private final Array<ModelInstance> instances;
     private Model model;
     private boolean disposed = false;
 
     public GameMapRenderer() {
-        shadowMapRenderer = new ShadowMapRenderer();
+        cubeShadowMapRenderer = new CubeShadowMapRenderer();
         instances = new Array<>();
-        Log.info("GameMapRenderer", "Initialized with shadow mapping support");
+        Log.info("GameMapRenderer", "Initialized with cube shadow mapping support");
     }
 
     public void render(PerspectiveCamera camera, Environment environment) {
-        // Extract the main light (player lantern)
-        PointLight mainLight = getMainLight(environment);
-        if (mainLight == null) {
-            Log.warn("GameMapRenderer", "No main light found, skipping shadow rendering");
+        // Get all point lights in the environment
+        PointLightsAttribute pointLights = environment.get(PointLightsAttribute.class, PointLightsAttribute.Type);
+        if (pointLights == null || pointLights.lights.size == 0) {
+            Log.warn("GameMapRenderer", "No lights found, skipping shadow rendering");
             return;
         }
 
-        // Generate shadow map pointing toward player
-        shadowMapRenderer.generateShadowMap(instances, mainLight, camera.position);
+        Log.info("GameMapRenderer", "Rendering with " + pointLights.lights.size + " lights");
 
-        // Render scene with shadows
-        Vector3 ambientLight = getAmbientLight(environment);
-        shadowMapRenderer.renderWithShadows(instances, camera, mainLight, ambientLight);
+        // For now, render shadows from the closest light to the camera (performance optimization)
+        // TODO: Later we can implement multi-light shadow rendering
+        PointLight primaryLight = getClosestLight(pointLights, camera.position);
+        
+        if (primaryLight != null) {
+            // Generate cube shadow map for the primary light
+            cubeShadowMapRenderer.generateCubeShadowMap(instances, primaryLight);
+
+            // Render scene with cube shadows from primary light, but all lights contribute to illumination
+            Vector3 ambientLight = getAmbientLight(environment);
+            cubeShadowMapRenderer.renderWithCubeShadows(instances, camera, primaryLight, ambientLight);
+        }
     }
 
-    private PointLight getMainLight(Environment environment) {
-        // Find the first point light in the environment (player lantern)
-        PointLightsAttribute pointLights = environment.get(PointLightsAttribute.class, PointLightsAttribute.Type);
-        if (pointLights != null && pointLights.lights.size > 0) {
-            return pointLights.lights.first();
+    private PointLight getClosestLight(PointLightsAttribute pointLights, Vector3 cameraPosition) {
+        if (pointLights == null || pointLights.lights.size == 0) {
+            return null;
         }
-        return null;
+        
+        PointLight closestLight = null;
+        float closestDistance = Float.MAX_VALUE;
+        
+        for (PointLight light : pointLights.lights) {
+            float distance = light.position.dst(cameraPosition);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestLight = light;
+            }
+        }
+        
+        if (closestLight != null) {
+            Log.debug("GameMapRenderer", "Using closest light at distance " + closestDistance + " from camera");
+        }
+        
+        return closestLight;
     }
 
     private Vector3 getAmbientLight(Environment environment) {
@@ -252,12 +274,12 @@ public class GameMapRenderer implements Disposable {
 
     public void disposeAll() {
         dispose();
-        if (shadowMapRenderer != null && !disposed) {
+        if (cubeShadowMapRenderer != null && !disposed) {
             try {
-                shadowMapRenderer.dispose();
-                Log.info("GameMapRenderer", "Shadow map renderer disposed");
+                cubeShadowMapRenderer.dispose();
+                Log.info("GameMapRenderer", "Cube shadow map renderer disposed");
             } catch (Exception e) {
-                Log.error("GameMapRenderer", "Error disposing shadow map renderer: " + e.getMessage());
+                Log.error("GameMapRenderer", "Error disposing cube shadow map renderer: " + e.getMessage());
             }
         }
     }
