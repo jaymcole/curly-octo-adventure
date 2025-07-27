@@ -168,7 +168,7 @@ public class GameWorld {
     private void updatePlayerLantern(Vector3 playerPos) {
         if (playerLantern != null) {
             // Position lantern slightly above and in front of player
-            playerLantern.position.set(playerPos.x + 15, playerPos.y + 3f, playerPos.z);
+            playerLantern.position.set(playerPos.x + 5, playerPos.y + 3f, playerPos.z);
 
             // Add subtle sway to lantern light
             float sway = 0.95f + 0.05f * (float) Math.sin(System.currentTimeMillis() * 0.003f);

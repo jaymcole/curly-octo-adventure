@@ -19,7 +19,13 @@ import com.esotericsoftware.minlog.Log;
  */
 public class CubeShadowMapRenderer implements Disposable {
 
-    private final int SHADOW_MAP_SIZE = 512; // Smaller size for 6 faces
+    private final int SHADOW_MAP_SIZE;
+
+    // Quality presets
+    public static final int QUALITY_LOW = 256;
+    public static final int QUALITY_MEDIUM = 512;
+    public static final int QUALITY_HIGH = 1024;
+    public static final int QUALITY_ULTRA = 2048;
 
     // 6 framebuffers for each face of the cube
     private FrameBuffer[] shadowFrameBuffers;
@@ -50,6 +56,11 @@ public class CubeShadowMapRenderer implements Disposable {
     private boolean disposed = false;
 
     public CubeShadowMapRenderer() {
+        this(QUALITY_HIGH); // Default to high quality
+    }
+
+    public CubeShadowMapRenderer(int quality) {
+        SHADOW_MAP_SIZE = quality;
         initializeFrameBuffers();
         loadShaders();
         setupCameras();

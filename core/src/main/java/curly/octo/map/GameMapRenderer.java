@@ -30,9 +30,15 @@ public class GameMapRenderer implements Disposable {
     private boolean disposed = false;
 
     public GameMapRenderer() {
-        cubeShadowMapRenderer = new CubeShadowMapRenderer();
+        // Use HIGH quality (1024x1024 per face) for good balance of quality vs performance
+        // Performance impact: ~6x framebuffer memory usage compared to single shadow map
+        // - LOW (256): Fastest, some jagged shadows at close angles
+        // - MEDIUM (512): Good performance, adequate quality  
+        // - HIGH (1024): Balanced quality/performance - recommended
+        // - ULTRA (2048): Best quality, higher memory usage
+        cubeShadowMapRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH);
         instances = new Array<>();
-        Log.info("GameMapRenderer", "Initialized with cube shadow mapping support");
+        Log.info("GameMapRenderer", "Initialized with HIGH quality cube shadow mapping (1024x1024 per face)");
     }
 
     public void render(PerspectiveCamera camera, Environment environment) {
@@ -45,17 +51,21 @@ public class GameMapRenderer implements Disposable {
 
         Log.info("GameMapRenderer", "Rendering with " + pointLights.lights.size + " lights");
 
-        // For now, render shadows from the closest light to the camera (performance optimization)
-        // TODO: Later we can implement multi-light shadow rendering
+        // Render with multiple lights - currently optimized for one shadow-casting light
+        // All lights contribute to illumination, but only closest light casts shadows (performance)
+        // Future: Could extend to multiple shadow-casting lights with performance budget
         PointLight primaryLight = getClosestLight(pointLights, camera.position);
         
         if (primaryLight != null) {
             // Generate cube shadow map for the primary light
             cubeShadowMapRenderer.generateCubeShadowMap(instances, primaryLight);
 
-            // Render scene with cube shadows from primary light, but all lights contribute to illumination
+            // Render scene with cube shadows from primary light
+            // All lights in environment will contribute to illumination through LibGDX lighting
             Vector3 ambientLight = getAmbientLight(environment);
             cubeShadowMapRenderer.renderWithCubeShadows(instances, camera, primaryLight, ambientLight);
+        } else {
+            Log.warn("GameMapRenderer", "No primary light found for shadow casting");
         }
     }
 
