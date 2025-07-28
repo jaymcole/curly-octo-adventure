@@ -16,6 +16,8 @@ public class DebugUI {
     private Label fpsLabel;
     private Label playerPositionLabel;
     private Label debugClientIPAddressLabel;
+    private Label lightsLabel;
+    private Label shadowLightsLabel;
     
     public DebugUI() {
         createStage();
@@ -58,6 +60,13 @@ public class DebugUI {
         playerPositionLabel = new Label("Position: ...", skin);
         debugTable.add(playerPositionLabel).pad(10).row();
         
+        // Light count information
+        lightsLabel = new Label("Lights: ...", skin);
+        debugTable.add(lightsLabel).pad(10).row();
+        
+        shadowLightsLabel = new Label("Shadow Lights: ...", skin);
+        debugTable.add(shadowLightsLabel).pad(10).row();
+        
         stage.addActor(debugTable);
         
         Log.info("DebugUI", "Created debug UI");
@@ -88,5 +97,10 @@ public class DebugUI {
     
     public void setClientIP(String ip) {
         debugClientIPAddressLabel.setText("Client IP: " + ip);
+    }
+    
+    public void setLightCounts(int totalLights, int shadowLights) {
+        lightsLabel.setText("Lights: " + totalLights);
+        shadowLightsLabel.setText("Shadow Lights: " + shadowLights);
     }
 } 

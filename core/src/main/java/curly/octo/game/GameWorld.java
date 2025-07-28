@@ -57,9 +57,8 @@ public class GameWorld {
     }
 
     private void createDungeonLights() {
-        playerLantern = new PointLight();
-        playerLantern.set(1f, 0.9f, 0.7f, 0f, 10f, 0f, 2); // Warm lantern light
-        environment.add(playerLantern);
+        // Player lights are now managed by individual PlayerController instances
+        // No need for a global playerLantern
     }
 
     public void initializeMap() {
@@ -94,7 +93,10 @@ public class GameWorld {
             localPlayerController = createPlayerController(random);
             // Don't set localPlayerId here - it will be set by the server assignment
             players.add(localPlayerController);
-            Log.info("GameWorld", "Local player controller created and added to players list");
+            Log.info("GameWorld", "Local player controller created with ID: " + localPlayerController.getPlayerId() + " and added to players list");
+
+            // Set the localPlayerId to match the created player (important for server mode)
+            setLocalPlayerId(localPlayerController.getPlayerId());
         }
 
         if (mapManager != null) {
@@ -113,6 +115,10 @@ public class GameWorld {
             localPlayerController.setGameMap(mapManager);
             localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z);
 
+            // Add local player light to environment
+            Log.info("GameWorld", "About to add local player light to environment for player " + localPlayerController.getPlayerId());
+            addPlayerToEnvironment(localPlayerController);
+
             Log.info("GameWorld", "Setup local player at position: " + playerStart);
         }
     }
@@ -126,9 +132,6 @@ public class GameWorld {
             mapManager.stepPhysics(deltaTime);
             Vector3 bulletPlayerPos = mapManager.getPlayerPosition();
             localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z);
-
-            // Update player lantern position
-            updatePlayerLantern(bulletPlayerPos);
         }
 
         // Update local player
@@ -151,10 +154,32 @@ public class GameWorld {
         }
     }
 
-    private void updatePlayerLantern(Vector3 playerPos) {
-        if (playerLantern != null) {
-            // Position lantern slightly above and in front of player
-            playerLantern.position.set(playerPos.x + 5, playerPos.y + 3f, playerPos.z);}
+
+    public void addPlayerToEnvironment(PlayerController player) {
+        PointLight light = player.getPlayerLight();
+        if (light != null) {
+            environment.add(light);
+            Log.info("GameWorld", "Added light for player " + player.getPlayerId() + " to environment at (" +
+                light.position.x + "," + light.position.y + "," + light.position.z + ") intensity=" + light.intensity);
+        } else {
+            Log.warn("GameWorld", "Player " + player.getPlayerId() + " has no light to add to environment");
+        }
+    }
+
+    public void removePlayerFromEnvironment(PlayerController player) {
+        if (player.getPlayerLight() != null) {
+            environment.remove(player.getPlayerLight());
+            Log.info("GameWorld", "Removed light for player " + player.getPlayerId() + " from environment");
+        }
+    }
+
+    private void removeAllPlayerLights() {
+        for (PlayerController player : players) {
+            if (player.getPlayerLight() != null) {
+                environment.remove(player.getPlayerLight());
+            }
+        }
+        Log.info("GameWorld", "Removed all player lights from environment");
     }
 
     public void render(ModelBatch modelBatch, PerspectiveCamera camera) {
@@ -214,8 +239,8 @@ public class GameWorld {
             mapRenderer = null;
         }
 
-        // Clear player lantern reference
-        playerLantern = null;
+        // Remove all player lights from environment
+        removeAllPlayerLights();
 
         // Clear dungeon lights
         if (dungeonLights != null) {

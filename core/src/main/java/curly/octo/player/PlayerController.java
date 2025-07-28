@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
+import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController;
@@ -43,6 +44,7 @@ public class PlayerController extends InputAdapter  {
 
     private long playerId;
     private transient GameMap gameMap;
+    private transient PointLight playerLight;
 
     public PlayerController() {
         // Initialize camera with default values
@@ -52,6 +54,9 @@ public class PlayerController extends InputAdapter  {
 
         // Initialize camera on the OpenGL thread
         Gdx.app.postRunnable(this::initialize);
+        
+        // Initialize player light
+        createPlayerLight();
     }
 
     public void setPlayerId(long playerId) {
@@ -65,6 +70,9 @@ public class PlayerController extends InputAdapter  {
             camera.lookAt(position.x + direction.x, position.y + direction.y, position.z + direction.z);
             camera.update();
         }
+        
+        // Update player light position
+        updatePlayerLightPosition();
     }
 
     public long getPlayerId() {
@@ -255,6 +263,31 @@ public class PlayerController extends InputAdapter  {
             return true;
         }
         return false;
+    }
+
+    private void createPlayerLight() {
+        playerLight = new PointLight();
+        playerLight.set(1f, 0.9f, 0.7f, position.x, position.y + 3f, position.z, 2); // Warm lantern light
+        Log.info("PlayerController", "Created player light for player " + playerId);
+    }
+    
+    private void updatePlayerLightPosition() {
+        // Ensure light exists (recreate if needed after network deserialization)
+        if (playerLight == null) {
+            createPlayerLight();
+        }
+        if (playerLight != null) {
+            // Position light slightly above player
+            playerLight.position.set(position.x, position.y + 3f, position.z);
+        }
+    }
+    
+    public PointLight getPlayerLight() {
+        // Recreate light if it's null (happens after network deserialization)
+        if (playerLight == null) {
+            createPlayerLight();
+        }
+        return playerLight;
     }
 
     public void resize(int width, int height) {

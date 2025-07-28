@@ -5,6 +5,7 @@ import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.GameWorld;
 import curly.octo.map.GameMap;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
@@ -27,23 +28,25 @@ public class GameServer {
     private final NetworkListener networkListener;
     private final GameMap map;
     private final List<PlayerController> players;
+    private final GameWorld gameWorld;
     private final Map<Integer, Long> connectionToPlayerMap = new HashMap<>();
 
-    public GameServer(Random random, GameMap map, List<PlayerController> players) {
+    public GameServer(Random random, GameMap map, List<PlayerController> players, GameWorld gameWorld) {
         this.map = map;
         this.players = players;
+        this.gameWorld = gameWorld;
         this.server = new Server(655360, 655360);
         this.networkListener = new NetworkListener(server);
 
+        Log.info("GameServer", "Created with " + players.size() + " initial players:");
+        for (int i = 0; i < players.size(); i++) {
+            PlayerController player = players.get(i);
+            Log.info("GameServer", "  Initial Player[" + i + "]: ID=" + player.getPlayerId() +
+                " hasLight=" + (player.getPlayerLight() != null));
+        }
+
         // Register all network classes
         Network.register(server);
-
-        // Set up network listener
-//        networkListener.setRotationListener(rotation -> {
-//            if (this.rotationListener != null) {
-//                this.rotationListener.onCubeRotationUpdate(rotation);
-//            }
-//        });
 
         // Add connection listener for logging
         server.addListener(new Listener() {
@@ -52,9 +55,26 @@ public class GameServer {
                 sendMapRefreshToUser(connection);
                 PlayerController newPlayer = PlayerUtilities.createPlayerController(random);
                 players.add(newPlayer);
+
+                // Add the new player's light to the server's environment
+                gameWorld.addPlayerToEnvironment(newPlayer);
+
                 connectionToPlayerMap.put(connection.getID(), newPlayer.getPlayerId());
                 broadcastNewPlayerRoster();
+                // Also send roster directly to the new connection to ensure they get it
+                sendPlayerRosterToConnection(connection);
                 assignPlayer(connection, newPlayer.getPlayerId());
+
+                // Send another roster after a delay to test if timing is the issue
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(1000); // Wait 1 second
+                        Log.info("GameServer", "Sending delayed roster to connection " + connection.getID());
+                        sendPlayerRosterToConnection(connection);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }).start();
 
                 Log.info("Server", "Player " + newPlayer.getPlayerId() + " connected from " +
                     connection.getRemoteAddressTCP().getAddress());
@@ -93,9 +113,13 @@ public class GameServer {
                             break;
                         }
                     }
-                    
+
                     if (disconnectedPlayer != null) {
                         players.remove(disconnectedPlayer);
+
+                        // Remove the disconnected player's light from the server's environment
+                        gameWorld.removePlayerFromEnvironment(disconnectedPlayer);
+
                         broadcastNewPlayerRoster();
                         Log.info("Server", "Player " + disconnectedPlayer.getPlayerId() + " disconnected");
                     }
@@ -159,21 +183,52 @@ public class GameServer {
         if (server != null) {
             PlayerUpdate update = new PlayerUpdate(playerId, position);
             server.sendToAllUDP(update); // Using UDP for faster, less reliable but faster updates
-            Log.debug("Server", "Broadcasting position update for player " + playerId + ": " +
+            Log.info("Server", "Broadcasting position update for player " + playerId + ": " +
                 position.x + ", " + position.y + ", " + position.z);
         }
     }
 
     public void broadcastNewPlayerRoster() {
         if (server != null) {
-            PlayerRosterUpdate update = new PlayerRosterUpdate();
-            PlayerController[] playerRoster = new PlayerController[players.size()];
-            for(int i = 0; i < playerRoster.length; i++) {
-                playerRoster[i] = players.get(i);
+            try {
+                PlayerRosterUpdate update = createPlayerRosterUpdate();
+                Log.info("GameServer", "Broadcasting player roster to all clients");
+                server.sendToAllTCP(update);
+                Log.info("GameServer", "Broadcast completed successfully");
+            } catch (Exception e) {
+                Log.error("GameServer", "Error broadcasting player roster: " + e.getMessage());
+                e.printStackTrace();
             }
-            update.players = playerRoster;
-            server.sendToAllTCP(update);
         }
+    }
+
+    public void sendPlayerRosterToConnection(Connection connection) {
+        if (server != null && connection != null) {
+            try {
+                PlayerRosterUpdate update = createPlayerRosterUpdate();
+                Log.info("GameServer", "Sending player roster directly to connection " + connection.getID());
+                connection.sendTCP(update);
+                Log.info("GameServer", "Direct send completed successfully");
+            } catch (Exception e) {
+                Log.error("GameServer", "Error sending player roster to connection: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private PlayerRosterUpdate createPlayerRosterUpdate() {
+        PlayerRosterUpdate update = new PlayerRosterUpdate();
+        PlayerController[] playerRoster = new PlayerController[players.size()];
+
+        Log.info("GameServer", "Creating player roster with " + players.size() + " players:");
+        for(int i = 0; i < playerRoster.length; i++) {
+            playerRoster[i] = players.get(i);
+            Log.info("GameServer", "  Player[" + i + "]: ID=" + players.get(i).getPlayerId() +
+                " hasLight=" + (players.get(i).getPlayerLight() != null));
+        }
+
+        update.players = playerRoster;
+        return update;
     }
 
     public void assignPlayer(Connection connection, long playerId)

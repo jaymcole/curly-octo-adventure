@@ -78,7 +78,7 @@ public class Network {
         kryo.register(PlayerController[].class);
         kryo.register(PlayerController.class);
         kryo.register(Color.class);
-//        kryo.register(PlayerRosterUpdate.RosterEntry[].class);
+
         kryo.register(PlayerRosterUpdate.class);
         kryo.register(PlayerAssignmentUpdate.class);
 

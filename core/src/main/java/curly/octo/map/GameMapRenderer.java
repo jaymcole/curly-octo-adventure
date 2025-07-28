@@ -34,6 +34,10 @@ public class GameMapRenderer implements Disposable {
 
     // Configurable number of shadow-casting lights (performance vs quality tradeoff)
     private int maxShadowCastingLights = 4; // Start with 2, can be adjusted
+    
+    // Track light counts for debug UI
+    private int lastTotalLights = 0;
+    private int lastShadowLights = 0;
 
     public GameMapRenderer() {
         cubeShadowMapRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH, maxShadowCastingLights);
@@ -58,29 +62,26 @@ public class GameMapRenderer implements Disposable {
     public void render(PerspectiveCamera camera, Environment environment) {
         // Get all point lights in the environment
         PointLightsAttribute pointLights = environment.get(PointLightsAttribute.class, PointLightsAttribute.Type);
+        
+        // Always update light counts for debug UI (even if no lights)
         if (pointLights == null || pointLights.lights.size == 0) {
+            lastTotalLights = 0;
+            lastShadowLights = 0;
             Log.warn("GameMapRenderer", "No lights found, skipping shadow rendering");
             return;
         }
 
-        Log.info("GameMapRenderer", "Rendering with " + pointLights.lights.size + " total lights in environment");
-        
-        // Debug: Print positions of all lights
-        for (int i = 0; i < pointLights.lights.size; i++) {
-            PointLight light = pointLights.lights.get(i);
-            Log.info("GameMapRenderer", "Light " + i + ": position (" + light.position.x + "," + light.position.y + "," + light.position.z + 
-                ") intensity " + light.intensity + " color (" + light.color.r + "," + light.color.g + "," + light.color.b + ")");
-        }
-
         // Generate shadow maps for the N most significant lights (brightest overall)
         Array<PointLight> significantLights = getMostSignificantLights(pointLights, maxShadowCastingLights);
-        
+
+        // Update light counts for debug UI
+        lastTotalLights = pointLights.lights.size;
+        lastShadowLights = significantLights.size;
+
         if (significantLights.size > 0) {
-            Log.info("GameMapRenderer", "Generating shadows for " + significantLights.size + " significant lights");
-            
             // Reset light index for new frame
             cubeShadowMapRenderer.resetLightIndex();
-            
+
             // Generate cube shadow maps for each significant light
             for (PointLight light : significantLights) {
                 cubeShadowMapRenderer.generateCubeShadowMap(instances, light);
@@ -310,17 +311,17 @@ public class GameMapRenderer implements Disposable {
 
     private void extractLightsFromMap(GameMap map) {
         int lightCount = 0;
-        
+
         for (int x = 0; x < map.getWidth(); x++) {
             for (int y = 0; y < map.getHeight(); y++) {
                 for (int z = 0; z < map.getDepth(); z++) {
                     MapTile tile = map.getTile(x, y, z);
-                    
+
                     // Check if this tile has any LightHints
                     for (MapHint hint : tile.getHints()) {
                         if (hint instanceof LightHint) {
                             LightHint lightHint = (LightHint) hint;
-                            
+
                             // Create a PointLight from the LightHint
                             PointLight mapLight = new PointLight();
                             mapLight.set(
@@ -330,18 +331,18 @@ public class GameMapRenderer implements Disposable {
                                 tile.z + MapTile.TILE_SIZE / 2f,                        // Z position (center of tile)
                                 lightHint.intensity                                      // Intensity/range
                             );
-                            
+
                             mapLights.add(mapLight);
                             lightCount++;
-                            
-                            Log.info("GameMapRenderer", "Created light from LightHint at (" + tile.x + "," + tile.y + "," + tile.z + 
+
+                            Log.info("GameMapRenderer", "Created light from LightHint at (" + tile.x + "," + tile.y + "," + tile.z +
                                 ") with intensity " + lightHint.intensity + " and color (" + lightHint.color_r + "," + lightHint.color_g + "," + lightHint.color_b + ")");
                         }
                     }
                 }
             }
         }
-        
+
         Log.info("GameMapRenderer", "Extracted " + lightCount + " lights from map LightHints");
     }
 
@@ -368,6 +369,20 @@ public class GameMapRenderer implements Disposable {
         if (mapLights.size > 0) {
             Log.info("GameMapRenderer", "Added " + mapLights.size + " map lights to environment");
         }
+    }
+    
+    /**
+     * Get the total number of lights rendered in the last frame
+     */
+    public int getLastTotalLights() {
+        return lastTotalLights;
+    }
+    
+    /**
+     * Get the number of shadow-casting lights rendered in the last frame
+     */
+    public int getLastShadowLights() {
+        return lastShadowLights;
     }
 
     @Override

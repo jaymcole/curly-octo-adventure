@@ -109,6 +109,14 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
                 Vector3 pos = gameWorld.getLocalPlayerController().getPosition();
                 debugUI.setPlayerPosition(pos.x, pos.y, pos.z);
             }
+            
+            // Update light count info
+            if (gameWorld.getMapRenderer() != null) {
+                debugUI.setLightCounts(
+                    gameWorld.getMapRenderer().getLastTotalLights(),
+                    gameWorld.getMapRenderer().getLastShadowLights()
+                );
+            }
         }
 
         // Update and render UI
