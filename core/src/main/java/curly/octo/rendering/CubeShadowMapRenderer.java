@@ -126,6 +126,9 @@ public class CubeShadowMapRenderer implements Disposable {
             Log.warn("CubeShadowMapRenderer", "Too many lights for shadow casting, skipping light");
             return;
         }
+        
+        Log.debug("CubeShadowMapRenderer", "Generating shadow map " + currentLightIndex + " for light at (" + 
+            light.position.x + "," + light.position.y + "," + light.position.z + ") intensity=" + light.intensity);
 
         // Position all 6 cameras at the light position
         for (int face = 0; face < 6; face++) {
@@ -161,20 +164,47 @@ public class CubeShadowMapRenderer implements Disposable {
 
         shadowShader.bind();
 
-        // Bind shadow maps from the primary light (first shadow-casting light)
-        // For now, use existing shader uniforms which support one shadow-casting light
-        for (int face = 0; face < 6; face++) {
-            shadowFrameBuffers[0][face].getColorBufferTexture().bind(face + 1);
-            shadowShader.setUniformi("u_cubeShadowMap[" + face + "]", face + 1);
+        // Bind shadow maps from all shadow-casting lights
+        int textureUnit = 1;
+        int numShadowLights = Math.min(shadowLights.size, MAX_LIGHTS);
+        for (int lightIndex = 0; lightIndex < numShadowLights; lightIndex++) {
+            for (int face = 0; face < 6; face++) {
+                shadowFrameBuffers[lightIndex][face].getColorBufferTexture().bind(textureUnit);
+                shadowShader.setUniformi("u_cubeShadowMaps[" + (lightIndex * 6 + face) + "]", textureUnit);
+                textureUnit++;
+            }
         }
 
         // Set shadow rendering parameters
         shadowShader.setUniformf("u_farPlane", lightCameras[0].far);
+        shadowShader.setUniformi("u_numShadowLights", numShadowLights);
 
-        // Pass all lights to shader for illumination (primary light is at index 0)
-        shadowShader.setUniformi("u_numLights", Math.min(allLights.size, 8));
-        for (int i = 0; i < Math.min(allLights.size, 8); i++) {
-            PointLight light = allLights.get(i);
+        // Pass shadow lights first, then remaining lights for proper shader indexing
+        Array<PointLight> orderedLights = new Array<>();
+        
+        // Add shadow-casting lights first (these must match the shadow map order)
+        for (PointLight shadowLight : shadowLights) {
+            orderedLights.add(shadowLight);
+        }
+        
+        // Add remaining non-shadow lights
+        for (PointLight light : allLights) {
+            if (!shadowLights.contains(light, true)) {
+                orderedLights.add(light);
+            }
+        }
+        
+        // Send ordered lights to shader
+        int totalLights = Math.min(orderedLights.size, 8);
+        shadowShader.setUniformi("u_numLights", totalLights);
+        
+        Log.debug("CubeShadowMapRenderer", "Sending " + totalLights + " lights to shader (" + numShadowLights + " with shadows):");
+        for (int i = 0; i < totalLights; i++) {
+            PointLight light = orderedLights.get(i);
+            boolean hasShadow = i < numShadowLights;
+            Log.debug("CubeShadowMapRenderer", "  Light[" + i + "]: pos(" + light.position.x + "," + light.position.y + "," + light.position.z + 
+                ") intensity=" + light.intensity + " shadow=" + hasShadow);
+                
             shadowShader.setUniformf("u_lightPositions[" + i + "]", light.position);
             shadowShader.setUniformf("u_lightColors[" + i + "]", light.color.r, light.color.g, light.color.b);
             shadowShader.setUniformf("u_lightIntensities[" + i + "]", light.intensity);

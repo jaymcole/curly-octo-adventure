@@ -78,17 +78,17 @@ public class PlaygroundGenerator extends MapGenerator{
     }
 
     private void addLights() {
-        int numberOfLightsToAdd = 5; // Add more lights for testing
+        int numberOfLightsToAdd = 2; // Add more lights for testing
         for(int i = 0; i < numberOfLightsToAdd; i++) {
             MapTile tile = map[random.nextInt(width)][2][random.nextInt(depth)];
             while (tile.geometryType != MapTileGeometryType.EMPTY) {
                 tile = map[random.nextInt(width)][2][random.nextInt(depth)];
             }
             LightHint light = new LightHint();
-            light.intensity = 5; // Increase intensity for visibility
+            light.intensity = 2; // Increase intensity for visibility
 
             // Set different colors for variety
-            switch(i % 3) {
+            switch(random.nextInt(3)) {
                 case 0: // Warm torch light
                     light.color_r = 1.0f;
                     light.color_g = 0.8f;

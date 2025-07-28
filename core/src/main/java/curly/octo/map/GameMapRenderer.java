@@ -72,66 +72,65 @@ public class GameMapRenderer implements Disposable {
                 ") intensity " + light.intensity + " color (" + light.color.r + "," + light.color.g + "," + light.color.b + ")");
         }
 
-        // Get the N closest lights for shadow casting
-        Array<PointLight> shadowCastingLights = getClosestLights(pointLights, camera.position, maxShadowCastingLights);
+        // Generate shadow maps for the N most significant lights (brightest overall)
+        Array<PointLight> significantLights = getMostSignificantLights(pointLights, maxShadowCastingLights);
         
-        Log.info("GameMapRenderer", "Primary light for shadows: position (" + 
-            shadowCastingLights.first().position.x + "," + shadowCastingLights.first().position.y + "," + shadowCastingLights.first().position.z + 
-            ") intensity " + shadowCastingLights.first().intensity);
-
-        if (shadowCastingLights.size > 0) {
+        if (significantLights.size > 0) {
+            Log.info("GameMapRenderer", "Generating shadows for " + significantLights.size + " significant lights");
+            
             // Reset light index for new frame
             cubeShadowMapRenderer.resetLightIndex();
-
-            // Generate cube shadow maps for each shadow-casting light
-            for (PointLight light : shadowCastingLights) {
+            
+            // Generate cube shadow maps for each significant light
+            for (PointLight light : significantLights) {
                 cubeShadowMapRenderer.generateCubeShadowMap(instances, light);
             }
 
-            // Render with shadows from primary light but illumination from all lights
+            // Render with shadows from significant lights and illumination from all lights
             Vector3 ambientLight = getAmbientLight(environment);
-            cubeShadowMapRenderer.renderWithMultipleCubeShadows(instances, camera, shadowCastingLights, pointLights.lights, ambientLight);
+            cubeShadowMapRenderer.renderWithMultipleCubeShadows(instances, camera, significantLights, pointLights.lights, ambientLight);
         } else {
             Log.warn("GameMapRenderer", "No lights found for shadow casting");
         }
     }
 
-    private Array<PointLight> getClosestLights(PointLightsAttribute pointLights, Vector3 cameraPosition, int maxLights) {
+    private Array<PointLight> getMostSignificantLights(PointLightsAttribute pointLights, int maxLights) {
         Array<PointLight> result = new Array<>();
 
         if (pointLights == null || pointLights.lights.size == 0) {
             return result;
         }
 
-        // Create array of lights with distances
-        Array<LightDistance> lightDistances = new Array<>();
+        // Create array of lights with significance scores (intensity-based)
+        Array<LightSignificance> lightScores = new Array<>();
         for (PointLight light : pointLights.lights) {
-            float distance = light.position.dst(cameraPosition);
-            lightDistances.add(new LightDistance(light, distance));
+            // Score based on light intensity (brighter lights are more significant)
+            float significance = light.intensity;
+            lightScores.add(new LightSignificance(light, significance));
         }
 
-        // Sort by distance (closest first)
-        lightDistances.sort((a, b) -> Float.compare(a.distance, b.distance));
+        // Sort by significance (highest first)
+        lightScores.sort((a, b) -> Float.compare(b.significance, a.significance));
 
-        // Take the N closest lights
-        int numLights = Math.min(maxLights, lightDistances.size);
+        // Take the N most significant lights
+        int numLights = Math.min(maxLights, lightScores.size);
         for (int i = 0; i < numLights; i++) {
-            result.add(lightDistances.get(i).light);
+            result.add(lightScores.get(i).light);
         }
 
-        Log.debug("GameMapRenderer", "Selected " + result.size + " closest lights for shadow casting");
+        Log.debug("GameMapRenderer", "Selected " + result.size + " most significant lights for shadow casting");
 
         return result;
     }
 
-    // Helper class for sorting lights by distance
-    private static class LightDistance {
+    // Helper class for sorting lights by significance
+    private static class LightSignificance {
         final PointLight light;
-        final float distance;
+        final float significance;
 
-        LightDistance(PointLight light, float distance) {
+        LightSignificance(PointLight light, float significance) {
             this.light = light;
-            this.distance = distance;
+            this.significance = significance;
         }
     }
 
