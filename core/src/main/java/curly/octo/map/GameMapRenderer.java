@@ -176,10 +176,10 @@ public class GameMapRenderer implements Disposable {
         grassMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
 
         Material spawnMaterial = new Material();
-        grassMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.LIME));
-        grassMaterial.set(new ColorAttribute(ColorAttribute.Specular, 0.1f, 0.1f, 0.1f, 1f));
-        grassMaterial.set(new FloatAttribute(FloatAttribute.Shininess, 4f));
-        grassMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
+        spawnMaterial.set(new ColorAttribute(ColorAttribute.Diffuse, Color.LIME));
+        spawnMaterial.set(new ColorAttribute(ColorAttribute.Specular, 0.1f, 0.1f, 0.1f, 1f));
+        spawnMaterial.set(new FloatAttribute(FloatAttribute.Shininess, 4f));
+        spawnMaterial.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
 
         // Create mesh parts for each material type
 

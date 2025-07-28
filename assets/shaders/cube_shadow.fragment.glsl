@@ -4,6 +4,7 @@ precision mediump float;
 
 // Material and environment
 uniform vec3 u_ambientLight;
+uniform vec3 u_diffuseColor;
 uniform float u_farPlane;
 
 // All lights (up to 8 lights total)
@@ -132,7 +133,7 @@ float sampleCubeShadowMap(vec3 lightDirection, int lightIndex) {
 
 void main() {
     vec3 normal = normalize(v_normal);
-    vec3 baseMaterial = vec3(0.7, 0.7, 0.7);
+    vec3 baseMaterial = u_diffuseColor;
     
     // Start with ambient lighting
     vec3 totalLighting = u_ambientLight;
