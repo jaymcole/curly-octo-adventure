@@ -33,7 +33,7 @@ public class GameMapRenderer implements Disposable {
     private boolean disposed = false;
 
     // Configurable number of shadow-casting lights (performance vs quality tradeoff)
-    private int maxShadowCastingLights = 4; // Start with 2, can be adjusted
+    private int maxShadowCastingLights = 8; // Start with 8, can be adjusted
     
     // Track light counts for debug UI
     private int lastTotalLights = 0;
