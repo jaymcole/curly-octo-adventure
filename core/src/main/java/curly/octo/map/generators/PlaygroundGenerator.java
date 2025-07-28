@@ -18,6 +18,9 @@ public class PlaygroundGenerator extends MapGenerator{
 
     @Override
     public MapTile[][][] generate() {
+        fillBoundsWithSolidBlocks();
+
+
         for(int x = 0; x < width; x++) {
             for (int z = 0; z < depth; z++) {
                 map[x][0][z].geometryType = MapTileGeometryType.FULL;
@@ -75,6 +78,38 @@ public class PlaygroundGenerator extends MapGenerator{
         addLights();
 
         return map;
+    }
+
+    private void fillBoundsWithSolidBlocks () {
+        // Roof
+        for(int x = 0; x < width; x++) {
+            for(int z = 0; z < depth; z++) {
+                MapTile tile = map[x][height-1][z];
+                tile.geometryType = MapTileGeometryType.FULL;
+            }
+        }
+
+        // Walls
+
+        for(int x = 0; x < width; x++) {
+            for(int y = 0; y < height; y++) {
+                MapTile tile = map[x][y][0];
+                tile.geometryType = MapTileGeometryType.FULL;
+
+                tile = map[x][y][depth-1];
+                tile.geometryType = MapTileGeometryType.FULL;
+            }
+        }
+
+        for(int z = 0; z < width; z++) {
+            for(int y = 0; y < height; y++) {
+                MapTile tile = map[0][y][z];
+                tile.geometryType = MapTileGeometryType.FULL;
+
+                tile = map[width-1][y][z];
+                tile.geometryType = MapTileGeometryType.FULL;
+            }
+        }
     }
 
     private void addLights() {
