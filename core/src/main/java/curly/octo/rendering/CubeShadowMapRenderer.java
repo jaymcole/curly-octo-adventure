@@ -20,6 +20,7 @@ import com.esotericsoftware.minlog.Log;
 public class CubeShadowMapRenderer implements Disposable {
 
     private final int SHADOW_MAP_SIZE;
+    private final int MAX_LIGHTS;
 
     // Quality presets
     public static final int QUALITY_LOW = 256;
@@ -27,12 +28,13 @@ public class CubeShadowMapRenderer implements Disposable {
     public static final int QUALITY_HIGH = 1024;
     public static final int QUALITY_ULTRA = 2048;
 
-    // 6 framebuffers for each face of the cube
-    private FrameBuffer[] shadowFrameBuffers;
+    // Multiple sets of 6 framebuffers (one set per light, 6 faces per cube)
+    private FrameBuffer[][] shadowFrameBuffers; // [lightIndex][faceIndex]
     private ShaderProgram depthShader;
     private ShaderProgram shadowShader;
-    private PerspectiveCamera[] lightCameras;
-    private Matrix4[] lightViewProjections;
+    private PerspectiveCamera[] lightCameras; // Reused for each light
+    private Matrix4[] lightViewProjections;   // Reused for each light
+    private int currentLightIndex = 0;        // Track current light being processed
 
     // Cube face directions (right, left, top, bottom, near, far)
     private static final Vector3[] CUBE_DIRECTIONS = {
@@ -56,22 +58,29 @@ public class CubeShadowMapRenderer implements Disposable {
     private boolean disposed = false;
 
     public CubeShadowMapRenderer() {
-        this(QUALITY_HIGH); // Default to high quality
+        this(QUALITY_HIGH, 1); // Default to high quality, 1 light
     }
 
     public CubeShadowMapRenderer(int quality) {
+        this(quality, 1); // Default to 1 light
+    }
+
+    public CubeShadowMapRenderer(int quality, int maxLights) {
         SHADOW_MAP_SIZE = quality;
+        MAX_LIGHTS = Math.max(1, Math.min(8, maxLights)); // Clamp between 1-8
         initializeFrameBuffers();
         loadShaders();
         setupCameras();
     }
 
     private void initializeFrameBuffers() {
-        shadowFrameBuffers = new FrameBuffer[6];
-        for (int i = 0; i < 6; i++) {
-            shadowFrameBuffers[i] = new FrameBuffer(Pixmap.Format.RGBA8888, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, true);
+        shadowFrameBuffers = new FrameBuffer[MAX_LIGHTS][6];
+        for (int lightIndex = 0; lightIndex < MAX_LIGHTS; lightIndex++) {
+            for (int face = 0; face < 6; face++) {
+                shadowFrameBuffers[lightIndex][face] = new FrameBuffer(Pixmap.Format.RGBA8888, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, true);
+            }
         }
-        Log.info("CubeShadowMapRenderer", "Created 6 cube shadow framebuffers: " + SHADOW_MAP_SIZE + "x" + SHADOW_MAP_SIZE);
+        Log.info("CubeShadowMapRenderer", "Created " + (MAX_LIGHTS * 6) + " cube shadow framebuffers for " + MAX_LIGHTS + " lights: " + SHADOW_MAP_SIZE + "x" + SHADOW_MAP_SIZE);
     }
 
     private void loadShaders() {
@@ -111,6 +120,13 @@ public class CubeShadowMapRenderer implements Disposable {
     }
 
     public void generateCubeShadowMap(Array<ModelInstance> instances, PointLight light) {
+        // Find which light index this is (for framebuffer selection)
+        // This assumes lights are processed in order
+        if (currentLightIndex >= MAX_LIGHTS) {
+            Log.warn("CubeShadowMapRenderer", "Too many lights for shadow casting, skipping light");
+            return;
+        }
+
         // Position all 6 cameras at the light position
         for (int face = 0; face < 6; face++) {
             PerspectiveCamera camera = lightCameras[face];
@@ -127,32 +143,42 @@ public class CubeShadowMapRenderer implements Disposable {
 
         // Render to each face of the cube
         for (int face = 0; face < 6; face++) {
-            renderShadowMapFace(instances, face, light);
+            renderShadowMapFace(instances, face, light, currentLightIndex);
         }
+        
+        currentLightIndex++;
+    }
+    
+    public void resetLightIndex() {
+        currentLightIndex = 0;
     }
 
-    public void renderWithMultipleCubeShadows(Array<ModelInstance> instances, Camera camera, Array<PointLight> lights, Vector3 ambientLight) {
-        if (lights.size == 0) {
-            Log.warn("CubeShadowMapRenderer", "No lights provided for multi-light rendering");
+    public void renderWithMultipleCubeShadows(Array<ModelInstance> instances, Camera camera, Array<PointLight> shadowLights, Array<PointLight> allLights, Vector3 ambientLight) {
+        if (shadowLights.size == 0) {
+            Log.warn("CubeShadowMapRenderer", "No shadow-casting lights provided");
             return;
         }
 
         shadowShader.bind();
 
-        // Use the first light (primary) for shadow casting
-        PointLight primaryLight = lights.first();
-        
-        // Bind all 6 cube shadow map faces from primary light
-        for (int i = 0; i < 6; i++) {
-            shadowFrameBuffers[i].getColorBufferTexture().bind(i + 1);
-            shadowShader.setUniformi("u_cubeShadowMap[" + i + "]", i + 1);
+        // Bind shadow maps from the primary light (first shadow-casting light)
+        // For now, use existing shader uniforms which support one shadow-casting light
+        for (int face = 0; face < 6; face++) {
+            shadowFrameBuffers[0][face].getColorBufferTexture().bind(face + 1);
+            shadowShader.setUniformi("u_cubeShadowMap[" + face + "]", face + 1);
         }
 
-        // Set primary light uniforms for shadow calculation
-        shadowShader.setUniformf("u_lightPosition", primaryLight.position);
-        shadowShader.setUniformf("u_lightColor", primaryLight.color.r, primaryLight.color.g, primaryLight.color.b);
-        shadowShader.setUniformf("u_lightIntensity", primaryLight.intensity);
+        // Set shadow rendering parameters
         shadowShader.setUniformf("u_farPlane", lightCameras[0].far);
+
+        // Pass all lights to shader for illumination (primary light is at index 0)
+        shadowShader.setUniformi("u_numLights", Math.min(allLights.size, 8));
+        for (int i = 0; i < Math.min(allLights.size, 8); i++) {
+            PointLight light = allLights.get(i);
+            shadowShader.setUniformf("u_lightPositions[" + i + "]", light.position);
+            shadowShader.setUniformf("u_lightColors[" + i + "]", light.color.r, light.color.g, light.color.b);
+            shadowShader.setUniformf("u_lightIntensities[" + i + "]", light.intensity);
+        }
 
         // Set ambient light
         shadowShader.setUniformf("u_ambientLight", ambientLight);
@@ -160,45 +186,49 @@ public class CubeShadowMapRenderer implements Disposable {
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
         Gdx.gl.glDepthFunc(GL20.GL_LEQUAL);
 
-        // Calculate combined lighting from all lights
+        // Render instances with combined lighting from all lights
         for (ModelInstance instance : instances) {
             Matrix4 worldTransform = instance.transform;
 
             shadowShader.setUniformMatrix("u_worldTrans", worldTransform);
             shadowShader.setUniformMatrix("u_projViewTrans", camera.combined);
 
-            // Calculate combined diffuse color from all lights
-            Vector3 combinedLighting = calculateCombinedLighting(instance, lights, camera);
-            shadowShader.setUniformf("u_diffuseColor", combinedLighting.x, combinedLighting.y, combinedLighting.z);
-
             renderInstance(instance, shadowShader);
         }
     }
 
-    private Vector3 calculateCombinedLighting(ModelInstance instance, Array<PointLight> lights, Camera camera) {
+    private Vector3 calculateCombinedLighting(ModelInstance instance, Array<PointLight> allLights, Camera camera, PointLight primaryLight) {
         Vector3 instancePos = instance.transform.getTranslation(new Vector3());
-        Vector3 combinedColor = new Vector3(0.7f, 0.7f, 0.7f); // Base material color
-        Vector3 totalLighting = new Vector3(0, 0, 0);
+        Vector3 baseMaterial = new Vector3(0.7f, 0.7f, 0.7f); // Base material color
+        Vector3 additionalLighting = new Vector3(0, 0, 0);
 
-        // Add contribution from all lights
-        for (PointLight light : lights) {
-            float distance = instancePos.dst(light.position);
-            if (distance <= light.intensity) { // Within light range
-                float attenuation = light.intensity / (1.0f + 0.05f * distance + 0.016f * distance * distance);
-                totalLighting.add(light.color.r * attenuation, light.color.g * attenuation, light.color.b * attenuation);
+        // Add contribution from all lights EXCEPT the primary light (shader handles primary)
+        for (PointLight light : allLights) {
+            if (light != primaryLight) { // Skip primary light
+                float distance = instancePos.dst(light.position);
+                if (distance <= light.intensity * 1.5f) { // Wider range for additional lights
+                    float attenuation = light.intensity / (1.0f + 0.03f * distance + 0.008f * distance * distance);
+                    // Boost additional lights for better visibility
+                    additionalLighting.add(light.color.r * attenuation * 1.5f, 
+                                         light.color.g * attenuation * 1.5f, 
+                                         light.color.b * attenuation * 1.5f);
+                }
             }
         }
 
-        // Combine material color with lighting
-        combinedColor.scl(Math.min(1.0f, totalLighting.x + 0.3f), 
-                         Math.min(1.0f, totalLighting.y + 0.3f), 
-                         Math.min(1.0f, totalLighting.z + 0.3f));
+        // Material with additional lighting contribution
+        baseMaterial.add(additionalLighting.x * 0.5f, additionalLighting.y * 0.5f, additionalLighting.z * 0.5f);
         
-        return combinedColor;
+        // Clamp to reasonable values  
+        baseMaterial.x = Math.min(2.0f, baseMaterial.x);
+        baseMaterial.y = Math.min(2.0f, baseMaterial.y);
+        baseMaterial.z = Math.min(2.0f, baseMaterial.z);
+        
+        return baseMaterial;
     }
 
-    private void renderShadowMapFace(Array<ModelInstance> instances, int face, PointLight light) {
-        FrameBuffer frameBuffer = shadowFrameBuffers[face];
+    private void renderShadowMapFace(Array<ModelInstance> instances, int face, PointLight light, int lightIndex) {
+        FrameBuffer frameBuffer = shadowFrameBuffers[lightIndex][face];
         PerspectiveCamera camera = lightCameras[face];
 
         frameBuffer.begin();
@@ -228,16 +258,17 @@ public class CubeShadowMapRenderer implements Disposable {
     public void renderWithCubeShadows(Array<ModelInstance> instances, Camera camera, PointLight light, Vector3 ambientLight) {
         shadowShader.bind();
 
-        // Bind all 6 cube shadow map faces
+        // Bind all 6 cube shadow map faces from the first light (lightIndex 0)
         for (int i = 0; i < 6; i++) {
-            shadowFrameBuffers[i].getColorBufferTexture().bind(i + 1);
+            shadowFrameBuffers[0][i].getColorBufferTexture().bind(i + 1);
             shadowShader.setUniformi("u_cubeShadowMap[" + i + "]", i + 1);
         }
 
-        // Set light uniforms
-        shadowShader.setUniformf("u_lightPosition", light.position);
-        shadowShader.setUniformf("u_lightColor", light.color.r, light.color.g, light.color.b);
-        shadowShader.setUniformf("u_lightIntensity", light.intensity);
+        // Set light uniforms (single light version - convert to array format)
+        shadowShader.setUniformi("u_numLights", 1);
+        shadowShader.setUniformf("u_lightPositions[0]", light.position);
+        shadowShader.setUniformf("u_lightColors[0]", light.color.r, light.color.g, light.color.b);
+        shadowShader.setUniformf("u_lightIntensities[0]", light.intensity);
         shadowShader.setUniformf("u_ambientLight", ambientLight);
         shadowShader.setUniformf("u_farPlane", lightCameras[0].far);
 
@@ -249,9 +280,6 @@ public class CubeShadowMapRenderer implements Disposable {
 
             shadowShader.setUniformMatrix("u_worldTrans", worldTransform);
             shadowShader.setUniformMatrix("u_projViewTrans", camera.combined);
-
-            // Set material color - this would normally come from the material
-            shadowShader.setUniformf("u_diffuseColor", 0.7f, 0.7f, 0.7f);
 
             renderInstance(instance, shadowShader);
         }
@@ -270,8 +298,12 @@ public class CubeShadowMapRenderer implements Disposable {
     }
 
     public Texture getShadowMapTexture(int face) {
-        if (face >= 0 && face < 6) {
-            return shadowFrameBuffers[face].getColorBufferTexture();
+        return getShadowMapTexture(0, face); // Default to first light
+    }
+    
+    public Texture getShadowMapTexture(int lightIndex, int face) {
+        if (lightIndex >= 0 && lightIndex < MAX_LIGHTS && face >= 0 && face < 6) {
+            return shadowFrameBuffers[lightIndex][face].getColorBufferTexture();
         }
         return null;
     }
@@ -281,12 +313,14 @@ public class CubeShadowMapRenderer implements Disposable {
         if (disposed) return;
 
         if (shadowFrameBuffers != null) {
-            for (int i = 0; i < 6; i++) {
-                if (shadowFrameBuffers[i] != null) {
-                    shadowFrameBuffers[i].dispose();
+            for (int lightIndex = 0; lightIndex < MAX_LIGHTS; lightIndex++) {
+                for (int face = 0; face < 6; face++) {
+                    if (shadowFrameBuffers[lightIndex][face] != null) {
+                        shadowFrameBuffers[lightIndex][face].dispose();
+                    }
                 }
             }
-            Log.info("CubeShadowMapRenderer", "Cube shadow framebuffers disposed");
+            Log.info("CubeShadowMapRenderer", "Cube shadow framebuffers disposed (" + (MAX_LIGHTS * 6) + " total)");
         }
 
         if (depthShader != null) {

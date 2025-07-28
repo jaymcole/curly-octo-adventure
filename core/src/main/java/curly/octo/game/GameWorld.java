@@ -57,30 +57,8 @@ public class GameWorld {
     }
 
     private void createDungeonLights() {
-        // Add some static torch-like lights around the dungeon
-//        PointLight torch1 = new PointLight();
-//        torch1.set(1f, 0.8f, 0.6f, 10f, 30f, 10f, 25f); // Warm torch light
-//        dungeonLights.add(torch1);
-//        environment.add(torch1);
-//
-//        PointLight torch2 = new PointLight();
-//        torch2.set(1f, 0.8f, 0.6f, 50f, 30f, 10f, 25f); // Another torch
-//        dungeonLights.add(torch2);
-//        environment.add(torch2);
-//
-//        PointLight torch3 = new PointLight();
-//        torch3.set(1f, 0.8f, 0.6f, 30f, 30f, 50f, 25f); // Third torch
-//        dungeonLights.add(torch3);
-//        environment.add(torch3);
-//
-//        PointLight blueCrystal = new PointLight();
-//        blueCrystal.set(0.6f, 0.8f, 1f, 20f, 35f, 30f, 15f); // Magical blue crystal
-//        dungeonLights.add(blueCrystal);
-//        environment.add(blueCrystal);
-
-        // Create player lantern light that will follow the player
         playerLantern = new PointLight();
-        playerLantern.set(1f, 0.9f, 0.7f, 0f, 10f, 0f, 300f); // Warm lantern light
+        playerLantern.set(1f, 0.9f, 0.7f, 0f, 10f, 0f, 1); // Warm lantern light
         environment.add(playerLantern);
     }
 
@@ -89,6 +67,10 @@ public class GameWorld {
             mapManager = new GameMap(64, 60, 64, System.currentTimeMillis());
             mapRenderer = new GameMapRenderer();
             mapRenderer.updateMap(mapManager);
+
+            // Add lights from map LightHints to the environment
+            mapRenderer.addMapLightsToEnvironment(environment);
+
             Log.info("GameWorld", "Initialized new map");
         }
     }
@@ -99,6 +81,10 @@ public class GameWorld {
             mapRenderer = new GameMapRenderer();
         }
         mapRenderer.updateMap(mapManager);
+
+        // Add lights from map LightHints to the environment
+        mapRenderer.addMapLightsToEnvironment(environment);
+
         Log.info("GameWorld", "Set map from network");
     }
 
@@ -168,12 +154,7 @@ public class GameWorld {
     private void updatePlayerLantern(Vector3 playerPos) {
         if (playerLantern != null) {
             // Position lantern slightly above and in front of player
-            playerLantern.position.set(playerPos.x + 5, playerPos.y + 3f, playerPos.z);
-
-            // Add subtle sway to lantern light
-            float sway = 0.95f + 0.05f * (float) Math.sin(System.currentTimeMillis() * 0.003f);
-            playerLantern.intensity = 1f;
-        }
+            playerLantern.position.set(playerPos.x + 5, playerPos.y + 3f, playerPos.z);}
     }
 
     public void render(ModelBatch modelBatch, PerspectiveCamera camera) {

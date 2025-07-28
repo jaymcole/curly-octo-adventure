@@ -5,6 +5,7 @@ import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.enums.MapTileMaterial;
+import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.SpawnPointHint;
 
 import java.util.Random;
@@ -71,6 +72,41 @@ public class PlaygroundGenerator extends MapGenerator{
         }
         tile.AddHint(new SpawnPointHint());
 
+        addLights();
+
         return map;
+    }
+
+    private void addLights() {
+        int numberOfLightsToAdd = 5; // Add more lights for testing
+        for(int i = 0; i < numberOfLightsToAdd; i++) {
+            MapTile tile = map[random.nextInt(width)][2][random.nextInt(depth)];
+            while (tile.geometryType != MapTileGeometryType.EMPTY) {
+                tile = map[random.nextInt(width)][2][random.nextInt(depth)];
+            }
+            LightHint light = new LightHint();
+            light.intensity = 5; // Increase intensity for visibility
+
+            // Set different colors for variety
+            switch(i % 3) {
+                case 0: // Warm torch light
+                    light.color_r = 1.0f;
+                    light.color_g = 0.8f;
+                    light.color_b = 0.4f;
+                    break;
+                case 1: // Cool blue crystal
+                    light.color_r = 0.4f;
+                    light.color_g = 0.6f;
+                    light.color_b = 1.0f;
+                    break;
+                case 2: // Green mystical light
+                    light.color_r = 0.2f;
+                    light.color_g = 1.0f;
+                    light.color_b = 0.3f;
+                    break;
+            }
+
+            tile.AddHint(light);
+        }
     }
 }

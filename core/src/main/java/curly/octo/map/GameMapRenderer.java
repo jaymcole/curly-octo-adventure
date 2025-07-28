@@ -18,6 +18,8 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.hints.LightHint;
+import curly.octo.map.hints.MapHint;
 import curly.octo.rendering.CubeShadowMapRenderer;
 
 /**
@@ -26,19 +28,31 @@ import curly.octo.rendering.CubeShadowMapRenderer;
 public class GameMapRenderer implements Disposable {
     private final CubeShadowMapRenderer cubeShadowMapRenderer;
     private final Array<ModelInstance> instances;
+    private final Array<PointLight> mapLights; // Lights generated from LightHints
     private Model model;
     private boolean disposed = false;
 
+    // Configurable number of shadow-casting lights (performance vs quality tradeoff)
+    private int maxShadowCastingLights = 4; // Start with 2, can be adjusted
+
     public GameMapRenderer() {
-        // Use HIGH quality (1024x1024 per face) for good balance of quality vs performance
-        // Performance impact: ~6x framebuffer memory usage compared to single shadow map
-        // - LOW (256): Fastest, some jagged shadows at close angles
-        // - MEDIUM (512): Good performance, adequate quality  
-        // - HIGH (1024): Balanced quality/performance - recommended
-        // - ULTRA (2048): Best quality, higher memory usage
-        cubeShadowMapRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH);
+        cubeShadowMapRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH, maxShadowCastingLights);
         instances = new Array<>();
-        Log.info("GameMapRenderer", "Initialized with HIGH quality cube shadow mapping (1024x1024 per face)");
+        mapLights = new Array<>();
+        Log.info("GameMapRenderer", "Initialized with HIGH quality cube shadow mapping (" + maxShadowCastingLights + " shadow-casting lights, 1024x1024 per face)");
+    }
+
+    /**
+     * Set the maximum number of shadow-casting lights (performance tuning)
+     * @param maxLights Number of closest lights that will cast shadows (1-4 recommended)
+     */
+    public void setMaxShadowCastingLights(int maxLights) {
+        if (maxLights < 1 || maxLights > 8) {
+            Log.warn("GameMapRenderer", "Max shadow-casting lights should be between 1-8, got: " + maxLights);
+            return;
+        }
+        this.maxShadowCastingLights = maxLights;
+        Log.info("GameMapRenderer", "Set max shadow-casting lights to: " + maxLights);
     }
 
     public void render(PerspectiveCamera camera, Environment environment) {
@@ -49,45 +63,76 @@ public class GameMapRenderer implements Disposable {
             return;
         }
 
-        Log.info("GameMapRenderer", "Rendering with " + pointLights.lights.size + " lights");
-
-        // Render with all lights - use closest light for shadow generation (performance optimization)
-        // All lights contribute to illumination
-        PointLight primaryLight = getClosestLight(pointLights, camera.position);
+        Log.info("GameMapRenderer", "Rendering with " + pointLights.lights.size + " total lights in environment");
         
-        if (primaryLight != null) {
-            // Generate cube shadow map for the primary light
-            cubeShadowMapRenderer.generateCubeShadowMap(instances, primaryLight);
+        // Debug: Print positions of all lights
+        for (int i = 0; i < pointLights.lights.size; i++) {
+            PointLight light = pointLights.lights.get(i);
+            Log.info("GameMapRenderer", "Light " + i + ": position (" + light.position.x + "," + light.position.y + "," + light.position.z + 
+                ") intensity " + light.intensity + " color (" + light.color.r + "," + light.color.g + "," + light.color.b + ")");
+        }
 
-            // Render scene with shadows from primary light and illumination from all lights
+        // Get the N closest lights for shadow casting
+        Array<PointLight> shadowCastingLights = getClosestLights(pointLights, camera.position, maxShadowCastingLights);
+        
+        Log.info("GameMapRenderer", "Primary light for shadows: position (" + 
+            shadowCastingLights.first().position.x + "," + shadowCastingLights.first().position.y + "," + shadowCastingLights.first().position.z + 
+            ") intensity " + shadowCastingLights.first().intensity);
+
+        if (shadowCastingLights.size > 0) {
+            // Reset light index for new frame
+            cubeShadowMapRenderer.resetLightIndex();
+
+            // Generate cube shadow maps for each shadow-casting light
+            for (PointLight light : shadowCastingLights) {
+                cubeShadowMapRenderer.generateCubeShadowMap(instances, light);
+            }
+
+            // Render with shadows from primary light but illumination from all lights
             Vector3 ambientLight = getAmbientLight(environment);
-            cubeShadowMapRenderer.renderWithMultipleCubeShadows(instances, camera, pointLights.lights, ambientLight);
+            cubeShadowMapRenderer.renderWithMultipleCubeShadows(instances, camera, shadowCastingLights, pointLights.lights, ambientLight);
         } else {
-            Log.warn("GameMapRenderer", "No primary light found for shadow casting");
+            Log.warn("GameMapRenderer", "No lights found for shadow casting");
         }
     }
 
-    private PointLight getClosestLight(PointLightsAttribute pointLights, Vector3 cameraPosition) {
+    private Array<PointLight> getClosestLights(PointLightsAttribute pointLights, Vector3 cameraPosition, int maxLights) {
+        Array<PointLight> result = new Array<>();
+
         if (pointLights == null || pointLights.lights.size == 0) {
-            return null;
+            return result;
         }
-        
-        PointLight closestLight = null;
-        float closestDistance = Float.MAX_VALUE;
-        
+
+        // Create array of lights with distances
+        Array<LightDistance> lightDistances = new Array<>();
         for (PointLight light : pointLights.lights) {
             float distance = light.position.dst(cameraPosition);
-            if (distance < closestDistance) {
-                closestDistance = distance;
-                closestLight = light;
-            }
+            lightDistances.add(new LightDistance(light, distance));
         }
-        
-        if (closestLight != null) {
-            Log.debug("GameMapRenderer", "Using closest light at distance " + closestDistance + " from camera");
+
+        // Sort by distance (closest first)
+        lightDistances.sort((a, b) -> Float.compare(a.distance, b.distance));
+
+        // Take the N closest lights
+        int numLights = Math.min(maxLights, lightDistances.size);
+        for (int i = 0; i < numLights; i++) {
+            result.add(lightDistances.get(i).light);
         }
-        
-        return closestLight;
+
+        Log.debug("GameMapRenderer", "Selected " + result.size + " closest lights for shadow casting");
+
+        return result;
+    }
+
+    // Helper class for sorting lights by distance
+    private static class LightDistance {
+        final PointLight light;
+        final float distance;
+
+        LightDistance(PointLight light, float distance) {
+            this.light = light;
+            this.distance = distance;
+        }
     }
 
     private Vector3 getAmbientLight(Environment environment) {
@@ -99,9 +144,14 @@ public class GameMapRenderer implements Disposable {
         return new Vector3(0.02f, 0.02f, 0.03f); // Default very low ambient
     }
 
+
     public void updateMap(GameMap map) {
-        // Clear previous model
+        // Clear previous model and lights
         dispose();
+        clearMapLights();
+
+        // Extract lights from map tiles with LightHints
+        extractLightsFromMap(map);
 
         ModelBuilder modelBuilder = new ModelBuilder();
         modelBuilder.begin();
@@ -257,6 +307,68 @@ public class GameMapRenderer implements Disposable {
                 break;
         }
         BoxShapeBuilder.build(meshPartBuilder, v000, v001, v010, v011, v100, v101, v110, v111);
+    }
+
+    private void extractLightsFromMap(GameMap map) {
+        int lightCount = 0;
+        
+        for (int x = 0; x < map.getWidth(); x++) {
+            for (int y = 0; y < map.getHeight(); y++) {
+                for (int z = 0; z < map.getDepth(); z++) {
+                    MapTile tile = map.getTile(x, y, z);
+                    
+                    // Check if this tile has any LightHints
+                    for (MapHint hint : tile.getHints()) {
+                        if (hint instanceof LightHint) {
+                            LightHint lightHint = (LightHint) hint;
+                            
+                            // Create a PointLight from the LightHint
+                            PointLight mapLight = new PointLight();
+                            mapLight.set(
+                                lightHint.color_r, lightHint.color_g, lightHint.color_b,  // Color
+                                tile.x + MapTile.TILE_SIZE / 2f,                        // X position (center of tile)
+                                tile.y + MapTile.TILE_SIZE / 2f + 2f,                   // Y position (slightly above tile)
+                                tile.z + MapTile.TILE_SIZE / 2f,                        // Z position (center of tile)
+                                lightHint.intensity                                      // Intensity/range
+                            );
+                            
+                            mapLights.add(mapLight);
+                            lightCount++;
+                            
+                            Log.info("GameMapRenderer", "Created light from LightHint at (" + tile.x + "," + tile.y + "," + tile.z + 
+                                ") with intensity " + lightHint.intensity + " and color (" + lightHint.color_r + "," + lightHint.color_g + "," + lightHint.color_b + ")");
+                        }
+                    }
+                }
+            }
+        }
+        
+        Log.info("GameMapRenderer", "Extracted " + lightCount + " lights from map LightHints");
+    }
+
+    private void clearMapLights() {
+        mapLights.clear();
+    }
+
+    /**
+     * Get the lights generated from map LightHints
+     * @return Array of PointLights created from map tiles
+     */
+    public Array<PointLight> getMapLights() {
+        return mapLights;
+    }
+
+    /**
+     * Add the map lights to an environment for rendering
+     * @param environment The environment to add lights to
+     */
+    public void addMapLightsToEnvironment(Environment environment) {
+        for (PointLight light : mapLights) {
+            environment.add(light);
+        }
+        if (mapLights.size > 0) {
+            Log.info("GameMapRenderer", "Added " + mapLights.size + " map lights to environment");
+        }
     }
 
     @Override

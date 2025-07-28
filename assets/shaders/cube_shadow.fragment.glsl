@@ -2,18 +2,17 @@
 precision mediump float;
 #endif
 
-// Primary light (shadow-casting)
-uniform vec3 u_lightPosition;
-uniform vec3 u_lightColor;
-uniform float u_lightIntensity;
-uniform vec3 u_diffuseColor;
+// Material and environment
 uniform vec3 u_ambientLight;
 uniform float u_farPlane;
 
-// Additional lights from LibGDX environment will be handled by standard lighting
-// This shader focuses on shadow-casting from the primary light
+// All lights (up to 8 lights total, index 0 is primary with shadows)
+uniform int u_numLights;
+uniform vec3 u_lightPositions[8];
+uniform vec3 u_lightColors[8];
+uniform float u_lightIntensities[8];
 
-// Cube shadow map faces (6 textures)
+// Cube shadow map faces (6 textures) - only for primary light (index 0)
 uniform sampler2D u_cubeShadowMap[6];
 
 varying vec3 v_worldPos;
@@ -82,23 +81,38 @@ float sampleCubeShadowMap(vec3 lightDirection) {
 
 void main() {
     vec3 normal = normalize(v_normal);
-    vec3 lightDirection = v_worldPos - u_lightPosition;
-    vec3 lightDir = normalize(-lightDirection);
+    vec3 baseMaterial = vec3(0.7, 0.7, 0.7);
     
-    // Calculate distance attenuation
-    float distance = length(lightDirection);
-    float attenuation = u_lightIntensity / (1.0 + 0.09 * distance + 0.032 * distance * distance);
+    // Start with ambient lighting
+    vec3 totalLighting = u_ambientLight;
     
-    // Diffuse lighting calculation
-    float diff = max(dot(normal, lightDir), 0.0);
-    vec3 diffuse = diff * u_lightColor * attenuation;
+    // Calculate lighting from ALL lights
+    for (int i = 0; i < 8; i++) {
+        if (i >= u_numLights) break;
+        
+        vec3 lightPos = u_lightPositions[i];
+        vec3 lightColor = u_lightColors[i];
+        float lightIntensity = u_lightIntensities[i];
+        
+        vec3 lightDirection = v_worldPos - lightPos;
+        vec3 lightDir = normalize(-lightDirection);
+        float distance = length(lightDirection);
+        float attenuation = lightIntensity / (1.0 + 0.05 * distance + 0.016 * distance * distance);
+        
+        // Diffuse lighting calculation
+        float diff = max(dot(normal, lightDir), 0.0);
+        vec3 lightContribution = diff * lightColor * attenuation;
+        
+        // Apply shadows ONLY to the primary light (index 0)
+        if (i == 0) {
+            float shadow = sampleCubeShadowMap(lightDirection);
+            lightContribution *= (1.0 - shadow);
+        }
+        
+        totalLighting += lightContribution;
+    }
     
-    // Cube shadow calculation
-    float shadow = sampleCubeShadowMap(lightDirection);
-    
-    // Final color with shadows
-    vec3 lighting = u_ambientLight + (1.0 - shadow) * diffuse;
-    vec3 finalColor = u_diffuseColor * lighting;
+    vec3 finalColor = baseMaterial * totalLighting;
     
     gl_FragColor = vec4(finalColor, 1.0);
 }
