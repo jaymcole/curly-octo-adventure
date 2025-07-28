@@ -58,7 +58,7 @@ public class GameWorld {
 
     private void createDungeonLights() {
         playerLantern = new PointLight();
-        playerLantern.set(1f, 0.9f, 0.7f, 0f, 10f, 0f, 1); // Warm lantern light
+        playerLantern.set(1f, 0.9f, 0.7f, 0f, 10f, 0f, 2); // Warm lantern light
         environment.add(playerLantern);
     }
 

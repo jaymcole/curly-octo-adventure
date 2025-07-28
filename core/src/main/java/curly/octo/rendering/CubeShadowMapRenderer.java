@@ -114,7 +114,7 @@ public class CubeShadowMapRenderer implements Disposable {
         for (int i = 0; i < 6; i++) {
             lightCameras[i] = new PerspectiveCamera(90f, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
             lightCameras[i].near = 0.1f;
-            lightCameras[i].far = 25f; // Match point light range
+            lightCameras[i].far = 50f; // Increased light range for smoother falloff
             lightViewProjections[i] = new Matrix4();
         }
     }

@@ -8,6 +8,7 @@ import curly.octo.map.MapTile;
 import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.enums.MapTileMaterial;
+import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.MapHint;
 import curly.octo.map.hints.SpawnPointHint;
 import org.bitlet.weupnp.GatewayDevice;
@@ -60,11 +61,14 @@ public class Network {
         kryo.register(CardinalDirection.class);
         kryo.register(ArrayList.class);
         kryo.register(MapHint.class);
-        kryo.register(SpawnPointHint.class);
         kryo.register(MapTile.class);
         kryo.register(MapTile[].class);
         kryo.register(MapTile[][].class);
         kryo.register(MapTile[][][].class);
+
+        // Map Hints
+        kryo.register(SpawnPointHint.class);
+        kryo.register(LightHint.class);
 
         // Register network message classes
         kryo.register(MapDataUpdate.class);
