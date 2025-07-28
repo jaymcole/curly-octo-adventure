@@ -213,7 +213,8 @@ public class GameMap {
         Vector3 v110 = new Vector3(halfSize, halfSize, -halfSize);
         Vector3 v111 = new Vector3(halfSize, halfSize, halfSize);
 
-        float topY = isHalf ? -halfSize : halfSize;
+        // For half slant blocks, reduce the height by half the tile size (same as visual mesh)
+        float topY = isHalf ? 0f : halfSize;
         v010.y = v011.y = v110.y = v111.y = topY;
 
         switch (direction) {
