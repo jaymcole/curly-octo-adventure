@@ -17,6 +17,7 @@ import curly.octo.map.GameMap;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
+import curly.octo.network.messages.PlayerDisconnectUpdate;
 import curly.octo.network.messages.PlayerRosterUpdate;
 import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.player.PlayerController;
@@ -73,6 +74,7 @@ public class Network {
         // Register network message classes
         kryo.register(MapDataUpdate.class);
         kryo.register(PlayerUpdate.class);
+        kryo.register(PlayerDisconnectUpdate.class);
 
         // Register Player related classes
         kryo.register(PlayerController[].class);

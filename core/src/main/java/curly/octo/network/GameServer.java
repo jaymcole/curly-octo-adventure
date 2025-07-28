@@ -9,6 +9,7 @@ import curly.octo.game.GameWorld;
 import curly.octo.map.GameMap;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
+import curly.octo.network.messages.PlayerDisconnectUpdate;
 import curly.octo.network.messages.PlayerRosterUpdate;
 import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.player.PlayerController;
@@ -120,6 +121,9 @@ public class GameServer {
                         // Remove the disconnected player's light from the server's environment
                         gameWorld.removePlayerFromEnvironment(disconnectedPlayer);
 
+                        // Broadcast disconnect message to all remaining clients
+                        broadcastPlayerDisconnect(disconnectedPlayer.getPlayerId());
+                        
                         broadcastNewPlayerRoster();
                         Log.info("Server", "Player " + disconnectedPlayer.getPlayerId() + " disconnected");
                     }
@@ -236,6 +240,14 @@ public class GameServer {
         PlayerAssignmentUpdate assignmentUpdate = new PlayerAssignmentUpdate();
         assignmentUpdate.playerId = playerId;
         server.sendToTCP(connection.getID(), assignmentUpdate);
+    }
+
+    public void broadcastPlayerDisconnect(long playerId) {
+        if (server != null) {
+            PlayerDisconnectUpdate disconnectUpdate = new PlayerDisconnectUpdate(playerId);
+            server.sendToAllTCP(disconnectUpdate);
+            Log.info("GameServer", "Broadcasting player disconnect for player " + playerId);
+        }
     }
 
     public void sendMapRefreshToUser(Connection connection) {

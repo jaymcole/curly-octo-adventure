@@ -8,6 +8,7 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.network.messages.*;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.MapReceivedListener;
+import curly.octo.network.messages.PlayerDisconnectListener;
 
 /**
  * Handles incoming network messages and connection events.
@@ -19,6 +20,7 @@ public class NetworkListener implements Listener {
     private PlayerAssignmentListener playerAssignmentListener;
     private PlayerRosterListener playerRosterListener;
     private PlayerUpdateListener playerUpdateListener;
+    private PlayerDisconnectListener playerDisconnectListener;
 
     private Server server;
     private Client client;
@@ -45,6 +47,9 @@ public class NetworkListener implements Listener {
     }
     public void setPlayerUpdateListener(PlayerUpdateListener listener) {
         this.playerUpdateListener = listener;
+    }
+    public void setPlayerDisconnectListener(PlayerDisconnectListener listener) {
+        this.playerDisconnectListener = listener;
     }
     /**
      * Called when a connection is received from a client (server-side)
@@ -105,6 +110,14 @@ public class NetworkListener implements Listener {
             PlayerUpdate update = (PlayerUpdate) object;
             if (playerUpdateListener != null) {
                 playerUpdateListener.onPlayerUpdateReceived(update);
+            }
+        } else if (object instanceof PlayerDisconnectUpdate) {
+            PlayerDisconnectUpdate update = (PlayerDisconnectUpdate) object;
+            Log.info("Network", "Received player disconnect for player " + update.playerId);
+            if (playerDisconnectListener != null) {
+                playerDisconnectListener.onPlayerDisconnected(update);
+            } else {
+                Log.warn("Network", "No player disconnect listener set");
             }
         }
     }
