@@ -51,19 +51,17 @@ public class GameMapRenderer implements Disposable {
 
         Log.info("GameMapRenderer", "Rendering with " + pointLights.lights.size + " lights");
 
-        // Render with multiple lights - currently optimized for one shadow-casting light
-        // All lights contribute to illumination, but only closest light casts shadows (performance)
-        // Future: Could extend to multiple shadow-casting lights with performance budget
+        // Render with all lights - use closest light for shadow generation (performance optimization)
+        // All lights contribute to illumination
         PointLight primaryLight = getClosestLight(pointLights, camera.position);
         
         if (primaryLight != null) {
             // Generate cube shadow map for the primary light
             cubeShadowMapRenderer.generateCubeShadowMap(instances, primaryLight);
 
-            // Render scene with cube shadows from primary light
-            // All lights in environment will contribute to illumination through LibGDX lighting
+            // Render scene with shadows from primary light and illumination from all lights
             Vector3 ambientLight = getAmbientLight(environment);
-            cubeShadowMapRenderer.renderWithCubeShadows(instances, camera, primaryLight, ambientLight);
+            cubeShadowMapRenderer.renderWithMultipleCubeShadows(instances, camera, pointLights.lights, ambientLight);
         } else {
             Log.warn("GameMapRenderer", "No primary light found for shadow casting");
         }

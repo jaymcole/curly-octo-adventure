@@ -2,12 +2,16 @@
 precision mediump float;
 #endif
 
+// Primary light (shadow-casting)
 uniform vec3 u_lightPosition;
 uniform vec3 u_lightColor;
 uniform float u_lightIntensity;
 uniform vec3 u_diffuseColor;
 uniform vec3 u_ambientLight;
 uniform float u_farPlane;
+
+// Additional lights from LibGDX environment will be handled by standard lighting
+// This shader focuses on shadow-casting from the primary light
 
 // Cube shadow map faces (6 textures)
 uniform sampler2D u_cubeShadowMap[6];

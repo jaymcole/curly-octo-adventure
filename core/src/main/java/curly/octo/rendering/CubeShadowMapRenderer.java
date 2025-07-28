@@ -131,6 +131,72 @@ public class CubeShadowMapRenderer implements Disposable {
         }
     }
 
+    public void renderWithMultipleCubeShadows(Array<ModelInstance> instances, Camera camera, Array<PointLight> lights, Vector3 ambientLight) {
+        if (lights.size == 0) {
+            Log.warn("CubeShadowMapRenderer", "No lights provided for multi-light rendering");
+            return;
+        }
+
+        shadowShader.bind();
+
+        // Use the first light (primary) for shadow casting
+        PointLight primaryLight = lights.first();
+        
+        // Bind all 6 cube shadow map faces from primary light
+        for (int i = 0; i < 6; i++) {
+            shadowFrameBuffers[i].getColorBufferTexture().bind(i + 1);
+            shadowShader.setUniformi("u_cubeShadowMap[" + i + "]", i + 1);
+        }
+
+        // Set primary light uniforms for shadow calculation
+        shadowShader.setUniformf("u_lightPosition", primaryLight.position);
+        shadowShader.setUniformf("u_lightColor", primaryLight.color.r, primaryLight.color.g, primaryLight.color.b);
+        shadowShader.setUniformf("u_lightIntensity", primaryLight.intensity);
+        shadowShader.setUniformf("u_farPlane", lightCameras[0].far);
+
+        // Set ambient light
+        shadowShader.setUniformf("u_ambientLight", ambientLight);
+
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+        Gdx.gl.glDepthFunc(GL20.GL_LEQUAL);
+
+        // Calculate combined lighting from all lights
+        for (ModelInstance instance : instances) {
+            Matrix4 worldTransform = instance.transform;
+
+            shadowShader.setUniformMatrix("u_worldTrans", worldTransform);
+            shadowShader.setUniformMatrix("u_projViewTrans", camera.combined);
+
+            // Calculate combined diffuse color from all lights
+            Vector3 combinedLighting = calculateCombinedLighting(instance, lights, camera);
+            shadowShader.setUniformf("u_diffuseColor", combinedLighting.x, combinedLighting.y, combinedLighting.z);
+
+            renderInstance(instance, shadowShader);
+        }
+    }
+
+    private Vector3 calculateCombinedLighting(ModelInstance instance, Array<PointLight> lights, Camera camera) {
+        Vector3 instancePos = instance.transform.getTranslation(new Vector3());
+        Vector3 combinedColor = new Vector3(0.7f, 0.7f, 0.7f); // Base material color
+        Vector3 totalLighting = new Vector3(0, 0, 0);
+
+        // Add contribution from all lights
+        for (PointLight light : lights) {
+            float distance = instancePos.dst(light.position);
+            if (distance <= light.intensity) { // Within light range
+                float attenuation = light.intensity / (1.0f + 0.05f * distance + 0.016f * distance * distance);
+                totalLighting.add(light.color.r * attenuation, light.color.g * attenuation, light.color.b * attenuation);
+            }
+        }
+
+        // Combine material color with lighting
+        combinedColor.scl(Math.min(1.0f, totalLighting.x + 0.3f), 
+                         Math.min(1.0f, totalLighting.y + 0.3f), 
+                         Math.min(1.0f, totalLighting.z + 0.3f));
+        
+        return combinedColor;
+    }
+
     private void renderShadowMapFace(Array<ModelInstance> instances, int face, PointLight light) {
         FrameBuffer frameBuffer = shadowFrameBuffers[face];
         PerspectiveCamera camera = lightCameras[face];

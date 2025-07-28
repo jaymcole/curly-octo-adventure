@@ -80,7 +80,7 @@ public class GameWorld {
 
         // Create player lantern light that will follow the player
         playerLantern = new PointLight();
-        playerLantern.set(1f, 0.9f, 0.7f, 0f, 0f, 0f, 20f); // Warm lantern light
+        playerLantern.set(1f, 0.9f, 0.7f, 0f, 10f, 0f, 300f); // Warm lantern light
         environment.add(playerLantern);
     }
 
