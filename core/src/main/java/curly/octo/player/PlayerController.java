@@ -47,7 +47,7 @@ public class PlayerController extends InputAdapter  {
     private transient GameMap gameMap;
     private transient PointLight playerLight;
 
-    private final Random random;
+    private transient final Random random;
 
     public PlayerController() {
         random = new Random();
@@ -271,7 +271,7 @@ public class PlayerController extends InputAdapter  {
 
     private void createPlayerLight() {
         playerLight = new PointLight();
-        playerLight.set(1f, 0.9f, 0.7f, position.x, position.y + 3f, position.z, 2); // Warm lantern light
+        playerLight.set(1f, 0.9f, 0.7f, position.x, position.y + 3f, position.z, 1); // Warm lantern light
         Log.info("PlayerController", "Created player light for player " + playerId);
     }
 

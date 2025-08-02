@@ -11,6 +11,7 @@ import curly.octo.ui.LobbyUI;
 import curly.octo.ui.DebugUI;
 import curly.octo.network.Network;
 
+import java.io.IOException;
 import java.util.Random;
 
 /**
@@ -101,7 +102,11 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
 
         // Update and render game mode if active
         if (currentGameMode != null && currentGameMode.isActive()) {
-            currentGameMode.update(deltaTime);
+            try {
+                currentGameMode.update(deltaTime);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             currentGameMode.render(modelBatch, gameWorld.getEnvironment());
 
             // Update debug info
@@ -109,7 +114,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
                 Vector3 pos = gameWorld.getLocalPlayerController().getPosition();
                 debugUI.setPlayerPosition(pos.x, pos.y, pos.z);
             }
-            
+
             // Update light count info
             if (gameWorld.getMapRenderer() != null) {
                 debugUI.setLightCounts(

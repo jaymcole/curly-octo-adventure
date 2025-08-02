@@ -3,6 +3,7 @@ package curly.octo.game;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
+import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
@@ -49,8 +50,8 @@ public class GameWorld {
 
     private void setupEnvironment() {
         // Extremely low ambient light for very hard shadows
-        environment.set(new com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute(
-            com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.AmbientLight, 0.02f, 0.02f, 0.03f, 1f));
+//        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.02f, 0.02f, 0.03f, 1f));
+        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.0f, 0, 0, 1f));
 
         // Create atmospheric point lights around the dungeon
         createDungeonLights();
@@ -63,7 +64,12 @@ public class GameWorld {
 
     public void initializeMap() {
         if (mapManager == null) {
-            mapManager = new GameMap(64, 60, 64, System.currentTimeMillis());
+            // Moderate map size with increased network buffers
+            int size = 50;
+            int height = 10;
+
+            mapManager = new GameMap(size, height, size, System.currentTimeMillis());
+            Log.info("GameWorld", "Created moderate map ("+size+"x"+height+"x"+size+" = " + (size*height*size) + " tiles) with 5MB network buffers");
             mapRenderer = new GameMapRenderer();
             mapRenderer.updateMap(mapManager);
 

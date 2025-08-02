@@ -27,7 +27,8 @@ public class GameClient {
      */
     public GameClient(String host) {
         this.host = host;
-        this.client = new Client(655360, 655360);
+        // Increased buffer sizes for large map transfers (5MB each)
+        this.client = new Client(5242880, 5242880);
 
         // Register all network classes
         Network.register(client);
@@ -69,15 +70,69 @@ public class GameClient {
         client.addListener(networkListener);
     }
 
+    private boolean connecting = false;
+    private long connectionStartTime = 0;
+    private int connectionTimeout = 5000;
+
     /**
-     * Connects to the server with the specified timeout.
+     * Starts the connection process to the server.
+     * Call update() repeatedly until isConnected() returns true.
      * @param timeout the connection timeout in milliseconds
-     * @throws IOException if the connection fails
+     * @throws IOException if the connection fails to start
      */
     public void connect(int timeout) throws IOException {
+        this.connectionTimeout = timeout;
         client.start();
-        client.connect(timeout, host, Network.TCP_PORT, Network.UDP_PORT);
-        Log.info("Client", "Connected to server at " + host + ":" + Network.TCP_PORT);
+
+        // Use non-blocking connection
+        client.connect(5000, host, Network.TCP_PORT, Network.UDP_PORT);
+        connecting = true;
+        connectionStartTime = System.currentTimeMillis();
+
+        Log.info("Client", "Starting connection to server at " + host + ":" + Network.TCP_PORT);
+    }
+
+    /**
+     * Updates the client connection state. Must be called regularly during connection.
+     * @return true if connection is complete (success or failure)
+     */
+    public boolean updateConnection() throws IOException {
+        if (!connecting) {
+            return true; // Not connecting or already connected
+        }
+
+        // Update the client to process connection
+        client.update(0);
+
+        // Check if connected
+        if (client.isConnected()) {
+            connecting = false;
+            Log.info("Client", "Successfully connected to server at " + host + ":" + Network.TCP_PORT);
+            return true;
+        }
+
+        // Check for timeout
+        if (System.currentTimeMillis() - connectionStartTime > connectionTimeout) {
+            connecting = false;
+            Log.error("Client", "Connection timeout after " + connectionTimeout + "ms");
+            return true;
+        }
+
+        return false; // Still connecting
+    }
+
+    /**
+     * @return true if currently in the process of connecting
+     */
+    public boolean isConnecting() {
+        return connecting;
+    }
+
+    /**
+     * @return true if connected to the server
+     */
+    public boolean isConnected() {
+        return client != null && client.isConnected();
     }
 
     /**
@@ -91,11 +146,22 @@ public class GameClient {
     }
 
     /**
+     * Updates the client. Must be called regularly.
+     */
+    public void update() throws IOException {
+        if (client != null) {
+            client.update(0);
+        }
+    }
+
+    /**
      * Sends a TCP message to the server.
      * @param message the message to send
      */
     public void sendTCP(Object message) {
-        client.sendTCP(message);
+        if (client != null && client.isConnected()) {
+            client.sendTCP(message);
+        }
     }
 
     /**

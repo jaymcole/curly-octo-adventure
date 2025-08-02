@@ -54,11 +54,16 @@ public class ClientGameMode implements GameMode {
         gameClient.setMapReceivedListener(receivedMap -> {
             Gdx.app.postRunnable(() -> {
                 Log.info("ClientGameMode", "Received map with size: " +
-                    receivedMap.getWidth() + "x " +
-                    receivedMap.getHeight() + "y " +
-                    receivedMap.getDepth() + "z");
+                    receivedMap.getWidth() + "x" +
+                    receivedMap.getHeight() + "y" +
+                    receivedMap.getDepth() + "z (" + 
+                    (receivedMap.getWidth() * receivedMap.getHeight() * receivedMap.getDepth()) + " total tiles)");
 
+                long startTime = System.currentTimeMillis();
                 gameWorld.setMap(receivedMap);
+                long endTime = System.currentTimeMillis();
+                
+                Log.info("ClientGameMode", "Map setup completed in " + (endTime - startTime) + "ms");
                 mapReceived = true;
                 checkReady();
             });
@@ -214,23 +219,51 @@ public class ClientGameMode implements GameMode {
     }
 
     private void checkReady() {
+        Log.info("ClientGameMode", "checkReady() - mapReceived: " + mapReceived + ", playerAssigned: " + playerAssigned + ", active: " + active);
+        
         if (mapReceived && playerAssigned && !active) {
+            Log.info("ClientGameMode", "All conditions met, activating client mode...");
             // Switch to 3D view
             Gdx.app.postRunnable(() -> {
                 try {
                     Thread.sleep(1000);
                     active = true;
-                    Gdx.input.setInputProcessor(gameWorld.getLocalPlayerController());
-                    Log.info("ClientGameMode", "Client mode activated");
+                    
+                    if (gameWorld.getLocalPlayerController() != null) {
+                        Gdx.input.setInputProcessor(gameWorld.getLocalPlayerController());
+                        Log.info("ClientGameMode", "Client mode activated successfully");
+                    } else {
+                        Log.error("ClientGameMode", "Local player controller is null, cannot activate");
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             });
+        } else {
+            Log.info("ClientGameMode", "Not ready yet - waiting for map and player assignment");
         }
     }
 
     @Override
-    public void update(float deltaTime) {
+    public void update(float deltaTime) throws IOException {
+        // Always update the client for network processing
+        if (gameClient != null) {
+            // Handle connection state
+            if (gameClient.isConnecting()) {
+                if (gameClient.updateConnection()) {
+                    if (gameClient.isConnected()) {
+                        Log.info("ClientGameMode", "Successfully connected to server");
+                    } else {
+                        Log.error("ClientGameMode", "Failed to connect to server");
+                        return;
+                    }
+                }
+            } else {
+                // Regular client updates
+                gameClient.update();
+            }
+        }
+
         if (!active) return;
 
         // Update game world
@@ -244,11 +277,19 @@ public class ClientGameMode implements GameMode {
 
     @Override
     public void render(ModelBatch modelBatch, Environment environment) {
-        if (!active) return;
+        if (!active) {
+            // Log occasionally to debug activation state
+            if (System.currentTimeMillis() % 2000 < 50) { // Log every ~2 seconds
+                Log.info("ClientGameMode", "Not rendering - client not active yet (mapReceived: " + mapReceived + ", playerAssigned: " + playerAssigned + ")");
+            }
+            return;
+        }
 
         PlayerController localPlayer = gameWorld.getLocalPlayerController();
         if (localPlayer != null) {
             gameWorld.render(modelBatch, localPlayer.getCamera());
+        } else {
+            Log.warn("ClientGameMode", "Active but no local player controller for rendering");
         }
     }
 

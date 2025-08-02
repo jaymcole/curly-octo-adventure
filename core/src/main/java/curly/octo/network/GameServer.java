@@ -17,9 +17,11 @@ import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Handles server-side network operations.
@@ -31,12 +33,14 @@ public class GameServer {
     private final List<PlayerController> players;
     private final GameWorld gameWorld;
     private final Map<Integer, Long> connectionToPlayerMap = new HashMap<>();
+    private final Set<Integer> readyClients = new HashSet<>(); // Track clients that have received map and assignment
 
     public GameServer(Random random, GameMap map, List<PlayerController> players, GameWorld gameWorld) {
         this.map = map;
         this.players = players;
         this.gameWorld = gameWorld;
-        this.server = new Server(655360, 655360);
+        // Increased buffer sizes for large map transfers (5MB each)
+        this.server = new Server(5242880, 5242880);
         this.networkListener = new NetworkListener(server);
 
         Log.info("GameServer", "Created with " + players.size() + " initial players:");
@@ -77,8 +81,16 @@ public class GameServer {
                     }
                 }).start();
 
-                Log.info("Server", "Player " + newPlayer.getPlayerId() + " connected from " +
-                    connection.getRemoteAddressTCP().getAddress());
+                // Safe logging of connection address
+                String address = "unknown";
+                try {
+                    if (connection.getRemoteAddressTCP() != null) {
+                        address = connection.getRemoteAddressTCP().getAddress().toString();
+                    }
+                } catch (Exception e) {
+                    Log.warn("Server", "Could not get remote address: " + e.getMessage());
+                }
+                Log.info("Server", "Player " + newPlayer.getPlayerId() + " connected from " + address);
             }
 
             @Override
@@ -97,13 +109,20 @@ public class GameServer {
                         }
                     }
 
-                    // Broadcast to all clients (including the sender for host player visibility)
-                    server.sendToAllUDP(update);
+                    // Only broadcast to clients that are ready (have received map and assignment)
+                    for (Connection conn : server.getConnections()) {
+                        if (readyClients.contains(conn.getID())) {
+                            conn.sendUDP(update);
+                        }
+                    }
                 }
             }
 
             @Override
             public void disconnected(Connection connection) {
+                // Remove from ready clients
+                readyClients.remove(connection.getID());
+                
                 // Find and remove the disconnected player using the connection mapping
                 Long playerId = connectionToPlayerMap.remove(connection.getID());
                 if (playerId != null) {
@@ -238,6 +257,10 @@ public class GameServer {
         PlayerAssignmentUpdate assignmentUpdate = new PlayerAssignmentUpdate();
         assignmentUpdate.playerId = playerId;
         server.sendToTCP(connection.getID(), assignmentUpdate);
+        
+        // Mark this client as ready to receive position updates
+        readyClients.add(connection.getID());
+        Log.info("GameServer", "Client " + connection.getID() + " marked as ready for position updates");
     }
 
     public void broadcastPlayerDisconnect(long playerId) {

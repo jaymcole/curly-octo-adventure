@@ -6,6 +6,7 @@ import curly.octo.map.MapTile;
 import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.enums.MapTileMaterial;
+import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.SpawnPointHint;
 
 import java.util.ArrayList;
@@ -62,7 +63,6 @@ public class FlatRandomPathGenerator extends MapGenerator {
         }
 
         buildWalls();
-
         return map;
     }
 
@@ -142,6 +142,7 @@ public class FlatRandomPathGenerator extends MapGenerator {
         ArrayList<Vector3> wallNeeded = new ArrayList<>();
         ArrayList<Vector3> ceilingNeeded = new ArrayList<>();
 
+
         for(int x = 0; x < width; x++) {
             for(int y = 0; y < height; y++) {
                 for(int z = 0; z < depth; z++) {
@@ -174,6 +175,9 @@ public class FlatRandomPathGenerator extends MapGenerator {
             // Ceilings are stone material
             map[(int) ceilingSpot.x][ceilingY][(int) ceilingSpot.z].material = MapTileMaterial.STONE;
         }
+
+        addLights(ceilingNeeded);
+
     }
 
     private boolean isNextToFloor(int x, int y, int z) {
@@ -187,5 +191,37 @@ public class FlatRandomPathGenerator extends MapGenerator {
             }
         }
         return false;
+    }
+
+    private void addLights(ArrayList<Vector3> ceilingNeeded) {
+        int numberOfLightsToAdd = 5; // Add more lights for testing
+        for(int i = 0; i < numberOfLightsToAdd; i++) {
+
+            Vector3 nextLightSpot = ceilingNeeded.get(random.nextInt(ceilingNeeded.size())-1);
+            MapTile tile = map[(int) nextLightSpot.x][(int) nextLightSpot.y + 2][(int) nextLightSpot.z];
+            LightHint light = new LightHint();
+            light.intensity = 2; // Increase intensity for visibility
+
+            // Set different colors for variety
+            switch(random.nextInt(3)) {
+                case 0: // Warm torch light
+                    light.color_r = 0.3f;
+                    light.color_g = 1.0f;
+                    light.color_b = 0.4f;
+                    break;
+                case 1: // Cool blue crystal
+                    light.color_r = 0.4f;
+                    light.color_g = 0.6f;
+                    light.color_b = 1.0f;
+                    break;
+                case 2: // Green mystical light
+                    light.color_r = 0.2f;
+                    light.color_g = 1.0f;
+                    light.color_b = 0.3f;
+                    break;
+            }
+
+            tile.AddHint(light);
+        }
     }
 }
