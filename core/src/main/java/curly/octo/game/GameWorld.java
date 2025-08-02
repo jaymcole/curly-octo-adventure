@@ -201,6 +201,11 @@ public class GameWorld {
                 }
             }
         }
+
+        // Render physics debug information if enabled
+        if (mapManager != null) {
+            mapManager.renderPhysicsDebug(camera);
+        }
     }
 
     public boolean shouldSendPositionUpdate() {
@@ -224,6 +229,48 @@ public class GameWorld {
     public void setLocalPlayerId(long localPlayerId) {
         Log.info("GameWorld", "Setting local player ID to: " + localPlayerId);
         this.localPlayerId = localPlayerId;
+    }
+
+    // Physics debug methods
+    public void togglePhysicsDebug() {
+        if (mapManager != null) {
+            boolean newState = !mapManager.isDebugRenderingEnabled();
+            mapManager.setDebugRenderingEnabled(newState);
+
+            // Initialize debug drawer if needed (must be on OpenGL thread)
+            if (newState) {
+                mapManager.initializeDebugDrawer();
+            }
+        }
+    }
+
+    public void togglePhysicsStrategy() {
+        if (mapManager != null) {
+            // Switch between strategies
+            GameMap.PhysicsStrategy currentStrategy = mapManager.getPhysicsStrategy();
+            GameMap.PhysicsStrategy newStrategy = (currentStrategy == GameMap.PhysicsStrategy.ALL_TILES)
+                ? GameMap.PhysicsStrategy.BFS_BOUNDARY
+                : GameMap.PhysicsStrategy.ALL_TILES;
+
+            Log.info("GameWorld", "Switching physics strategy from " + currentStrategy + " to " + newStrategy);
+            mapManager.setPhysicsStrategy(newStrategy);
+            mapManager.regeneratePhysics();
+        }
+    }
+
+    public boolean isPhysicsDebugEnabled() {
+        return mapManager != null && mapManager.isDebugRenderingEnabled();
+    }
+
+    public String getPhysicsStrategyInfo() {
+        if (mapManager != null) {
+            return mapManager.getPhysicsStrategy().name();
+        }
+        return "N/A";
+    }
+
+    public long getPhysicsTriangleCount() {
+        return mapManager != null ? mapManager.totalTriangleCount : 0;
     }
 
     public void dispose() {

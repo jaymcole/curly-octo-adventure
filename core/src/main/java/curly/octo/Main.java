@@ -18,7 +18,7 @@ import java.util.Random;
  * Main game class with network setup UI.
  * Delegates game logic to specific game modes (Server/Client).
  */
-public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
+public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, DebugUI.PhysicsDebugListener {
 
     private Random random;
     private ModelBatch modelBatch;
@@ -80,6 +80,9 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
             // Initialize UI
             this.lobbyUI = new LobbyUI(this);
             this.debugUI = new DebugUI();
+            
+            // Set physics debug listener
+            debugUI.setPhysicsDebugListener(this);
 
             // Set input processor to lobby
             lobbyUI.setInputProcessor();
@@ -122,6 +125,10 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
                     gameWorld.getMapRenderer().getLastShadowLights()
                 );
             }
+            
+            // Update physics debug info
+            debugUI.setPhysicsDebugEnabled(gameWorld.isPhysicsDebugEnabled());
+            debugUI.setPhysicsStrategy(gameWorld.getPhysicsStrategyInfo(), gameWorld.getPhysicsTriangleCount());
         }
 
         // Update and render UI
@@ -204,5 +211,22 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener {
         }
 
         Log.info("Main", "All resources disposed");
+    }
+    
+    // DebugUI.PhysicsDebugListener implementation
+    @Override
+    public void onTogglePhysicsDebug() {
+        if (gameWorld != null) {
+            gameWorld.togglePhysicsDebug();
+            Log.info("Main", "Physics debug toggled: " + gameWorld.isPhysicsDebugEnabled());
+        }
+    }
+    
+    @Override
+    public void onTogglePhysicsStrategy() {
+        if (gameWorld != null) {
+            gameWorld.togglePhysicsStrategy();
+            Log.info("Main", "Physics strategy switched to: " + gameWorld.getPhysicsStrategyInfo());
+        }
     }
 }

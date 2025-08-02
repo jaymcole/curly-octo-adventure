@@ -1,6 +1,7 @@
 package curly.octo.ui;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.utils.Align;
@@ -18,6 +19,15 @@ public class DebugUI {
     private Label debugClientIPAddressLabel;
     private Label lightsLabel;
     private Label shadowLightsLabel;
+    private Label physicsDebugLabel;
+    private Label physicsStrategyLabel;
+    
+    // Callback for physics debug toggle
+    public interface PhysicsDebugListener {
+        void onTogglePhysicsDebug();
+        void onTogglePhysicsStrategy();
+    }
+    private PhysicsDebugListener physicsDebugListener;
     
     public DebugUI() {
         createStage();
@@ -67,6 +77,18 @@ public class DebugUI {
         shadowLightsLabel = new Label("Shadow Lights: ...", skin);
         debugTable.add(shadowLightsLabel).pad(10).row();
         
+        // Physics debug info
+        physicsDebugLabel = new Label("Physics Debug: OFF", skin);
+        debugTable.add(physicsDebugLabel).pad(10).row();
+        
+        physicsStrategyLabel = new Label("Physics Strategy: ...", skin);
+        debugTable.add(physicsStrategyLabel).pad(10).row();
+        
+        // Instructions
+        Label instructionsLabel = new Label("Press F1: Toggle Physics Debug\nPress F2: Toggle Strategy", skin);
+        instructionsLabel.setAlignment(Align.center);
+        debugTable.add(instructionsLabel).pad(10).row();
+        
         stage.addActor(debugTable);
         
         Log.info("DebugUI", "Created debug UI");
@@ -77,6 +99,16 @@ public class DebugUI {
         
         // Update FPS
         fpsLabel.setText("FPS: " + Gdx.graphics.getFramesPerSecond());
+        
+        // Handle keyboard input for debug toggles
+        if (physicsDebugListener != null) {
+            if (Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
+                physicsDebugListener.onTogglePhysicsDebug();
+            }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.F2)) {
+                physicsDebugListener.onTogglePhysicsStrategy();
+            }
+        }
     }
     
     public void render() {
@@ -102,5 +134,17 @@ public class DebugUI {
     public void setLightCounts(int totalLights, int shadowLights) {
         lightsLabel.setText("Lights: " + totalLights);
         shadowLightsLabel.setText("Shadow Lights: " + shadowLights);
+    }
+    
+    public void setPhysicsDebugListener(PhysicsDebugListener listener) {
+        this.physicsDebugListener = listener;
+    }
+    
+    public void setPhysicsDebugEnabled(boolean enabled) {
+        physicsDebugLabel.setText("Physics Debug: " + (enabled ? "ON" : "OFF"));
+    }
+    
+    public void setPhysicsStrategy(String strategy, long triangleCount) {
+        physicsStrategyLabel.setText("Strategy: " + strategy + " (" + triangleCount + " triangles)");
     }
 } 
