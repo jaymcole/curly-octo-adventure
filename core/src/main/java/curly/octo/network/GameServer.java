@@ -123,7 +123,7 @@ public class GameServer {
 
                         // Broadcast disconnect message to all remaining clients
                         broadcastPlayerDisconnect(disconnectedPlayer.getPlayerId());
-                        
+
                         broadcastNewPlayerRoster();
                         Log.info("Server", "Player " + disconnectedPlayer.getPlayerId() + " disconnected");
                     }
@@ -187,8 +187,6 @@ public class GameServer {
         if (server != null) {
             PlayerUpdate update = new PlayerUpdate(playerId, position);
             server.sendToAllUDP(update); // Using UDP for faster, less reliable but faster updates
-            Log.info("Server", "Broadcasting position update for player " + playerId + ": " +
-                position.x + ", " + position.y + ", " + position.z);
         }
     }
 

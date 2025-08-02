@@ -10,7 +10,8 @@ import com.badlogic.gdx.physics.bullet.linearmath.btDefaultMotionState;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileGeometryType;
-import curly.octo.map.generators.PlaygroundGenerator;
+import curly.octo.map.generators.FlatRandomPathGenerator;
+import curly.octo.map.generators.MapGenerator;
 import curly.octo.map.hints.MapHint;
 import curly.octo.map.hints.SpawnPointHint;
 
@@ -62,7 +63,8 @@ public class GameMap {
 
     public void generateDungeon(int width, int height, int depth) {
         Log.info("GameMap.generateDungeon", "Generating tiles");
-        PlaygroundGenerator generator = new PlaygroundGenerator(random);
+        MapGenerator generator = new FlatRandomPathGenerator(random, 60, 10, 60);
+
         map = generator.generate();
         Log.info("GameMap.generateDungeon", "Done generating tiles");
 

@@ -13,7 +13,7 @@ import java.util.Random;
 public class PlaygroundGenerator extends MapGenerator{
 
     public PlaygroundGenerator(Random random) {
-        super(random, 22, 6, 22);
+        super(random, 30, 6, 30);
     }
 
     @Override

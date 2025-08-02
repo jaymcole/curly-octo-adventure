@@ -109,7 +109,7 @@ public class ClientGameMode implements GameMode {
         gameClient.setPlayerDisconnectListener(disconnectUpdate -> {
             Gdx.app.postRunnable(() -> {
                 Log.info("ClientGameMode", "Processing disconnect for player " + disconnectUpdate.playerId);
-                
+
                 // Find and remove the disconnected player
                 PlayerController playerToRemove = null;
                 for (PlayerController player : gameWorld.getPlayers()) {
@@ -118,14 +118,14 @@ public class ClientGameMode implements GameMode {
                         break;
                     }
                 }
-                
+
                 if (playerToRemove != null) {
                     // Remove player light from environment
                     gameWorld.removePlayerFromEnvironment(playerToRemove);
-                    
+
                     // Remove player from list
                     gameWorld.getPlayers().remove(playerToRemove);
-                    
+
                     Log.info("ClientGameMode", "Removed disconnected player " + disconnectUpdate.playerId + " from client");
                 } else {
                     Log.warn("ClientGameMode", "Could not find player " + disconnectUpdate.playerId + " to remove");

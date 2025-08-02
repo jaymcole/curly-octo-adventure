@@ -119,10 +119,6 @@ public class ServerGameMode implements GameMode {
             PlayerController localPlayer = gameWorld.getLocalPlayerController();
             long localPlayerId = gameWorld.getLocalPlayerId();
             Vector3 position = localPlayer.getPosition();
-
-            Log.info("ServerGameMode", "Sending position update for host player " + localPlayerId + " at (" +
-                position.x + "," + position.y + "," + position.z + ")");
-
             gameServer.broadcastPlayerPosition(localPlayerId, position);
         }
     }

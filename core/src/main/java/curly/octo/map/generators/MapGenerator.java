@@ -1,5 +1,6 @@
 package curly.octo.map.generators;
 
+import com.badlogic.gdx.math.Vector3;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
@@ -39,4 +40,31 @@ public abstract class MapGenerator {
     }
 
     public abstract MapTile[][][] generate();
+
+    protected void createRoom(Vector3 center, int roomWidth, int roomHeight, int roomDepth) {
+        for(int x = (int)(center.x - (roomWidth/2)); x < (int)(center.x + (roomWidth/2)); x++) {
+            for(int z = (int)(center.z - (roomDepth/2)); z < (int)(center.z + (roomDepth/2)); z++) {
+                if (inBounds(x, (int)center.y, z)) {
+                    map[x][(int)center.y][z].geometryType = MapTileGeometryType.FULL;
+                }
+            }
+        }
+    }
+
+    protected boolean inBounds(int x, int y, int z) {
+        if (x < 0 || x >= width) {
+            return false;
+        }
+        if (y < 0 || y >= height) {
+            return false;
+        }
+        if (z < 0 || z >= depth) {
+            return false;
+        }
+        return true;
+    }
+
+    protected Vector3 getMapCenter() {
+        return new Vector3(width/2, height/2, depth/2);
+    }
 }
