@@ -5,6 +5,7 @@ public enum MapTileGeometryType {
     HALF,
     SLAT,
     HALF_SLANT,
+    TALL_HALF_SLANT,
     STAIR,
     EMPTY
 }

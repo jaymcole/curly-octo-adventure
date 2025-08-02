@@ -16,6 +16,7 @@ import com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 
+import java.util.Random;
 /**
  * Handles camera movement and input for 3D navigation.
  */
@@ -46,7 +47,10 @@ public class PlayerController extends InputAdapter  {
     private transient GameMap gameMap;
     private transient PointLight playerLight;
 
+    private final Random random;
+
     public PlayerController() {
+        random = new Random();
         // Initialize camera with default values
         yaw = 0f;
         pitch = 0f;
@@ -54,7 +58,7 @@ public class PlayerController extends InputAdapter  {
 
         // Initialize camera on the OpenGL thread
         Gdx.app.postRunnable(this::initialize);
-        
+
         // Initialize player light
         createPlayerLight();
     }
@@ -70,7 +74,7 @@ public class PlayerController extends InputAdapter  {
             camera.lookAt(position.x + direction.x, position.y + direction.y, position.z + direction.z);
             camera.update();
         }
-        
+
         // Update player light position
         updatePlayerLightPosition();
     }
@@ -270,7 +274,7 @@ public class PlayerController extends InputAdapter  {
         playerLight.set(1f, 0.9f, 0.7f, position.x, position.y + 3f, position.z, 2); // Warm lantern light
         Log.info("PlayerController", "Created player light for player " + playerId);
     }
-    
+
     private void updatePlayerLightPosition() {
         // Ensure light exists (recreate if needed after network deserialization)
         if (playerLight == null) {
@@ -278,10 +282,10 @@ public class PlayerController extends InputAdapter  {
         }
         if (playerLight != null) {
             // Position light slightly above player
-            playerLight.position.set(position.x, position.y + 3f, position.z);
+            playerLight.position.set(position.x + 5, position.y + 3f, position.z);
         }
     }
-    
+
     public PointLight getPlayerLight() {
         // Recreate light if it's null (happens after network deserialization)
         if (playerLight == null) {

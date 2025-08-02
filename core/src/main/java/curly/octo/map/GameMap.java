@@ -47,6 +47,14 @@ public class GameMap {
     private transient btPairCachingGhostObject playerGhostObject;
     private transient btKinematicCharacterController playerController;
     private transient btRigidBody playerRigidBody;
+    
+    // Triangle mesh physics optimization
+    private transient btTriangleMesh triangleMesh;
+    private transient btBvhTriangleMeshShape terrainShape;
+    private transient btRigidBody terrainBody;
+    
+    // Performance metrics
+    private transient long totalTriangleCount = 0;
 
 
     // Default constructor required for Kryo
@@ -68,9 +76,9 @@ public class GameMap {
         map = generator.generate();
         Log.info("GameMap.generateDungeon", "Done generating tiles");
 
-        Log.info("GameMap.generateDungeon", "Loading physics bodies");
-        generatePhysicsBodies();
-        Log.info("GameMap.generateDungeon", "Done loading physics bodies");
+        Log.info("GameMap.generateDungeon", "Generating triangle mesh for physics");
+        generateTriangleMeshPhysics();
+        Log.info("GameMap.generateDungeon", "Done generating triangle mesh physics");
 
         Log.info("GameMap.generateDungeon", "Loading hints");
         cacheMapHints();
@@ -131,124 +139,292 @@ public class GameMap {
         physicsInitialized = true;
     }
 
-    // Generate physics bodies for all map tiles
-    private void generatePhysicsBodies() {
-        if (!physicsInitialized) initializePhysics();
 
-        int blockCount = 0;
+    // Generate triangle mesh physics for the entire map
+    private void generateTriangleMeshPhysics() {
+        if (!physicsInitialized) initializePhysics();
+        
+        // Clean up existing triangle mesh
+        if (terrainBody != null) {
+            dynamicsWorld.removeRigidBody(terrainBody);
+            terrainBody.dispose();
+            terrainBody = null;
+        }
+        if (terrainShape != null) {
+            terrainShape.dispose();
+            terrainShape = null;
+        }
+        if (triangleMesh != null) {
+            triangleMesh.dispose();
+            triangleMesh = null;
+        }
+        
+        triangleMesh = new btTriangleMesh();
+        totalTriangleCount = 0;
+        
+        // Generate triangles for all non-empty tiles
         for (int x = 0; x < getWidth(); x++) {
             for (int y = 0; y < getHeight(); y++) {
                 for (int z = 0; z < getDepth(); z++) {
                     MapTile tile = map[x][y][z];
                     if (tile.geometryType != MapTileGeometryType.EMPTY) {
-                        addStaticBlock(tile.x, tile.y, tile.z, MapTile.TILE_SIZE, tile.geometryType, tile.direction);
-                        blockCount++;
+                        addTileTriangles(tile);
                     }
                 }
             }
         }
-        Log.info("GameMap", "Generated " + blockCount + " physics bodies for map tiles");
-    }
-
-    public void addStaticBlock(float x, float y, float z, float size, MapTileGeometryType geometryType, CardinalDirection direction) {
-        if (!physicsInitialized) initializePhysics();
-
-        btCollisionShape blockShape = createCollisionShape(x, y, z, size, geometryType, direction);
-
-        Vector3 centerPos = calculatePhysicsCenter(x, y, z, size, geometryType, direction);
-        Matrix4 transform = new Matrix4().setToTranslation(centerPos);
-
+        
+        // Create the collision shape from the triangle mesh
+        terrainShape = new btBvhTriangleMeshShape(triangleMesh, true);
+        
+        // Create the rigid body
+        Matrix4 transform = new Matrix4().idt();
         btDefaultMotionState motionState = new btDefaultMotionState(transform);
-        btRigidBody.btRigidBodyConstructionInfo info = new btRigidBody.btRigidBodyConstructionInfo(0, motionState, blockShape, Vector3.Zero);
-        btRigidBody body = new btRigidBody(info);
-        dynamicsWorld.addRigidBody(body, GROUND_GROUP, PLAYER_GROUP);
-
-        body.setCollisionFlags(body.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_STATIC_OBJECT);
-        staticBodies.add(body);
-        staticShapes.add(blockShape);
+        btRigidBody.btRigidBodyConstructionInfo info = 
+            new btRigidBody.btRigidBodyConstructionInfo(0, motionState, terrainShape, Vector3.Zero);
+        terrainBody = new btRigidBody(info);
+        terrainBody.setCollisionFlags(terrainBody.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_STATIC_OBJECT);
+        
+        dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, PLAYER_GROUP);
         info.dispose();
-
-        if (staticBodies.size() <= 5) {
-            Log.info("GameMap", "Added static block " + staticBodies.size() + " at: " + centerPos);
-        }
+        
+        Log.info("GameMap", "Generated triangle mesh with " + totalTriangleCount + " triangles");
     }
-
-    private Vector3 calculatePhysicsCenter(float x, float y, float z, float size, MapTileGeometryType geometryType, CardinalDirection direction) {
-        float centerX = x + size/2f;
-        float centerZ = z + size/2f;
-        float centerY;
-        switch (geometryType) {
-            case HALF:
-            case HALF_SLANT:
-                centerY = y + size/4f;
-                break;
-            default:
-                centerY = y + size/2f;
-                break;
-        }
-        return new Vector3(centerX, centerY, centerZ);
-    }
-
-    private btCollisionShape createCollisionShape(float x, float y, float z, float size, MapTileGeometryType geometryType, CardinalDirection direction) {
-        switch (geometryType) {
+    
+    private void addTileTriangles(MapTile tile) {
+        float x = tile.x;
+        float y = tile.y;
+        float z = tile.z;
+        float size = MapTile.TILE_SIZE;
+        
+        switch (tile.geometryType) {
             case FULL:
-                return new btBoxShape(new Vector3(size/2f, size/2f, size/2f));
+                addFullBlockTriangles(x, y, z, size);
+                break;
             case HALF:
-                return new btBoxShape(new Vector3(size/2f, size/4f, size/2f));
+                addHalfBlockTriangles(x, y, z, size);
+                break;
             case SLAT:
-                return createSlantShape(size, direction, false);
+                addSlantTriangles(x, y, z, size, tile.direction, false);
+                break;
             case HALF_SLANT:
-                return createSlantShape(size, direction, true);
-            default:
-                return new btBoxShape(new Vector3(size/2f, size/2f, size/2f));
+                addSlantTriangles(x, y, z, size, tile.direction, true);
+                break;
+            case TALL_HALF_SLANT:
+                addTallHalfSlantTriangles(x, y, z, size, tile.direction);
+                break;
         }
     }
-
-    private btCollisionShape createSlantShape(float size, CardinalDirection direction, boolean isHalf) {
-        float halfSize = size / 2f;
-        Vector3 v000 = new Vector3(-halfSize, -halfSize, -halfSize);
-        Vector3 v001 = new Vector3(-halfSize, -halfSize, halfSize);
-        Vector3 v100 = new Vector3(halfSize, -halfSize, -halfSize);
-        Vector3 v101 = new Vector3(halfSize, -halfSize, halfSize);
-        Vector3 v010 = new Vector3(-halfSize, halfSize, -halfSize);
-        Vector3 v011 = new Vector3(-halfSize, halfSize, halfSize);
-        Vector3 v110 = new Vector3(halfSize, halfSize, -halfSize);
-        Vector3 v111 = new Vector3(halfSize, halfSize, halfSize);
-
-        // For half slant blocks, reduce the height by half the tile size (same as visual mesh)
-        float topY = isHalf ? 0f : halfSize;
-        v010.y = v011.y = v110.y = v111.y = topY;
-
+    
+    private void addFullBlockTriangles(float x, float y, float z, float size) {
+        // Define the 8 vertices of a cube
+        Vector3 v000 = new Vector3(x, y, z);
+        Vector3 v001 = new Vector3(x, y, z + size);
+        Vector3 v010 = new Vector3(x, y + size, z);
+        Vector3 v011 = new Vector3(x, y + size, z + size);
+        Vector3 v100 = new Vector3(x + size, y, z);
+        Vector3 v101 = new Vector3(x + size, y, z + size);
+        Vector3 v110 = new Vector3(x + size, y + size, z);
+        Vector3 v111 = new Vector3(x + size, y + size, z + size);
+        
+        // Add triangles for each face (2 triangles per face)
+        // Bottom face (y = y)
+        triangleMesh.addTriangle(v000, v100, v001);
+        triangleMesh.addTriangle(v100, v101, v001);
+        // Top face (y = y + size)
+        triangleMesh.addTriangle(v010, v011, v110);
+        triangleMesh.addTriangle(v110, v011, v111);
+        // Front face (z = z)
+        triangleMesh.addTriangle(v000, v010, v100);
+        triangleMesh.addTriangle(v100, v010, v110);
+        // Back face (z = z + size)
+        triangleMesh.addTriangle(v001, v101, v011);
+        triangleMesh.addTriangle(v101, v111, v011);
+        // Left face (x = x)
+        triangleMesh.addTriangle(v000, v001, v010);
+        triangleMesh.addTriangle(v010, v001, v011);
+        // Right face (x = x + size)
+        triangleMesh.addTriangle(v100, v110, v101);
+        triangleMesh.addTriangle(v101, v110, v111);
+        
+        totalTriangleCount += 12;
+    }
+    
+    private void addHalfBlockTriangles(float x, float y, float z, float size) {
+        float halfHeight = size / 2f;
+        
+        // Define the 8 vertices of a half-height cube
+        Vector3 v000 = new Vector3(x, y, z);
+        Vector3 v001 = new Vector3(x, y, z + size);
+        Vector3 v010 = new Vector3(x, y + halfHeight, z);
+        Vector3 v011 = new Vector3(x, y + halfHeight, z + size);
+        Vector3 v100 = new Vector3(x + size, y, z);
+        Vector3 v101 = new Vector3(x + size, y, z + size);
+        Vector3 v110 = new Vector3(x + size, y + halfHeight, z);
+        Vector3 v111 = new Vector3(x + size, y + halfHeight, z + size);
+        
+        // Add triangles for each face (2 triangles per face)
+        // Bottom face
+        triangleMesh.addTriangle(v000, v100, v001);
+        triangleMesh.addTriangle(v100, v101, v001);
+        // Top face
+        triangleMesh.addTriangle(v010, v011, v110);
+        triangleMesh.addTriangle(v110, v011, v111);
+        // Front face
+        triangleMesh.addTriangle(v000, v010, v100);
+        triangleMesh.addTriangle(v100, v010, v110);
+        // Back face
+        triangleMesh.addTriangle(v001, v101, v011);
+        triangleMesh.addTriangle(v101, v111, v011);
+        // Left face
+        triangleMesh.addTriangle(v000, v001, v010);
+        triangleMesh.addTriangle(v010, v001, v011);
+        // Right face
+        triangleMesh.addTriangle(v100, v110, v101);
+        triangleMesh.addTriangle(v101, v110, v111);
+        
+        totalTriangleCount += 12;
+    }
+    
+    private void addSlantTriangles(float x, float y, float z, float size, CardinalDirection direction, boolean isHalf) {
+        float topY = isHalf ? y + size/2f : y + size;
+        
+        // Base vertices
+        Vector3 v000 = new Vector3(x, y, z);
+        Vector3 v001 = new Vector3(x, y, z + size);
+        Vector3 v100 = new Vector3(x + size, y, z);
+        Vector3 v101 = new Vector3(x + size, y, z + size);
+        
+        // Top vertices (modified based on slant direction)
+        Vector3 v010 = new Vector3(x, topY, z);
+        Vector3 v011 = new Vector3(x, topY, z + size);
+        Vector3 v110 = new Vector3(x + size, topY, z);
+        Vector3 v111 = new Vector3(x + size, topY, z + size);
+        
+        // Apply slant by lowering specific top vertices
         switch (direction) {
             case NORTH:
-                v010.y = v000.y;
-                v011.y = v001.y;
+                v010.y = y;
+                v011.y = y;
                 break;
             case EAST:
-                v110.y = v100.y;
-                v010.y = v000.y;
+                v110.y = y;
+                v010.y = y;
                 break;
             case SOUTH:
-                v111.y = v101.y;
-                v110.y = v100.y;
+                v111.y = y;
+                v110.y = y;
                 break;
             case WEST:
-                v111.y = v101.y;
-                v011.y = v001.y;
+                v111.y = y;
+                v011.y = y;
                 break;
         }
-
-        btConvexHullShape hullShape = new btConvexHullShape();
-        hullShape.addPoint(v000, true);
-        hullShape.addPoint(v001, true);
-        hullShape.addPoint(v010, true);
-        hullShape.addPoint(v011, true);
-        hullShape.addPoint(v100, true);
-        hullShape.addPoint(v101, true);
-        hullShape.addPoint(v110, true);
-        hullShape.addPoint(v111, true);
-        return hullShape;
+        
+        // Add triangles (this creates a slanted shape)
+        // Bottom face
+        triangleMesh.addTriangle(v000, v100, v001);
+        triangleMesh.addTriangle(v100, v101, v001);
+        
+        // Side faces (some will be triangular due to slant)
+        addSlantedFaceTriangles(v000, v001, v010, v011, v100, v101, v110, v111);
+        
+        totalTriangleCount += 8; // Approximate
     }
+    
+    private void addTallHalfSlantTriangles(float x, float y, float z, float size, CardinalDirection direction) {
+        // Similar to slant but with full height base
+        Vector3 v000 = new Vector3(x, y, z);
+        Vector3 v001 = new Vector3(x, y, z + size);
+        Vector3 v100 = new Vector3(x + size, y, z);
+        Vector3 v101 = new Vector3(x + size, y, z + size);
+        
+        Vector3 v010 = new Vector3(x, y + size, z);
+        Vector3 v011 = new Vector3(x, y + size, z + size);
+        Vector3 v110 = new Vector3(x + size, y + size, z);
+        Vector3 v111 = new Vector3(x + size, y + size, z + size);
+        
+        // Apply slant to top edge only
+        switch (direction) {
+            case NORTH:
+                v010.y = y;
+                v011.y = y;
+                break;
+            case EAST:
+                v110.y = y;
+                v010.y = y;
+                break;
+            case SOUTH:
+                v111.y = y;
+                v110.y = y;
+                break;
+            case WEST:
+                v111.y = y;
+                v011.y = y;
+                break;
+        }
+        
+        // Add triangles
+        triangleMesh.addTriangle(v000, v100, v001);
+        triangleMesh.addTriangle(v100, v101, v001);
+        
+        addSlantedFaceTriangles(v000, v001, v010, v011, v100, v101, v110, v111);
+        
+        totalTriangleCount += 8;
+    }
+    
+    private void addSlantedFaceTriangles(Vector3 v000, Vector3 v001, Vector3 v010, Vector3 v011, 
+                                       Vector3 v100, Vector3 v101, Vector3 v110, Vector3 v111) {
+        // Front face
+        if (!v000.equals(v010) || !v100.equals(v110)) {
+            triangleMesh.addTriangle(v000, v010, v100);
+            if (!v010.equals(v110)) {
+                triangleMesh.addTriangle(v100, v010, v110);
+            }
+        }
+        
+        // Back face
+        if (!v001.equals(v011) || !v101.equals(v111)) {
+            triangleMesh.addTriangle(v001, v101, v011);
+            if (!v011.equals(v111)) {
+                triangleMesh.addTriangle(v101, v111, v011);
+            }
+        }
+        
+        // Left face
+        if (!v000.equals(v010) || !v001.equals(v011)) {
+            triangleMesh.addTriangle(v000, v001, v010);
+            if (!v010.equals(v011)) {
+                triangleMesh.addTriangle(v010, v001, v011);
+            }
+        }
+        
+        // Right face
+        if (!v100.equals(v110) || !v101.equals(v111)) {
+            triangleMesh.addTriangle(v100, v110, v101);
+            if (!v110.equals(v111)) {
+                triangleMesh.addTriangle(v101, v110, v111);
+            }
+        }
+        
+        // Top face (if any vertices are at top height)
+        if (v010.y > v000.y || v011.y > v001.y || v110.y > v100.y || v111.y > v101.y) {
+            if (v010.y > v000.y && v011.y > v001.y && v110.y > v100.y && v111.y > v101.y) {
+                // Full top face
+                triangleMesh.addTriangle(v010, v011, v110);
+                triangleMesh.addTriangle(v110, v011, v111);
+            } else {
+                // Partial top face - add triangles for raised vertices
+                if (v010.y > v000.y && v011.y > v001.y) {
+                    triangleMesh.addTriangle(v010, v011, v110.y > v100.y ? v110 : v100);
+                }
+                if (v110.y > v100.y && v111.y > v101.y) {
+                    triangleMesh.addTriangle(v110, v111, v010.y > v000.y ? v010 : v000);
+                }
+            }
+        }
+    }
+
 
     public void addPlayer(float x, float y, float z, float radius, float height, float mass) {
         if (!physicsInitialized) initializePhysics();
@@ -331,6 +507,21 @@ public class GameMap {
             playerRigidBody.dispose();
             playerRigidBody = null;
         }
+        // Dispose triangle mesh physics
+        if (terrainBody != null) {
+            dynamicsWorld.removeRigidBody(terrainBody);
+            terrainBody.dispose();
+            terrainBody = null;
+        }
+        if (terrainShape != null) {
+            terrainShape.dispose();
+            terrainShape = null;
+        }
+        if (triangleMesh != null) {
+            triangleMesh.dispose();
+            triangleMesh = null;
+        }
+        
         for (btRigidBody body : staticBodies) {
             dynamicsWorld.removeRigidBody(body);
             body.dispose();
@@ -355,5 +546,11 @@ public class GameMap {
         if (collisionConfig != null) {
             collisionConfig.dispose();
         }
+    }
+
+    public void logPerformanceMetrics() {
+        Log.info("GameMap Performance", 
+            String.format("Triangle Mesh: %d triangles | Single collision body for entire terrain", 
+                totalTriangleCount));
     }
 }
