@@ -92,7 +92,7 @@ public class GameServer {
                     // Update the player's position in our local list
                     for (PlayerController player : players) {
                         if (player.getPlayerId() == update.playerId) {
-                            player.setPlayerPosition(update.x, update.y, update.z);
+                            player.setPlayerPosition(update.x, update.y, update.z, 0);
                             break;
                         }
                     }

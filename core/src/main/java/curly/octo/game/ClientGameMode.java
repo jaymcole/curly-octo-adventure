@@ -161,7 +161,7 @@ public class ClientGameMode implements GameMode {
                     gameWorld.getPlayers().add(targetPlayer);
                 }
 
-                targetPlayer.setPlayerPosition(playerUpdate.x, playerUpdate.y, playerUpdate.z);
+                targetPlayer.setPlayerPosition(playerUpdate.x, playerUpdate.y, playerUpdate.z, 0);
 
                 // Ensure light position is updated and add to environment if not already there
                 if (targetPlayer.getPlayerLight() != null) {

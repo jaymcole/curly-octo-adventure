@@ -113,7 +113,7 @@ public class GameWorld {
             mapManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
 
             localPlayerController.setGameMap(mapManager);
-            localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z);
+            localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z, 0);
 
             // Add local player light to environment
             Log.info("GameWorld", "About to add local player light to environment for player " + localPlayerController.getPlayerId());
@@ -131,7 +131,7 @@ public class GameWorld {
         if (mapManager != null && localPlayerController != null) {
             mapManager.stepPhysics(deltaTime);
             Vector3 bulletPlayerPos = mapManager.getPlayerPosition();
-            localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z);
+            localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z, deltaTime);
         }
 
         // Update local player

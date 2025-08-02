@@ -164,10 +164,11 @@ public class GameMapRenderer implements Disposable {
         Material stoneMaterial = createMaterial(Color.GRAY, 0.2f, 8f);
         Material dirtMaterial = createMaterial(Color.BROWN, 0.1f, 4f);
         Material grassMaterial = createMaterial(Color.GREEN, 0.1f, 4f);
+        Material pinkWall = createMaterial(Color.PINK, 0.1f, 4f);
         Material spawnMaterial = createMaterial(Color.LIME, 0.1f, 4f);
 
         // Build batched geometry for better performance
-        buildBatchedGeometry(modelBuilder, map, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial);
+        buildBatchedGeometry(modelBuilder, map, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall);
 
         // Finalize the model
         model = modelBuilder.end();
@@ -191,7 +192,7 @@ public class GameMapRenderer implements Disposable {
 
     private void buildBatchedGeometry(ModelBuilder modelBuilder, GameMap map,
                                     Material stoneMaterial, Material dirtMaterial,
-                                    Material grassMaterial, Material spawnMaterial) {
+                                    Material grassMaterial, Material spawnMaterial, Material wallMaterial) {
 
         // Use chunk-based rendering to avoid vertex limits
         final int RENDER_CHUNK_SIZE = 16; // 16x16x16 chunks to stay under vertex limits
@@ -230,6 +231,10 @@ public class GameMapRenderer implements Disposable {
                     MeshPartBuilder spawnBuilder = modelBuilder.part("spawn-" + chunkId, GL20.GL_TRIANGLES,
                         Usage.Position | Usage.Normal | Usage.TextureCoordinates, spawnMaterial);
 
+                    modelBuilder.node();
+                    MeshPartBuilder wallBuilder = modelBuilder.part("wall-" + chunkId, GL20.GL_TRIANGLES,
+                        Usage.Position | Usage.Normal | Usage.TextureCoordinates, wallMaterial);
+
                     int chunkTiles = 0;
 
                     // Calculate chunk bounds
@@ -262,6 +267,9 @@ public class GameMapRenderer implements Disposable {
                                             break;
                                         case GRASS:
                                             builder = grassBuilder;
+                                            break;
+                                        case WALL:
+                                            builder = wallBuilder;
                                             break;
                                         case STONE:
                                         default:

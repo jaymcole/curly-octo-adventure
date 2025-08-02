@@ -5,6 +5,7 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.enums.MapTileMaterial;
 import curly.octo.map.hints.SpawnPointHint;
 
 import java.util.ArrayList;
@@ -51,7 +52,6 @@ public class FlatRandomPathGenerator extends MapGenerator {
         branches.add(new BranchSpawn((int) center.x, (int) center.y, (int) center.z, CardinalDirection.SOUTH));
         branches.add(new BranchSpawn((int) center.x, (int) center.y, (int) center.z, CardinalDirection.WEST));
         for(int b = 0; b < branches.size(); b++) {
-
             for(int i = 0; i < (roomSize/2)-1; i++) {
                 advanceBranch(branches.get(b));
             }
@@ -64,6 +64,26 @@ public class FlatRandomPathGenerator extends MapGenerator {
         buildWalls();
 
         return map;
+    }
+
+    @Override
+    protected void createRoom(Vector3 center, int roomWidth, int roomHeight, int roomDepth) {
+        for(int x = (int)(center.x - (roomWidth/2)); x < (int)(center.x + (roomWidth/2)); x++) {
+            for(int z = (int)(center.z - (roomDepth/2)); z < (int)(center.z + (roomDepth/2)); z++) {
+                if (inBounds(x, (int)center.y, z)) {
+                    map[x][(int)center.y][z].geometryType = MapTileGeometryType.FULL;
+                    // Assign varied floor materials
+                    float materialRoll = random.nextFloat();
+                    if (materialRoll < 0.5f) {
+                        map[x][(int)center.y][z].material = MapTileMaterial.STONE;
+                    } else if (materialRoll < 0.8f) {
+                        map[x][(int)center.y][z].material = MapTileMaterial.DIRT;
+                    } else {
+                        map[x][(int)center.y][z].material = MapTileMaterial.GRASS;
+                    }
+                }
+            }
+        }
     }
 
     private void exploreBranch(BranchSpawn branch) {
@@ -138,8 +158,10 @@ public class FlatRandomPathGenerator extends MapGenerator {
 
         for(Vector3 wallSpot : wallNeeded) {
             for(int i = 0; i < wallheight; i++) {
-                if (inBounds((int) wallSpot.x, (int) wallSpot.y, (int) wallSpot.z)) {
+                if (inBounds((int) wallSpot.x, (int) wallSpot.y + i, (int) wallSpot.z)) {
                     map[(int) wallSpot.x][(int) wallSpot.y + i][(int) wallSpot.z].geometryType = MapTileGeometryType.FULL;
+                    // Walls are stone material
+                    map[(int) wallSpot.x][(int) wallSpot.y + i][(int) wallSpot.z].material = MapTileMaterial.WALL;
                 } else {
                     break;
                 }
@@ -147,8 +169,10 @@ public class FlatRandomPathGenerator extends MapGenerator {
         }
 
         for(Vector3 ceilingSpot : ceilingNeeded) {
-            map[(int) ceilingSpot.x][Math.min((int) ceilingSpot.y + wallheight, height-1)][(int) ceilingSpot.z].geometryType = MapTileGeometryType.FULL;
-
+            int ceilingY = Math.min((int) ceilingSpot.y + wallheight, height-1);
+            map[(int) ceilingSpot.x][ceilingY][(int) ceilingSpot.z].geometryType = MapTileGeometryType.FULL;
+            // Ceilings are stone material
+            map[(int) ceilingSpot.x][ceilingY][(int) ceilingSpot.z].material = MapTileMaterial.STONE;
         }
     }
 

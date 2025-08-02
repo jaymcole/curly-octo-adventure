@@ -67,7 +67,7 @@ public class PlayerController extends InputAdapter  {
         this.playerId = playerId;
     }
 
-    public void setPlayerPosition(float x, float y, float z) {
+    public void setPlayerPosition(float x, float y, float z, float delta) {
         position.set(x, y, z);
         if (camera != null) {
             camera.position.set(position);
@@ -76,7 +76,7 @@ public class PlayerController extends InputAdapter  {
         }
 
         // Update player light position
-        updatePlayerLightPosition();
+        updatePlayerLightPosition(delta);
     }
 
     public long getPlayerId() {
@@ -275,14 +275,27 @@ public class PlayerController extends InputAdapter  {
         Log.info("PlayerController", "Created player light for player " + playerId);
     }
 
-    private void updatePlayerLightPosition() {
+    private float timeToFlicker = 0.1f;
+    private float timeSinceLastLightFlicker = timeToFlicker+123;
+    private float lightXOffset = 0;
+    private float lightZOffset = 0;
+
+    private void updatePlayerLightPosition(float delta) {
         // Ensure light exists (recreate if needed after network deserialization)
         if (playerLight == null) {
             createPlayerLight();
         }
         if (playerLight != null) {
+            timeSinceLastLightFlicker+=delta;
+
+            if (timeSinceLastLightFlicker > timeToFlicker) {
+                lightXOffset = random.nextFloat() * 2.25f;
+                lightZOffset = random.nextFloat() * 2.25f;
+                timeSinceLastLightFlicker = 0;
+            }
+
             // Position light slightly above player
-            playerLight.position.set(position.x + 5, position.y + 3f, position.z);
+            playerLight.position.set(position.x + lightXOffset - (direction.x * 2), position.y + 3f, position.z + lightZOffset- (direction.z * 2));
         }
     }
 
@@ -298,5 +311,13 @@ public class PlayerController extends InputAdapter  {
         camera.viewportWidth = width;
         camera.viewportHeight = height;
         camera.update();
+    }
+
+    public float getTimeToFlicker() {
+        return timeToFlicker;
+    }
+
+    public void setTimeToFlicker(float timeToFlicker) {
+        this.timeToFlicker = timeToFlicker;
     }
 }
