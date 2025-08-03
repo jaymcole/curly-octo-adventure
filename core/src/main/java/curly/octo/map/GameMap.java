@@ -92,13 +92,13 @@ public class GameMap {
         map = generator.generate();
         Log.info("GameMap.generateDungeon", "Done generating tiles");
 
-        Log.info("GameMap.generateDungeon", "Generating triangle mesh for physics");
-        generateTriangleMeshPhysics();
-        Log.info("GameMap.generateDungeon", "Done generating triangle mesh physics");
-
         Log.info("GameMap.generateDungeon", "Loading hints");
         cacheMapHints();
         Log.info("GameMap.generateDungeon", "Done loading hints");
+
+        Log.info("GameMap.generateDungeon", "Generating triangle mesh for physics");
+        generateTriangleMeshPhysics();
+        Log.info("GameMap.generateDungeon", "Done generating triangle mesh physics");
     }
 
     public void cacheMapHints() {
