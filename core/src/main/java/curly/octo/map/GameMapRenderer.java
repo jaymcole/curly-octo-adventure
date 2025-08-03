@@ -1,25 +1,22 @@
 package curly.octo.map;
 
 import com.badlogic.gdx.graphics.*;
-import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.IntAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.FloatAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.PointLightsAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.PointLight;
-import com.badlogic.gdx.graphics.g3d.utils.MeshPartBuilder;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
-import com.badlogic.gdx.graphics.g3d.utils.shapebuilders.BoxShapeBuilder;
-import com.badlogic.gdx.graphics.g3d.utils.shapebuilders.SphereShapeBuilder;
-import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.MapHint;
+import curly.octo.map.rendering.AllTilesMapModelBuilder;
+import curly.octo.map.rendering.BFSVisibleMapModelBuilder;
+import curly.octo.map.rendering.MapModelBuilder;
 import curly.octo.rendering.CubeShadowMapRenderer;
 
 /**
@@ -38,6 +35,17 @@ public class GameMapRenderer implements Disposable {
     // Track light counts for debug UI
     private int lastTotalLights = 0;
     private int lastShadowLights = 0;
+
+    // Rendering strategy
+    public enum RenderingStrategy {
+        ALL_TILES,      // Render all occupied tiles (original approach)
+        BFS_VISIBLE     // Render only tiles with faces visible to players
+    }
+    private RenderingStrategy renderingStrategy = RenderingStrategy.BFS_VISIBLE;
+
+    // Track rendering stats for debug UI
+    private long lastFacesBuilt = 0;
+    private long lastTilesProcessed = 0;
 
     public GameMapRenderer() {
         cubeShadowMapRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH, maxShadowCastingLights);
@@ -167,8 +175,24 @@ public class GameMapRenderer implements Disposable {
         Material pinkWall = createMaterial(Color.PINK, 0.1f, 4f);
         Material spawnMaterial = createMaterial(Color.LIME, 0.1f, 4f);
 
-        // Build batched geometry for better performance
-        buildBatchedGeometry(modelBuilder, map, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall);
+        // Create the appropriate model builder based on strategy
+        MapModelBuilder builder;
+        switch (renderingStrategy) {
+            case BFS_VISIBLE:
+                builder = new BFSVisibleMapModelBuilder(map);
+                break;
+            case ALL_TILES:
+            default:
+                builder = new AllTilesMapModelBuilder(map);
+                break;
+        }
+
+        // Build geometry using the selected strategy
+        builder.buildGeometry(modelBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall);
+
+        // Update stats for debug UI
+        lastFacesBuilt = builder.getTotalFacesBuilt();
+        lastTilesProcessed = builder.getTotalTilesProcessed();
 
         // Finalize the model
         model = modelBuilder.end();
@@ -178,7 +202,7 @@ public class GameMapRenderer implements Disposable {
         instances.add(new ModelInstance(model));
 
         long endTime = System.currentTimeMillis();
-        Log.info("GameMapRenderer", "Completed map update in " + (endTime - startTime) + "ms");
+        Log.info("GameMapRenderer", "Completed map update in " + (endTime - startTime) + "ms using " + builder.getStrategyDescription());
     }
 
     private Material createMaterial(Color diffuse, float specular, float shininess) {
@@ -190,194 +214,6 @@ public class GameMapRenderer implements Disposable {
         return material;
     }
 
-    private void buildBatchedGeometry(ModelBuilder modelBuilder, GameMap map,
-                                    Material stoneMaterial, Material dirtMaterial,
-                                    Material grassMaterial, Material spawnMaterial, Material wallMaterial) {
-
-        // Use chunk-based rendering to avoid vertex limits
-        final int RENDER_CHUNK_SIZE = 16; // 16x16x16 chunks to stay under vertex limits
-        final int MAX_VERTICES_PER_CHUNK = 32000; // Conservative limit
-
-        int totalTiles = 0;
-        int renderedTiles = 0;
-        int chunkCount = 0;
-
-        // Calculate number of chunks needed
-        int chunksX = (int) Math.ceil((double) map.getWidth() / RENDER_CHUNK_SIZE);
-        int chunksY = (int) Math.ceil((double) map.getHeight() / RENDER_CHUNK_SIZE);
-        int chunksZ = (int) Math.ceil((double) map.getDepth() / RENDER_CHUNK_SIZE);
-
-        // Create chunks for rendering
-        for (int chunkX = 0; chunkX < chunksX; chunkX++) {
-            for (int chunkY = 0; chunkY < chunksY; chunkY++) {
-                for (int chunkZ = 0; chunkZ < chunksZ; chunkZ++) {
-
-                    // Create mesh parts for this chunk
-                    String chunkId = chunkX + "_" + chunkY + "_" + chunkZ;
-
-                    modelBuilder.node();
-                    MeshPartBuilder stoneBuilder = modelBuilder.part("stone-" + chunkId, GL20.GL_TRIANGLES,
-                        Usage.Position | Usage.Normal | Usage.TextureCoordinates, stoneMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder dirtBuilder = modelBuilder.part("dirt-" + chunkId, GL20.GL_TRIANGLES,
-                        Usage.Position | Usage.Normal | Usage.TextureCoordinates, dirtMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder grassBuilder = modelBuilder.part("grass-" + chunkId, GL20.GL_TRIANGLES,
-                        Usage.Position | Usage.Normal | Usage.TextureCoordinates, grassMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder spawnBuilder = modelBuilder.part("spawn-" + chunkId, GL20.GL_TRIANGLES,
-                        Usage.Position | Usage.Normal | Usage.TextureCoordinates, spawnMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder wallBuilder = modelBuilder.part("wall-" + chunkId, GL20.GL_TRIANGLES,
-                        Usage.Position | Usage.Normal | Usage.TextureCoordinates, wallMaterial);
-
-                    int chunkTiles = 0;
-
-                    // Calculate chunk bounds
-                    int startX = chunkX * RENDER_CHUNK_SIZE;
-                    int endX = Math.min(startX + RENDER_CHUNK_SIZE, map.getWidth());
-                    int startY = chunkY * RENDER_CHUNK_SIZE;
-                    int endY = Math.min(startY + RENDER_CHUNK_SIZE, map.getHeight());
-                    int startZ = chunkZ * RENDER_CHUNK_SIZE;
-                    int endZ = Math.min(startZ + RENDER_CHUNK_SIZE, map.getDepth());
-
-                    // Build geometry for this chunk
-                    for (int x = startX; x < endX; x++) {
-                        for (int y = startY; y < endY; y++) {
-                            for (int z = startZ; z < endZ; z++) {
-                                MapTile tile = map.getTile(x, y, z);
-                                totalTiles++;
-
-                                // Add spawn markers
-                                if (tile.isSpawnTile()) {
-                                    Matrix4 spawnPosition = new Matrix4().translate(new Vector3(tile.x, tile.y, tile.z));
-                                    SphereShapeBuilder.build(spawnBuilder, spawnPosition, 2, 2, 2, 10, 10);
-                                }
-
-                                // Add solid geometry
-                                if (tile.geometryType != MapTileGeometryType.EMPTY) {
-                                    MeshPartBuilder builder;
-                                    switch (tile.material) {
-                                        case DIRT:
-                                            builder = dirtBuilder;
-                                            break;
-                                        case GRASS:
-                                            builder = grassBuilder;
-                                            break;
-                                        case WALL:
-                                            builder = wallBuilder;
-                                            break;
-                                        case STONE:
-                                        default:
-                                            builder = stoneBuilder;
-                                            break;
-                                    }
-
-                                    buildTileGeometry(builder, tile);
-                                    renderedTiles++;
-                                    chunkTiles++;
-                                }
-                            }
-                        }
-                    }
-
-                    if (chunkTiles > 0) {
-                        chunkCount++;
-                    }
-                }
-            }
-        }
-
-        Log.info("GameMapRenderer", "Built " + renderedTiles + "/" + totalTiles + " tiles across " + chunkCount + " render chunks (" + RENDER_CHUNK_SIZE + "³ each)");
-    }
-
-    private void buildTileGeometry(MeshPartBuilder builder, MapTile tile) {
-        switch(tile.geometryType) {
-            case HALF:
-                BoxShapeBuilder.build(
-                    builder,
-                    tile.x + MapTile.TILE_SIZE / 2f,
-                    tile.y + MapTile.TILE_SIZE / 4f,
-                    tile.z + MapTile.TILE_SIZE / 2f,
-                    MapTile.TILE_SIZE, MapTile.TILE_SIZE / 2, MapTile.TILE_SIZE
-                );
-                break;
-            case SLAT:
-            case HALF_SLANT:
-            case TALL_HALF_SLANT:
-                buildSlant(builder, tile);
-                break;
-            default:
-                BoxShapeBuilder.build(
-                    builder,
-                    tile.x + MapTile.TILE_SIZE / 2f,
-                    tile.y + MapTile.TILE_SIZE / 2f,
-                    tile.z + MapTile.TILE_SIZE / 2f,
-                    MapTile.TILE_SIZE, MapTile.TILE_SIZE, MapTile.TILE_SIZE
-                );
-                break;
-        }
-    }
-
-    private void buildSlant(MeshPartBuilder meshPartBuilder, MapTile tile) {
-        float vertexOffset = MapTile.TILE_SIZE / 2.0f;
-
-        float minX = tile.x + MapTile.TILE_SIZE / 2.0f - vertexOffset;
-        float maxX = tile.x + MapTile.TILE_SIZE / 2.0f + vertexOffset;
-        float minY = tile.y + MapTile.TILE_SIZE / 2.0f - vertexOffset;
-        float maxY = tile.y + MapTile.TILE_SIZE / 2.0f + vertexOffset;
-        float minZ = tile.z + MapTile.TILE_SIZE / 2.0f - vertexOffset;
-        float maxZ = tile.z + MapTile.TILE_SIZE / 2.0f + vertexOffset;
-
-        if (tile.geometryType == MapTileGeometryType.HALF_SLANT) {
-            maxY -= (vertexOffset);
-        } else if (tile.geometryType == MapTileGeometryType.TALL_HALF_SLANT) {
-            // TALL_HALF_SLANT is same size as normal block, just with slant on top
-            // No height adjustment needed - it's a 1x1x1 block with slant geometry
-        }
-
-        Vector3 v000 = new Vector3(minX, minY, minZ);
-        Vector3 v001 = new Vector3(minX, minY, maxZ);
-        Vector3 v010 = new Vector3(minX, maxY, minZ);
-        Vector3 v011 = new Vector3(minX, maxY, maxZ);
-
-        Vector3 v100 = new Vector3(maxX, minY, minZ);
-        Vector3 v101 = new Vector3(maxX, minY, maxZ);
-        Vector3 v110 = new Vector3(maxX, maxY, minZ);
-        Vector3 v111 = new Vector3(maxX, maxY, maxZ);
-        //        1   v000    (minX, minY, minZ)
-        //        2   v001    (minX, minY, maxZ)
-        //        3   v010    (minX, maxY, minZ)
-        //        4   v011    (minX, maxY, maxZ)
-        //        5   v100    (maxX, minY, minZ)
-        //        6   v101    (maxX, minY, maxZ)
-        //        7   v110    (maxX, maxY, minZ)
-        //        8   v111    (maxX, maxY, maxZ)
-
-        switch(tile.direction) {
-            case NORTH:
-                v010 = v000;
-                v011 = v001;
-                break;
-            case EAST:
-                v110 = v100;
-                v010 = v000;
-                break;
-            case SOUTH:
-                v111 = v101;
-                v110 = v100;
-                break;
-            case WEST:
-                v111 = v101;
-                v011 = v001;
-                break;
-        }
-        BoxShapeBuilder.build(meshPartBuilder, v000, v001, v010, v011, v100, v101, v110, v111);
-    }
 
     private void extractLightsFromMap(GameMap map) {
         int lightCount = 0;
@@ -453,6 +289,38 @@ public class GameMapRenderer implements Disposable {
      */
     public int getLastShadowLights() {
         return lastShadowLights;
+    }
+
+    /**
+     * Set the rendering strategy.
+     * @param strategy The strategy to use for building visible geometry
+     */
+    public void setRenderingStrategy(RenderingStrategy strategy) {
+        this.renderingStrategy = strategy;
+    }
+
+    /**
+     * Get the current rendering strategy.
+     * @return The current strategy
+     */
+    public RenderingStrategy getRenderingStrategy() {
+        return renderingStrategy;
+    }
+
+    /**
+     * Get the number of faces built in the last map update.
+     * @return Face count
+     */
+    public long getLastFacesBuilt() {
+        return lastFacesBuilt;
+    }
+
+    /**
+     * Get the number of tiles processed in the last map update.
+     * @return Tile count
+     */
+    public long getLastTilesProcessed() {
+        return lastTilesProcessed;
     }
 
     @Override

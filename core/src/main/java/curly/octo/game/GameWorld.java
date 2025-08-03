@@ -273,6 +273,35 @@ public class GameWorld {
         return mapManager != null ? mapManager.totalTriangleCount : 0;
     }
 
+    public void toggleRenderingStrategy() {
+        if (mapRenderer != null && mapManager != null) {
+            // Switch between strategies
+            GameMapRenderer.RenderingStrategy currentStrategy = mapRenderer.getRenderingStrategy();
+            GameMapRenderer.RenderingStrategy newStrategy = (currentStrategy == GameMapRenderer.RenderingStrategy.ALL_TILES)
+                ? GameMapRenderer.RenderingStrategy.BFS_VISIBLE
+                : GameMapRenderer.RenderingStrategy.ALL_TILES;
+
+            Log.info("GameWorld", "Switching rendering strategy from " + currentStrategy + " to " + newStrategy);
+            mapRenderer.setRenderingStrategy(newStrategy);
+            mapRenderer.updateMap(mapManager);
+        }
+    }
+
+    public String getRenderingStrategyInfo() {
+        if (mapRenderer != null) {
+            return mapRenderer.getRenderingStrategy().name();
+        }
+        return "N/A";
+    }
+
+    public long getRenderingFacesBuilt() {
+        return mapRenderer != null ? mapRenderer.getLastFacesBuilt() : 0;
+    }
+
+    public long getRenderingTilesProcessed() {
+        return mapRenderer != null ? mapRenderer.getLastTilesProcessed() : 0;
+    }
+
     public void dispose() {
         if (disposed) {
             Log.info("GameWorld", "Already disposed, skipping");

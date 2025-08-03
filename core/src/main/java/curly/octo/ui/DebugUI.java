@@ -21,13 +21,15 @@ public class DebugUI {
     private Label shadowLightsLabel;
     private Label physicsDebugLabel;
     private Label physicsStrategyLabel;
+    private Label renderingStrategyLabel;
     
-    // Callback for physics debug toggle
-    public interface PhysicsDebugListener {
+    // Callback for debug toggles
+    public interface DebugListener {
         void onTogglePhysicsDebug();
         void onTogglePhysicsStrategy();
+        void onToggleRenderingStrategy();
     }
-    private PhysicsDebugListener physicsDebugListener;
+    private DebugListener debugListener;
     
     public DebugUI() {
         createStage();
@@ -84,8 +86,12 @@ public class DebugUI {
         physicsStrategyLabel = new Label("Physics Strategy: ...", skin);
         debugTable.add(physicsStrategyLabel).pad(10).row();
         
+        // Rendering strategy info
+        renderingStrategyLabel = new Label("Rendering Strategy: ...", skin);
+        debugTable.add(renderingStrategyLabel).pad(10).row();
+        
         // Instructions
-        Label instructionsLabel = new Label("Press F1: Toggle Physics Debug\nPress F2: Toggle Strategy", skin);
+        Label instructionsLabel = new Label("F1: Physics Debug | F2: Physics Strategy | F3: Render Strategy", skin);
         instructionsLabel.setAlignment(Align.center);
         debugTable.add(instructionsLabel).pad(10).row();
         
@@ -101,12 +107,15 @@ public class DebugUI {
         fpsLabel.setText("FPS: " + Gdx.graphics.getFramesPerSecond());
         
         // Handle keyboard input for debug toggles
-        if (physicsDebugListener != null) {
+        if (debugListener != null) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.F1)) {
-                physicsDebugListener.onTogglePhysicsDebug();
+                debugListener.onTogglePhysicsDebug();
             }
             if (Gdx.input.isKeyJustPressed(Input.Keys.F2)) {
-                physicsDebugListener.onTogglePhysicsStrategy();
+                debugListener.onTogglePhysicsStrategy();
+            }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
+                debugListener.onToggleRenderingStrategy();
             }
         }
     }
@@ -136,8 +145,8 @@ public class DebugUI {
         shadowLightsLabel.setText("Shadow Lights: " + shadowLights);
     }
     
-    public void setPhysicsDebugListener(PhysicsDebugListener listener) {
-        this.physicsDebugListener = listener;
+    public void setDebugListener(DebugListener listener) {
+        this.debugListener = listener;
     }
     
     public void setPhysicsDebugEnabled(boolean enabled) {
@@ -145,6 +154,10 @@ public class DebugUI {
     }
     
     public void setPhysicsStrategy(String strategy, long triangleCount) {
-        physicsStrategyLabel.setText("Strategy: " + strategy + " (" + triangleCount + " triangles)");
+        physicsStrategyLabel.setText("Physics: " + strategy + " (" + triangleCount + " triangles)");
+    }
+    
+    public void setRenderingStrategy(String strategy, long facesBuilt, long tilesProcessed) {
+        renderingStrategyLabel.setText("Render: " + strategy + " (" + facesBuilt + " faces, " + tilesProcessed + " tiles)");
     }
 } 

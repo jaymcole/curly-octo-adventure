@@ -70,7 +70,7 @@ public class GameMap {
         ALL_TILES,      // Build physics for all occupied tiles (original approach)
         BFS_BOUNDARY    // Build physics only for boundary tiles reachable from spawn points
     }
-    private transient PhysicsStrategy physicsStrategy = PhysicsStrategy.ALL_TILES;
+    private transient PhysicsStrategy physicsStrategy = PhysicsStrategy.BFS_BOUNDARY;
 
 
     // Default constructor required for Kryo
@@ -274,18 +274,18 @@ public class GameMap {
         if (debugRenderingEnabled && debugDrawer != null && dynamicsWorld != null) {
             // Store current depth test state
             boolean depthTestWasEnabled = Gdx.gl.glIsEnabled(GL20.GL_DEPTH_TEST);
-            
+
             // Disable depth testing to show all wireframes
             Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
-            
+
             // Enable blending for better wireframe visibility
             Gdx.gl.glEnable(GL20.GL_BLEND);
             Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-            
+
             debugDrawer.begin(camera);
             dynamicsWorld.debugDrawWorld();
             debugDrawer.end();
-            
+
             // Restore depth testing state
             if (depthTestWasEnabled) {
                 Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);

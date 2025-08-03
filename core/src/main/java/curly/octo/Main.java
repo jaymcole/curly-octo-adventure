@@ -18,7 +18,7 @@ import java.util.Random;
  * Main game class with network setup UI.
  * Delegates game logic to specific game modes (Server/Client).
  */
-public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, DebugUI.PhysicsDebugListener {
+public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, DebugUI.DebugListener {
 
     private Random random;
     private ModelBatch modelBatch;
@@ -81,8 +81,8 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             this.lobbyUI = new LobbyUI(this);
             this.debugUI = new DebugUI();
             
-            // Set physics debug listener
-            debugUI.setPhysicsDebugListener(this);
+            // Set debug listener
+            debugUI.setDebugListener(this);
 
             // Set input processor to lobby
             lobbyUI.setInputProcessor();
@@ -129,6 +129,10 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             // Update physics debug info
             debugUI.setPhysicsDebugEnabled(gameWorld.isPhysicsDebugEnabled());
             debugUI.setPhysicsStrategy(gameWorld.getPhysicsStrategyInfo(), gameWorld.getPhysicsTriangleCount());
+            
+            // Update rendering strategy info
+            debugUI.setRenderingStrategy(gameWorld.getRenderingStrategyInfo(), 
+                gameWorld.getRenderingFacesBuilt(), gameWorld.getRenderingTilesProcessed());
         }
 
         // Update and render UI
@@ -213,7 +217,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         Log.info("Main", "All resources disposed");
     }
     
-    // DebugUI.PhysicsDebugListener implementation
+    // DebugUI.DebugListener implementation
     @Override
     public void onTogglePhysicsDebug() {
         if (gameWorld != null) {
@@ -227,6 +231,14 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         if (gameWorld != null) {
             gameWorld.togglePhysicsStrategy();
             Log.info("Main", "Physics strategy switched to: " + gameWorld.getPhysicsStrategyInfo());
+        }
+    }
+    
+    @Override
+    public void onToggleRenderingStrategy() {
+        if (gameWorld != null) {
+            gameWorld.toggleRenderingStrategy();
+            Log.info("Main", "Rendering strategy switched to: " + gameWorld.getRenderingStrategyInfo());
         }
     }
 }
