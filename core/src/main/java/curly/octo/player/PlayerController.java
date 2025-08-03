@@ -22,7 +22,8 @@ import java.util.Random;
  */
 public class PlayerController extends InputAdapter  {
 
-    private static final float playerHeight = 5;
+    // TODO: Make this a percentage of the max player height
+    private static final float playerHeight = 2.5f; // Camera offset from physics body center
     private static final float sensitivity = 1f;
     private static final float velocityLen = 25f; // Player movement speed
 
@@ -71,7 +72,8 @@ public class PlayerController extends InputAdapter  {
         position.set(x, y, z);
         if (camera != null) {
             camera.position.set(position);
-            camera.lookAt(position.x + direction.x, position.y + direction.y, position.z + direction.z);
+            camera.position.y += playerHeight; // Add camera height offset here too
+            camera.lookAt(position.x + direction.x, position.y + direction.y + playerHeight, position.z + direction.z);
             camera.update();
         }
 
@@ -101,7 +103,8 @@ public class PlayerController extends InputAdapter  {
             // Create camera
             this.camera = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
             camera.position.set(position);
-            camera.lookAt(position.x + direction.x, position.y + direction.y, position.z + direction.z);
+            camera.position.y += playerHeight; // Add camera height offset for initialization too
+            camera.lookAt(position.x + direction.x, position.y + direction.y + playerHeight, position.z + direction.z);
             camera.up.set(Vector3.Y);
             camera.near = 0.1f;
             camera.far = 300f;

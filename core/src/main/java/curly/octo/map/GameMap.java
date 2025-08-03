@@ -314,8 +314,9 @@ public class GameMap {
             playerRigidBody = null;
         }
 
-        btCapsuleShape capsule = new btCapsuleShape(radius, height - 2*radius);
-        Matrix4 transform = new Matrix4().setToTranslation(x, y, z);
+        btCapsuleShapeZ capsule = new btCapsuleShapeZ(radius, height);
+        // Position capsule so its bottom sits on the ground, not its center
+        Matrix4 transform = new Matrix4().setToTranslation(x, y + height/2f, z);
 
         playerGhostObject = new btPairCachingGhostObject();
         playerGhostObject.setWorldTransform(transform);
