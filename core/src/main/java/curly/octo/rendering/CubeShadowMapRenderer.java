@@ -321,9 +321,10 @@ public class CubeShadowMapRenderer implements Disposable {
                 if (nodePart.enabled) {
                     // Only set diffuse color for shadow shader, not depth shader
                     if (shader == shadowShader) {
-                        // Extract diffuse color and alpha from material
+                        // Extract diffuse color, alpha, and texture from material
                         Vector3 diffuseColor = new Vector3(0.7f, 0.7f, 0.7f); // Default gray
                         float diffuseAlpha = 1.0f; // Default opaque
+                        boolean hasTexture = false;
                         
                         if (nodePart.material != null) {
                             com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute diffuseAttr = 
@@ -332,11 +333,21 @@ public class CubeShadowMapRenderer implements Disposable {
                                 diffuseColor.set(diffuseAttr.color.r, diffuseAttr.color.g, diffuseAttr.color.b);
                                 diffuseAlpha = diffuseAttr.color.a; // Extract alpha from diffuse color
                             }
+                            
+                            // Check for diffuse texture
+                            com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute textureAttr = 
+                                (com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute) nodePart.material.get(com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute.Diffuse);
+                            if (textureAttr != null && textureAttr.textureDescription != null && textureAttr.textureDescription.texture != null) {
+                                hasTexture = true;
+                                textureAttr.textureDescription.texture.bind(0);
+                                shader.setUniformi("u_diffuseTexture", 0);
+                            }
                         }
                         
-                        // Set diffuse color and alpha uniforms
+                        // Set uniforms
                         shader.setUniformf("u_diffuseColor", diffuseColor);
                         shader.setUniformf("u_diffuseAlpha", diffuseAlpha);
+                        shader.setUniformi("u_hasTexture", hasTexture ? 1 : 0);
                     }
                     
                     Mesh mesh = nodePart.meshPart.mesh;

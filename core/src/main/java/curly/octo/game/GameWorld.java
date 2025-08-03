@@ -51,7 +51,7 @@ public class GameWorld {
     private void setupEnvironment() {
         // Extremely low ambient light for very hard shadows
 //        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.02f, 0.02f, 0.03f, 1f));
-        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.0f, 0, 0, 1f));
+        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.0f, .0f, .0f, 1f));
 
         // Create atmospheric point lights around the dungeon
         createDungeonLights();

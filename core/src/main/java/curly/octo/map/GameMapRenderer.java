@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.g3d.attributes.IntAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.FloatAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.PointLightsAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute;
+import com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
@@ -30,8 +31,17 @@ public class GameMapRenderer implements Disposable {
     private final Array<PointLight> mapLights; // Lights generated from LightHints
     private Model model;
     private Model waterModel; // Separate model for transparent water
+    private Model lavaModel;  // Separate model for transparent lava
+    private Model fogModel;   // Separate model for transparent fog
     private ModelInstance waterInstance;
+    private ModelInstance lavaInstance;
+    private ModelInstance fogInstance;
     private boolean disposed = false;
+
+    // Textures for fill types
+    private Texture waterTexture;
+    private Texture lavaTexture;
+    private Texture fogTexture;
 
     // Configurable number of shadow-casting lights (performance vs quality tradeoff)
     private int maxShadowCastingLights = 8; // Reduced from 8 to 2 for better performance
@@ -55,7 +65,14 @@ public class GameMapRenderer implements Disposable {
         cubeShadowMapRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH, maxShadowCastingLights);
         instances = new Array<>();
         mapLights = new Array<>();
+
+        // Load fill type textures
+        waterTexture = new Texture(Gdx.files.internal("fillers/water-stolen.jpg"));
+        lavaTexture = new Texture(Gdx.files.internal("fillers/lava-stolen.jpg"));
+        fogTexture = new Texture(Gdx.files.internal("fillers/fog-stolen.jpg"));
+
         Log.info("GameMapRenderer", "Initialized with HIGH quality cube shadow mapping (" + maxShadowCastingLights + " shadow-casting lights, 512x512 per face)");
+        Log.info("GameMapRenderer", "Loaded fill type textures: water, lava, fog");
     }
 
     /**
@@ -103,9 +120,15 @@ public class GameMapRenderer implements Disposable {
             Vector3 ambientLight = getAmbientLight(environment);
             cubeShadowMapRenderer.renderWithMultipleCubeShadows(instances, camera, significantLights, pointLights.lights, ambientLight);
 
-            // Render transparent water with shadows for proper lighting
+            // Render transparent surfaces with shadows for proper lighting
             if (waterInstance != null) {
-                renderWaterWithShadows(camera, significantLights, pointLights.lights, ambientLight);
+                renderTransparentSurfaceWithShadows(waterInstance, camera, significantLights, pointLights.lights, ambientLight);
+            }
+            if (lavaInstance != null) {
+                renderGlowingSurface(lavaInstance, camera, environment); // Lava glows without shadows
+            }
+            if (fogInstance != null) {
+                renderTransparentSurfaceWithShadows(fogInstance, camera, significantLights, pointLights.lights, ambientLight);
             }
         } else {
             Log.warn("GameMapRenderer", "No lights found for shadow casting");
@@ -161,21 +184,45 @@ public class GameMapRenderer implements Disposable {
         return new Vector3(0.02f, 0.02f, 0.03f); // Default very low ambient
     }
 
-    private void renderWaterWithShadows(PerspectiveCamera camera, Array<PointLight> shadowLights, Array<PointLight> allLights, Vector3 ambientLight) {
-        if (waterInstance == null) return;
+    private void renderTransparentSurfaceWithShadows(ModelInstance surfaceInstance, PerspectiveCamera camera, Array<PointLight> shadowLights, Array<PointLight> allLights, Vector3 ambientLight) {
+        if (surfaceInstance == null) return;
 
         // Set up blending for transparency
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         Gdx.gl.glDepthMask(false); // Don't write to depth buffer for transparent objects
 
-        // Create water instances array for shadow rendering
-        Array<ModelInstance> waterInstances = new Array<>();
-        waterInstances.add(waterInstance);
+        // Create surface instances array for shadow rendering
+        Array<ModelInstance> surfaceInstances = new Array<>();
+        surfaceInstances.add(surfaceInstance);
 
-        // Use the shadow mapping system to render water with proper shadows
-        // This will make water dark in shadowed areas and lit in illuminated areas
-        cubeShadowMapRenderer.renderWithMultipleCubeShadows(waterInstances, camera, shadowLights, allLights, ambientLight);
+        // Use the shadow mapping system to render surface with proper shadows
+        // This will make surface dark in shadowed areas and lit in illuminated areas
+        cubeShadowMapRenderer.renderWithMultipleCubeShadows(surfaceInstances, camera, shadowLights, allLights, ambientLight);
+
+        // Restore depth mask
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
+    private void renderGlowingSurface(ModelInstance glowingInstance, PerspectiveCamera camera, Environment environment) {
+        if (glowingInstance == null) return;
+
+        // Set up blending for transparency
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        Gdx.gl.glDepthMask(false); // Don't write to depth buffer for transparent objects
+
+        // Create a bright environment for glowing effect (no shadows, high ambient)
+        Environment glowEnvironment = new Environment();
+        glowEnvironment.set(new ColorAttribute(ColorAttribute.AmbientLight, 1.0f, 1.0f, 1.0f, 1f)); // Full ambient light for glow
+
+        // Use ModelBatch for simple rendering without shadows
+        ModelBatch glowBatch = new ModelBatch();
+        glowBatch.begin(camera);
+        glowBatch.render(glowingInstance, glowEnvironment);
+        glowBatch.end();
+        glowBatch.dispose();
 
         // Restore depth mask
         Gdx.gl.glDepthMask(true);
@@ -201,6 +248,8 @@ public class GameMapRenderer implements Disposable {
         Material pinkWall = createMaterial(Color.PINK, 0.1f, 4f);
         Material spawnMaterial = createMaterial(Color.LIME, 0.1f, 4f);
         Material waterMaterial = createWaterMaterial();
+        Material lavaMaterial = createLavaMaterial();
+        Material fogMaterial = createFogMaterial();
 
         // Create the appropriate model builder based on strategy
         MapModelBuilder builder;
@@ -220,11 +269,21 @@ public class GameMapRenderer implements Disposable {
         builder.buildGeometry(opaqueBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null); // null waterMaterial = no water in main model
         model = opaqueBuilder.end();
 
-        // Build separate water model for transparency
+        // Build separate surface models for transparency
         ModelBuilder waterBuilder = new ModelBuilder();
         waterBuilder.begin();
         builder.buildWaterGeometry(waterBuilder, waterMaterial);
         waterModel = waterBuilder.end();
+
+        ModelBuilder lavaBuilder = new ModelBuilder();
+        lavaBuilder.begin();
+        builder.buildLavaGeometry(lavaBuilder, lavaMaterial);
+        lavaModel = lavaBuilder.end();
+
+        ModelBuilder fogBuilder = new ModelBuilder();
+        fogBuilder.begin();
+        builder.buildFogGeometry(fogBuilder, fogMaterial);
+        fogModel = fogBuilder.end();
 
         // Update stats for debug UI
         lastFacesBuilt = builder.getTotalFacesBuilt();
@@ -236,6 +295,12 @@ public class GameMapRenderer implements Disposable {
 
         if (waterModel != null) {
             waterInstance = new ModelInstance(waterModel);
+        }
+        if (lavaModel != null) {
+            lavaInstance = new ModelInstance(lavaModel);
+        }
+        if (fogModel != null) {
+            fogInstance = new ModelInstance(fogModel);
         }
 
         long endTime = System.currentTimeMillis();
@@ -253,13 +318,44 @@ public class GameMapRenderer implements Disposable {
 
     private Material createWaterMaterial() {
         Material material = new Material();
-        // Blue water color - shadows will handle darkness
-        material.set(new ColorAttribute(ColorAttribute.Diffuse, 0.3f, 0.6f, 1.0f, 0.8f)); // Blue with 40% opacity
+        // Blue water color with texture
+        material.set(new ColorAttribute(ColorAttribute.Diffuse, 0.8f, 0.9f, 1.0f, 0.4f)); // Light blue tint with 40% opacity
         material.set(new ColorAttribute(ColorAttribute.Specular, 0.8f, 0.8f, 0.8f, 1f));   // High specular for shiny water
         material.set(new FloatAttribute(FloatAttribute.Shininess, 32f));                  // Very shiny
         material.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_NONE));              // No culling for transparency
+        material.set(new TextureAttribute(TextureAttribute.Diffuse, waterTexture));       // Water texture
         // Enable blending for transparency with proper depth handling
         BlendingAttribute blending = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.4f);
+        blending.blended = true; // Explicitly enable blending
+        material.set(blending);
+        return material;
+    }
+
+    private Material createLavaMaterial() {
+        Material material = new Material();
+        // Red-orange lava color with texture
+        material.set(new ColorAttribute(ColorAttribute.Diffuse, 1.0f, 0.8f, 0.6f, 0.9f)); // Warm tint with 90% opacity
+        material.set(new ColorAttribute(ColorAttribute.Specular, 1.0f, 0.5f, 0.2f, 1f));   // Warm specular for glowing lava
+        material.set(new FloatAttribute(FloatAttribute.Shininess, 16f));                  // Less shiny than water
+        material.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_NONE));              // No culling for transparency
+        material.set(new TextureAttribute(TextureAttribute.Diffuse, lavaTexture));        // Lava texture
+        // Enable blending for transparency with proper depth handling
+        BlendingAttribute blending = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.9f);
+        blending.blended = true; // Explicitly enable blending
+        material.set(blending);
+        return material;
+    }
+
+    private Material createFogMaterial() {
+        Material material = new Material();
+        // Gray fog color with texture
+        material.set(new ColorAttribute(ColorAttribute.Diffuse, 0.9f, 0.9f, 0.9f, 0.7f)); // Light gray tint with 30% opacity
+        material.set(new ColorAttribute(ColorAttribute.Specular, 0.1f, 0.1f, 0.1f, 1f));   // Very low specular for fog
+        material.set(new FloatAttribute(FloatAttribute.Shininess, 1f));                   // No shininess
+        material.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_NONE));              // No culling for transparency
+        material.set(new TextureAttribute(TextureAttribute.Diffuse, fogTexture));         // Fog texture
+        // Enable blending for transparency with proper depth handling
+        BlendingAttribute blending = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.3f);
         blending.blended = true; // Explicitly enable blending
         material.set(blending);
         return material;
@@ -403,6 +499,28 @@ public class GameMapRenderer implements Disposable {
             waterInstance = null;
         }
 
+        if (lavaModel != null) {
+            try {
+                lavaModel.dispose();
+                Log.info("GameMapRenderer", "Lava model disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing lava model: " + e.getMessage());
+            }
+            lavaModel = null;
+            lavaInstance = null;
+        }
+
+        if (fogModel != null) {
+            try {
+                fogModel.dispose();
+                Log.info("GameMapRenderer", "Fog model disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing fog model: " + e.getMessage());
+            }
+            fogModel = null;
+            fogInstance = null;
+        }
+
         disposed = true;
     }
 
@@ -416,5 +534,20 @@ public class GameMapRenderer implements Disposable {
                 Log.error("GameMapRenderer", "Error disposing cube shadow map renderer: " + e.getMessage());
             }
         }
+
+        // Dispose of textures
+        if (waterTexture != null) {
+            waterTexture.dispose();
+            waterTexture = null;
+        }
+        if (lavaTexture != null) {
+            lavaTexture.dispose();
+            lavaTexture = null;
+        }
+        if (fogTexture != null) {
+            fogTexture.dispose();
+            fogTexture = null;
+        }
+        Log.info("GameMapRenderer", "Fill type textures disposed");
     }
 }

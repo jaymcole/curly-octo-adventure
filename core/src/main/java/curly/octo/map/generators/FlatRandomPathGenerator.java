@@ -74,7 +74,7 @@ public class FlatRandomPathGenerator extends MapGenerator {
                 if (inBounds(x, (int)center.y, z)) {
 
                     map[x][(int)center.y][z].geometryType = MapTileGeometryType.FULL;
-                    map[x][(int)center.y + 1][z].fillType = MapTileFillType.WATER;
+                    map[x][(int)center.y + 1][z].fillType = MapTileFillType.LAVA;
                     // Assign varied floor materials
                     float materialRoll = random.nextFloat();
                     if (materialRoll < 0.5f) {

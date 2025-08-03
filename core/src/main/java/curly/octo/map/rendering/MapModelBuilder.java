@@ -41,6 +41,20 @@ public abstract class MapModelBuilder {
     public abstract void buildWaterGeometry(ModelBuilder modelBuilder, Material waterMaterial);
     
     /**
+     * Build only lava surface geometry for transparent rendering.
+     * @param modelBuilder The LibGDX ModelBuilder to use
+     * @param lavaMaterial Material for lava surfaces
+     */
+    public abstract void buildLavaGeometry(ModelBuilder modelBuilder, Material lavaMaterial);
+    
+    /**
+     * Build only fog surface geometry for transparent rendering.
+     * @param modelBuilder The LibGDX ModelBuilder to use
+     * @param fogMaterial Material for fog surfaces
+     */
+    public abstract void buildFogGeometry(ModelBuilder modelBuilder, Material fogMaterial);
+    
+    /**
      * Get the total number of faces/triangles added to the model.
      * @return Face count
      */

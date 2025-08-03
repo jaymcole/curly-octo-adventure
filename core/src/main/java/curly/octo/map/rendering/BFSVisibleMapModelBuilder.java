@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.graphics.g3d.utils.shapebuilders.BoxShapeBuilder;
 import com.badlogic.gdx.graphics.g3d.utils.shapebuilders.SphereShapeBuilder;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
@@ -78,6 +79,58 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
         }
         
         Log.info("BFSVisibleMapModelBuilder", "Built " + waterSurfaceCount + " water surfaces for transparent rendering");
+    }
+    
+    @Override
+    public void buildLavaGeometry(ModelBuilder modelBuilder, Material lavaMaterial) {
+        // Create a single mesh part for all lava surfaces
+        modelBuilder.node();
+        MeshPartBuilder lavaBuilder = modelBuilder.part("lava-transparent", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, lavaMaterial);
+        
+        int lavaSurfaceCount = 0;
+        
+        // Find all lava surfaces and build them (same height as water - half tile)
+        for (int x = 0; x < gameMap.getWidth(); x++) {
+            for (int y = 0; y < gameMap.getHeight(); y++) {
+                for (int z = 0; z < gameMap.getDepth(); z++) {
+                    MapTile tile = gameMap.getTile(x, y, z);
+                    
+                    if (tile.fillType == MapTileFillType.LAVA && isTopMostFillTile(x, y, z, MapTileFillType.LAVA)) {
+                        buildLavaSurface(lavaBuilder, tile);
+                        lavaSurfaceCount++;
+                    }
+                }
+            }
+        }
+        
+        Log.info("BFSVisibleMapModelBuilder", "Built " + lavaSurfaceCount + " lava surfaces for transparent rendering");
+    }
+    
+    @Override
+    public void buildFogGeometry(ModelBuilder modelBuilder, Material fogMaterial) {
+        // Create a single mesh part for all fog surfaces
+        modelBuilder.node();
+        MeshPartBuilder fogBuilder = modelBuilder.part("fog-transparent", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, fogMaterial);
+        
+        int fogSurfaceCount = 0;
+        
+        // Find all fog surfaces and build them (quarter tile height)
+        for (int x = 0; x < gameMap.getWidth(); x++) {
+            for (int y = 0; y < gameMap.getHeight(); y++) {
+                for (int z = 0; z < gameMap.getDepth(); z++) {
+                    MapTile tile = gameMap.getTile(x, y, z);
+                    
+                    if (tile.fillType == MapTileFillType.FOG && isTopMostFillTile(x, y, z, MapTileFillType.FOG)) {
+                        buildFogSurface(fogBuilder, tile);
+                        fogSurfaceCount++;
+                    }
+                }
+            }
+        }
+        
+        Log.info("BFSVisibleMapModelBuilder", "Built " + fogSurfaceCount + " fog surfaces for transparent rendering");
     }
     
     @Override
@@ -433,13 +486,21 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
      * This determines if we should render a water surface.
      */
     private boolean isTopMostWaterTile(int x, int y, int z) {
-        // Check if the tile above is not water (or is outside bounds)
+        return isTopMostFillTile(x, y, z, MapTileFillType.WATER);
+    }
+    
+    /**
+     * Check if this tile is the topmost tile of the given fill type in its column.
+     * This determines if we should render a surface for this fill type.
+     */
+    private boolean isTopMostFillTile(int x, int y, int z, MapTileFillType fillType) {
+        // Check if the tile above is not the same fill type (or is outside bounds)
         if (y + 1 >= gameMap.getHeight()) {
             return true; // Top of map, definitely topmost
         }
         
         MapTile tileAbove = gameMap.getTile(x, y + 1, z);
-        return tileAbove.fillType != MapTileFillType.WATER;
+        return tileAbove.fillType != fillType;
     }
     
     /**
@@ -460,19 +521,105 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
         // Normal pointing up for water surface
         Vector3 normal = new Vector3(0, 1, 0);
         
+        // Texture coordinates for the quad
+        Vector2 uv00 = new Vector2(0, 0);  // Bottom-left
+        Vector2 uv01 = new Vector2(0, 1);  // Top-left
+        Vector2 uv10 = new Vector2(1, 0);  // Bottom-right
+        Vector2 uv11 = new Vector2(1, 1);  // Top-right
+        
         // Build two triangles to form a quad
         // Triangle 1: v00, v01, v10
         waterBuilder.triangle(
-            waterBuilder.vertex(v00, normal, null, null),
-            waterBuilder.vertex(v01, normal, null, null), 
-            waterBuilder.vertex(v10, normal, null, null)
+            waterBuilder.vertex(v00, normal, null, uv00),
+            waterBuilder.vertex(v01, normal, null, uv01), 
+            waterBuilder.vertex(v10, normal, null, uv10)
         );
         
         // Triangle 2: v10, v01, v11  
         waterBuilder.triangle(
-            waterBuilder.vertex(v10, normal, null, null),
-            waterBuilder.vertex(v01, normal, null, null),
-            waterBuilder.vertex(v11, normal, null, null)
+            waterBuilder.vertex(v10, normal, null, uv10),
+            waterBuilder.vertex(v01, normal, null, uv01),
+            waterBuilder.vertex(v11, normal, null, uv11)
+        );
+    }
+    
+    /**
+     * Build a lava surface plane at half the height of a lava tile.
+     */
+    private void buildLavaSurface(MeshPartBuilder lavaBuilder, MapTile tile) {
+        float x = tile.x;
+        float y = tile.y + MapTile.TILE_SIZE / 2f; // Surface at half tile height (same as water)
+        float z = tile.z;
+        float size = MapTile.TILE_SIZE;
+        
+        // Create a horizontal quad for the lava surface
+        Vector3 v00 = new Vector3(x, y, z);           // Bottom-left
+        Vector3 v01 = new Vector3(x, y, z + size);    // Top-left  
+        Vector3 v10 = new Vector3(x + size, y, z);    // Bottom-right
+        Vector3 v11 = new Vector3(x + size, y, z + size); // Top-right
+        
+        // Normal pointing up for lava surface
+        Vector3 normal = new Vector3(0, 1, 0);
+        
+        // Texture coordinates for the quad
+        Vector2 uv00 = new Vector2(0, 0);  // Bottom-left
+        Vector2 uv01 = new Vector2(0, 1);  // Top-left
+        Vector2 uv10 = new Vector2(1, 0);  // Bottom-right
+        Vector2 uv11 = new Vector2(1, 1);  // Top-right
+        
+        // Build two triangles to form a quad
+        // Triangle 1: v00, v01, v10
+        lavaBuilder.triangle(
+            lavaBuilder.vertex(v00, normal, null, uv00),
+            lavaBuilder.vertex(v01, normal, null, uv01), 
+            lavaBuilder.vertex(v10, normal, null, uv10)
+        );
+        
+        // Triangle 2: v10, v01, v11  
+        lavaBuilder.triangle(
+            lavaBuilder.vertex(v10, normal, null, uv10),
+            lavaBuilder.vertex(v01, normal, null, uv01),
+            lavaBuilder.vertex(v11, normal, null, uv11)
+        );
+    }
+    
+    /**
+     * Build a fog surface plane at quarter the height of a fog tile.
+     */
+    private void buildFogSurface(MeshPartBuilder fogBuilder, MapTile tile) {
+        float x = tile.x;
+        float y = tile.y + MapTile.TILE_SIZE / 4f; // Surface at quarter tile height
+        float z = tile.z;
+        float size = MapTile.TILE_SIZE;
+        
+        // Create a horizontal quad for the fog surface
+        Vector3 v00 = new Vector3(x, y, z);           // Bottom-left
+        Vector3 v01 = new Vector3(x, y, z + size);    // Top-left  
+        Vector3 v10 = new Vector3(x + size, y, z);    // Bottom-right
+        Vector3 v11 = new Vector3(x + size, y, z + size); // Top-right
+        
+        // Normal pointing up for fog surface
+        Vector3 normal = new Vector3(0, 1, 0);
+        
+        // Texture coordinates for the quad
+        Vector2 uv00 = new Vector2(0, 0);  // Bottom-left
+        Vector2 uv01 = new Vector2(0, 1);  // Top-left
+        Vector2 uv10 = new Vector2(1, 0);  // Bottom-right
+        Vector2 uv11 = new Vector2(1, 1);  // Top-right
+        
+        // Build two triangles to form a quad
+        // Triangle 1: v00, v01, v10
+        fogBuilder.triangle(
+            fogBuilder.vertex(v00, normal, null, uv00),
+            fogBuilder.vertex(v01, normal, null, uv01), 
+            fogBuilder.vertex(v10, normal, null, uv10)
+        );
+        
+        // Triangle 2: v10, v01, v11  
+        fogBuilder.triangle(
+            fogBuilder.vertex(v10, normal, null, uv10),
+            fogBuilder.vertex(v01, normal, null, uv01),
+            fogBuilder.vertex(v11, normal, null, uv11)
         );
     }
 }

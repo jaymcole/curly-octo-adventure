@@ -140,6 +140,18 @@ public class AllTilesMapModelBuilder extends MapModelBuilder {
     }
     
     @Override
+    public void buildLavaGeometry(ModelBuilder modelBuilder, Material lavaMaterial) {
+        // AllTiles strategy doesn't have lava surfaces - it just renders solid blocks
+        // No lava geometry to build
+    }
+    
+    @Override
+    public void buildFogGeometry(ModelBuilder modelBuilder, Material fogMaterial) {
+        // AllTiles strategy doesn't have fog surfaces - it just renders solid blocks
+        // No fog geometry to build
+    }
+    
+    @Override
     public String getStrategyDescription() {
         return String.format("All Tiles Strategy - renders all %d non-empty tiles (%d faces)", 
             getTotalTilesProcessed() - getEmptyTileCount(), getTotalFacesBuilt());

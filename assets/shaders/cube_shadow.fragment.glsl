@@ -6,6 +6,8 @@ precision mediump float;
 uniform vec3 u_ambientLight;
 uniform vec3 u_diffuseColor;
 uniform float u_diffuseAlpha;  // Add alpha support
+uniform sampler2D u_diffuseTexture;  // Diffuse texture
+uniform int u_hasTexture;  // Whether texture is present
 uniform float u_farPlane;
 
 // All lights (up to 8 lights total)
@@ -134,7 +136,13 @@ float sampleCubeShadowMap(vec3 lightDirection, int lightIndex) {
 
 void main() {
     vec3 normal = normalize(v_normal);
+    
+    // Sample texture if present, otherwise use diffuse color
     vec3 baseMaterial = u_diffuseColor;
+    if (u_hasTexture == 1) {
+        vec4 texColor = texture2D(u_diffuseTexture, v_texCoord);
+        baseMaterial = texColor.rgb * u_diffuseColor; // Modulate texture with diffuse color
+    }
     
     // Start with ambient lighting
     vec3 totalLighting = u_ambientLight;
