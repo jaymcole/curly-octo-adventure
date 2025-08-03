@@ -5,6 +5,7 @@ precision mediump float;
 // Material and environment
 uniform vec3 u_ambientLight;
 uniform vec3 u_diffuseColor;
+uniform float u_diffuseAlpha;  // Add alpha support
 uniform float u_farPlane;
 
 // All lights (up to 8 lights total)
@@ -166,5 +167,6 @@ void main() {
     
     vec3 finalColor = baseMaterial * totalLighting;
     
-    gl_FragColor = vec4(finalColor, 1.0);
+    // Use the material's alpha value for transparency
+    gl_FragColor = vec4(finalColor, u_diffuseAlpha);
 }

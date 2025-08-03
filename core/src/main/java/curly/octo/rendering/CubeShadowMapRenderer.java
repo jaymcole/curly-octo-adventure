@@ -321,18 +321,22 @@ public class CubeShadowMapRenderer implements Disposable {
                 if (nodePart.enabled) {
                     // Only set diffuse color for shadow shader, not depth shader
                     if (shader == shadowShader) {
-                        // Extract diffuse color from material
+                        // Extract diffuse color and alpha from material
                         Vector3 diffuseColor = new Vector3(0.7f, 0.7f, 0.7f); // Default gray
+                        float diffuseAlpha = 1.0f; // Default opaque
+                        
                         if (nodePart.material != null) {
                             com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute diffuseAttr = 
                                 (com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute) nodePart.material.get(com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.Diffuse);
                             if (diffuseAttr != null) {
                                 diffuseColor.set(diffuseAttr.color.r, diffuseAttr.color.g, diffuseAttr.color.b);
+                                diffuseAlpha = diffuseAttr.color.a; // Extract alpha from diffuse color
                             }
                         }
                         
-                        // Set diffuse color uniform
+                        // Set diffuse color and alpha uniforms
                         shader.setUniformf("u_diffuseColor", diffuseColor);
+                        shader.setUniformf("u_diffuseAlpha", diffuseAlpha);
                     }
                     
                     Mesh mesh = nodePart.meshPart.mesh;

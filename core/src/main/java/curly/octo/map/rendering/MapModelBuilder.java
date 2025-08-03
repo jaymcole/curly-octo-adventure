@@ -26,11 +26,19 @@ public abstract class MapModelBuilder {
      * @param grassMaterial Material for grass tiles
      * @param spawnMaterial Material for spawn markers
      * @param wallMaterial Material for wall tiles
+     * @param waterMaterial Material for water surfaces (can be null to skip water)
      */
     public abstract void buildGeometry(ModelBuilder modelBuilder, 
                                      Material stoneMaterial, Material dirtMaterial, 
                                      Material grassMaterial, Material spawnMaterial, 
-                                     Material wallMaterial);
+                                     Material wallMaterial, Material waterMaterial);
+    
+    /**
+     * Build only water surface geometry for transparent rendering.
+     * @param modelBuilder The LibGDX ModelBuilder to use
+     * @param waterMaterial Material for water surfaces
+     */
+    public abstract void buildWaterGeometry(ModelBuilder modelBuilder, Material waterMaterial);
     
     /**
      * Get the total number of faces/triangles added to the model.

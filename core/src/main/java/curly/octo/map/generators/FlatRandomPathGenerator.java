@@ -4,6 +4,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.CardinalDirection;
+import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.enums.MapTileMaterial;
 import curly.octo.map.hints.LightHint;
@@ -71,7 +72,9 @@ public class FlatRandomPathGenerator extends MapGenerator {
         for(int x = (int)(center.x - (roomWidth/2)); x < (int)(center.x + (roomWidth/2)); x++) {
             for(int z = (int)(center.z - (roomDepth/2)); z < (int)(center.z + (roomDepth/2)); z++) {
                 if (inBounds(x, (int)center.y, z)) {
+
                     map[x][(int)center.y][z].geometryType = MapTileGeometryType.FULL;
+                    map[x][(int)center.y + 1][z].fillType = MapTileFillType.WATER;
                     // Assign varied floor materials
                     float materialRoll = random.nextFloat();
                     if (materialRoll < 0.5f) {

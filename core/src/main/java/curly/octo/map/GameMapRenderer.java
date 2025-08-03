@@ -1,11 +1,13 @@
 package curly.octo.map;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.IntAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.FloatAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.PointLightsAttribute;
+import com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
@@ -27,6 +29,8 @@ public class GameMapRenderer implements Disposable {
     private final Array<ModelInstance> instances;
     private final Array<PointLight> mapLights; // Lights generated from LightHints
     private Model model;
+    private Model waterModel; // Separate model for transparent water
+    private ModelInstance waterInstance;
     private boolean disposed = false;
 
     // Configurable number of shadow-casting lights (performance vs quality tradeoff)
@@ -95,9 +99,14 @@ public class GameMapRenderer implements Disposable {
                 cubeShadowMapRenderer.generateCubeShadowMap(instances, light);
             }
 
-            // Render with shadows from significant lights and illumination from all lights
+            // Render opaque geometry with shadows
             Vector3 ambientLight = getAmbientLight(environment);
             cubeShadowMapRenderer.renderWithMultipleCubeShadows(instances, camera, significantLights, pointLights.lights, ambientLight);
+
+            // Render transparent water with shadows for proper lighting
+            if (waterInstance != null) {
+                renderWaterWithShadows(camera, significantLights, pointLights.lights, ambientLight);
+            }
         } else {
             Log.warn("GameMapRenderer", "No lights found for shadow casting");
         }
@@ -152,6 +161,27 @@ public class GameMapRenderer implements Disposable {
         return new Vector3(0.02f, 0.02f, 0.03f); // Default very low ambient
     }
 
+    private void renderWaterWithShadows(PerspectiveCamera camera, Array<PointLight> shadowLights, Array<PointLight> allLights, Vector3 ambientLight) {
+        if (waterInstance == null) return;
+
+        // Set up blending for transparency
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        Gdx.gl.glDepthMask(false); // Don't write to depth buffer for transparent objects
+
+        // Create water instances array for shadow rendering
+        Array<ModelInstance> waterInstances = new Array<>();
+        waterInstances.add(waterInstance);
+
+        // Use the shadow mapping system to render water with proper shadows
+        // This will make water dark in shadowed areas and lit in illuminated areas
+        cubeShadowMapRenderer.renderWithMultipleCubeShadows(waterInstances, camera, shadowLights, allLights, ambientLight);
+
+        // Restore depth mask
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
 
     public void updateMap(GameMap map) {
         Log.info("GameMapRenderer", "Starting optimized map update for " + map.getWidth() + "x" + map.getHeight() + "x" + map.getDepth() + " map");
@@ -164,16 +194,13 @@ public class GameMapRenderer implements Disposable {
         // Extract lights from map tiles with LightHints
         extractLightsFromMap(map);
 
-        // Use batched rendering approach - create fewer, larger mesh parts
-        ModelBuilder modelBuilder = new ModelBuilder();
-        modelBuilder.begin();
-
         // Create materials
         Material stoneMaterial = createMaterial(Color.GRAY, 0.2f, 8f);
         Material dirtMaterial = createMaterial(Color.BROWN, 0.1f, 4f);
         Material grassMaterial = createMaterial(Color.GREEN, 0.1f, 4f);
         Material pinkWall = createMaterial(Color.PINK, 0.1f, 4f);
         Material spawnMaterial = createMaterial(Color.LIME, 0.1f, 4f);
+        Material waterMaterial = createWaterMaterial();
 
         // Create the appropriate model builder based on strategy
         MapModelBuilder builder;
@@ -187,19 +214,29 @@ public class GameMapRenderer implements Disposable {
                 break;
         }
 
-        // Build geometry using the selected strategy
-        builder.buildGeometry(modelBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall);
+        // Build main opaque geometry (no water surfaces)
+        ModelBuilder opaqueBuilder = new ModelBuilder();
+        opaqueBuilder.begin();
+        builder.buildGeometry(opaqueBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null); // null waterMaterial = no water in main model
+        model = opaqueBuilder.end();
+
+        // Build separate water model for transparency
+        ModelBuilder waterBuilder = new ModelBuilder();
+        waterBuilder.begin();
+        builder.buildWaterGeometry(waterBuilder, waterMaterial);
+        waterModel = waterBuilder.end();
 
         // Update stats for debug UI
         lastFacesBuilt = builder.getTotalFacesBuilt();
         lastTilesProcessed = builder.getTotalTilesProcessed();
 
-        // Finalize the model
-        model = modelBuilder.end();
-
-        // Create a model instance for rendering
+        // Create model instances for rendering
         instances.clear();
         instances.add(new ModelInstance(model));
+
+        if (waterModel != null) {
+            waterInstance = new ModelInstance(waterModel);
+        }
 
         long endTime = System.currentTimeMillis();
         Log.info("GameMapRenderer", "Completed map update in " + (endTime - startTime) + "ms using " + builder.getStrategyDescription());
@@ -211,6 +248,20 @@ public class GameMapRenderer implements Disposable {
         material.set(new ColorAttribute(ColorAttribute.Specular, specular, specular, specular, 1f));
         material.set(new FloatAttribute(FloatAttribute.Shininess, shininess));
         material.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_BACK));
+        return material;
+    }
+
+    private Material createWaterMaterial() {
+        Material material = new Material();
+        // Blue water color - shadows will handle darkness
+        material.set(new ColorAttribute(ColorAttribute.Diffuse, 0.3f, 0.6f, 1.0f, 0.8f)); // Blue with 40% opacity
+        material.set(new ColorAttribute(ColorAttribute.Specular, 0.8f, 0.8f, 0.8f, 1f));   // High specular for shiny water
+        material.set(new FloatAttribute(FloatAttribute.Shininess, 32f));                  // Very shiny
+        material.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_NONE));              // No culling for transparency
+        // Enable blending for transparency with proper depth handling
+        BlendingAttribute blending = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.4f);
+        blending.blended = true; // Explicitly enable blending
+        material.set(blending);
         return material;
     }
 
@@ -339,6 +390,17 @@ public class GameMapRenderer implements Disposable {
             }
             model = null;
             instances.clear();
+        }
+
+        if (waterModel != null) {
+            try {
+                waterModel.dispose();
+                Log.info("GameMapRenderer", "Water model disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing water model: " + e.getMessage());
+            }
+            waterModel = null;
+            waterInstance = null;
         }
 
         disposed = true;

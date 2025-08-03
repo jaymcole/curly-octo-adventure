@@ -13,6 +13,7 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.enums.MapTileFillType;
 
 import java.util.*;
 
@@ -33,7 +34,8 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
     
     @Override
     public void buildGeometry(ModelBuilder modelBuilder, Material stoneMaterial, Material dirtMaterial, 
-                            Material grassMaterial, Material spawnMaterial, Material wallMaterial) {
+                            Material grassMaterial, Material spawnMaterial, Material wallMaterial,
+                            Material waterMaterial) {
         
         totalFacesBuilt = 0;
         totalTilesProcessed = 0;
@@ -49,7 +51,33 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
                 reachableTiles.size(), visibleTiles.size()));
         
         // Step 3: Build geometry using chunk-based approach, but only for visible faces
-        buildVisibleGeometry(modelBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, wallMaterial);
+        buildVisibleGeometry(modelBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, wallMaterial, waterMaterial);
+    }
+    
+    @Override
+    public void buildWaterGeometry(ModelBuilder modelBuilder, Material waterMaterial) {
+        // Create a single mesh part for all water surfaces
+        modelBuilder.node();
+        MeshPartBuilder waterBuilder = modelBuilder.part("water-transparent", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, waterMaterial);
+        
+        int waterSurfaceCount = 0;
+        
+        // Find all water surfaces and build them
+        for (int x = 0; x < gameMap.getWidth(); x++) {
+            for (int y = 0; y < gameMap.getHeight(); y++) {
+                for (int z = 0; z < gameMap.getDepth(); z++) {
+                    MapTile tile = gameMap.getTile(x, y, z);
+                    
+                    if (tile.fillType == MapTileFillType.WATER && isTopMostWaterTile(x, y, z)) {
+                        buildWaterSurface(waterBuilder, tile);
+                        waterSurfaceCount++;
+                    }
+                }
+            }
+        }
+        
+        Log.info("BFSVisibleMapModelBuilder", "Built " + waterSurfaceCount + " water surfaces for transparent rendering");
     }
     
     @Override
@@ -181,7 +209,8 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
     }
     
     private void buildVisibleGeometry(ModelBuilder modelBuilder, Material stoneMaterial, Material dirtMaterial, 
-                                    Material grassMaterial, Material spawnMaterial, Material wallMaterial) {
+                                    Material grassMaterial, Material spawnMaterial, Material wallMaterial,
+                                    Material waterMaterial) {
         
         // Use chunk-based rendering to avoid vertex limits
         final int RENDER_CHUNK_SIZE = 16;
@@ -221,6 +250,13 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
                     modelBuilder.node();
                     MeshPartBuilder wallBuilder = modelBuilder.part("wall-" + chunkId, GL20.GL_TRIANGLES,
                         VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, wallMaterial);
+
+                    MeshPartBuilder waterBuilder = null;
+                    if (waterMaterial != null) {
+                        modelBuilder.node();
+                        waterBuilder = modelBuilder.part("water-" + chunkId, GL20.GL_TRIANGLES,
+                            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, waterMaterial);
+                    }
 
                     int chunkTiles = 0;
 
@@ -280,6 +316,13 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
                                     totalFacesBuilt += visibleFaceCount * 2; // 2 triangles per face
                                     
                                     renderedTiles++;
+                                    chunkTiles++;
+                                }
+                                
+                                // Check for water surfaces (only if waterMaterial is provided)
+                                if (waterMaterial != null && tile.fillType == MapTileFillType.WATER && isTopMostWaterTile(x, y, z)) {
+                                    buildWaterSurface(waterBuilder, tile);
+                                    totalFacesBuilt += 2; // 2 triangles for water surface quad
                                     chunkTiles++;
                                 }
                             }
@@ -383,5 +426,53 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
                 break;
         }
         BoxShapeBuilder.build(meshPartBuilder, v000, v001, v010, v011, v100, v101, v110, v111);
+    }
+    
+    /**
+     * Check if this water tile is the topmost water tile in its column.
+     * This determines if we should render a water surface.
+     */
+    private boolean isTopMostWaterTile(int x, int y, int z) {
+        // Check if the tile above is not water (or is outside bounds)
+        if (y + 1 >= gameMap.getHeight()) {
+            return true; // Top of map, definitely topmost
+        }
+        
+        MapTile tileAbove = gameMap.getTile(x, y + 1, z);
+        return tileAbove.fillType != MapTileFillType.WATER;
+    }
+    
+    /**
+     * Build a water surface plane at half the height of a water tile.
+     */
+    private void buildWaterSurface(MeshPartBuilder waterBuilder, MapTile tile) {
+        float x = tile.x;
+        float y = tile.y + MapTile.TILE_SIZE / 2f; // Surface at half tile height
+        float z = tile.z;
+        float size = MapTile.TILE_SIZE;
+        
+        // Create a horizontal quad for the water surface
+        Vector3 v00 = new Vector3(x, y, z);           // Bottom-left
+        Vector3 v01 = new Vector3(x, y, z + size);    // Top-left  
+        Vector3 v10 = new Vector3(x + size, y, z);    // Bottom-right
+        Vector3 v11 = new Vector3(x + size, y, z + size); // Top-right
+        
+        // Normal pointing up for water surface
+        Vector3 normal = new Vector3(0, 1, 0);
+        
+        // Build two triangles to form a quad
+        // Triangle 1: v00, v01, v10
+        waterBuilder.triangle(
+            waterBuilder.vertex(v00, normal, null, null),
+            waterBuilder.vertex(v01, normal, null, null), 
+            waterBuilder.vertex(v10, normal, null, null)
+        );
+        
+        // Triangle 2: v10, v01, v11  
+        waterBuilder.triangle(
+            waterBuilder.vertex(v10, normal, null, null),
+            waterBuilder.vertex(v01, normal, null, null),
+            waterBuilder.vertex(v11, normal, null, null)
+        );
     }
 }

@@ -26,7 +26,8 @@ public class AllTilesMapModelBuilder extends MapModelBuilder {
     
     @Override
     public void buildGeometry(ModelBuilder modelBuilder, Material stoneMaterial, Material dirtMaterial, 
-                            Material grassMaterial, Material spawnMaterial, Material wallMaterial) {
+                            Material grassMaterial, Material spawnMaterial, Material wallMaterial, 
+                            Material waterMaterial) {
         
         totalFacesBuilt = 0;
         totalTilesProcessed = 0;
@@ -130,6 +131,12 @@ public class AllTilesMapModelBuilder extends MapModelBuilder {
         }
 
         Log.info("AllTilesMapModelBuilder", "Built " + renderedTiles + "/" + totalTilesProcessed + " tiles across " + chunkCount + " render chunks");
+    }
+    
+    @Override
+    public void buildWaterGeometry(ModelBuilder modelBuilder, Material waterMaterial) {
+        // AllTiles strategy doesn't have water surfaces - it just renders solid blocks
+        // No water geometry to build
     }
     
     @Override
