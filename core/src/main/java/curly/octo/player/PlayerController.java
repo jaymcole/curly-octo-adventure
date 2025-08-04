@@ -15,6 +15,8 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
+import curly.octo.map.MapTile;
+import curly.octo.map.enums.MapTileFillType;
 
 import java.util.Random;
 /**
@@ -49,6 +51,9 @@ public class PlayerController extends InputAdapter  {
     private transient PointLight playerLight;
 
     private transient final Random random;
+    
+    private MapTileFillType currentTileFillType = MapTileFillType.AIR;
+    private MapTile currentTile = null;
 
     public PlayerController() {
         random = new Random();
@@ -191,8 +196,53 @@ public class PlayerController extends InputAdapter  {
             }
         }
         updateCamera();
+        checkCameraLocation();
     }
 
+    private void checkCameraLocation() {
+        if (gameMap == null || camera == null) {
+            return;
+        }
+        
+        Vector3 cameraPos = camera.position;
+        MapTile tile = gameMap.getTileFromWorldCoordinates(cameraPos.x, cameraPos.y, cameraPos.z);
+        
+        if (tile != null) {
+            currentTile = tile;
+            MapTileFillType newFillType = tile.fillType;
+            
+            if (currentTileFillType != newFillType) {
+                currentTileFillType = newFillType;
+                onTileFillTypeChanged(newFillType);
+            }
+        } else {
+            if (currentTile != null || currentTileFillType != MapTileFillType.AIR) {
+                currentTile = null;
+                currentTileFillType = MapTileFillType.AIR;
+                onTileFillTypeChanged(MapTileFillType.AIR);
+            }
+        }
+    }
+    
+    private void onTileFillTypeChanged(MapTileFillType newType) {
+        switch (newType) {
+            case FOG:
+                Log.info("PlayerController", "Player " + playerId + " entered FOG tile");
+                break;
+            case WATER:
+                Log.info("PlayerController", "Player " + playerId + " entered WATER tile");
+                break;
+            case LAVA:
+                Log.info("PlayerController", "Player " + playerId + " entered LAVA tile");
+                break;
+            case AIR:
+                Log.info("PlayerController", "Player " + playerId + " entered AIR tile");
+                break;
+            default:
+                Log.info("PlayerController", "Player " + playerId + " entered " + newType + " tile");
+                break;
+        }
+    }
 
     private void updateCamera() {
         // Update camera position and direction
@@ -322,5 +372,25 @@ public class PlayerController extends InputAdapter  {
 
     public void setTimeToFlicker(float timeToFlicker) {
         this.timeToFlicker = timeToFlicker;
+    }
+    
+    public MapTileFillType getCurrentTileFillType() {
+        return currentTileFillType;
+    }
+    
+    public MapTile getCurrentTile() {
+        return currentTile;
+    }
+    
+    public boolean isInFog() {
+        return currentTileFillType == MapTileFillType.FOG;
+    }
+    
+    public boolean isInWater() {
+        return currentTileFillType == MapTileFillType.WATER;
+    }
+    
+    public boolean isInLava() {
+        return currentTileFillType == MapTileFillType.LAVA;
     }
 }

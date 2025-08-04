@@ -131,30 +131,22 @@ public class GameMapRenderer implements Disposable {
     }
 
     public void render(PerspectiveCamera camera, Environment environment, FrameBuffer targetFrameBuffer) {
-        Log.info("GameMapRenderer", "render() called - checking for lights");
 
         // Get all point lights in the environment
         PointLightsAttribute pointLights = environment.get(PointLightsAttribute.class, PointLightsAttribute.Type);
 
         // Always update light counts for debug UI (even if no lights)
         if (pointLights == null) {
-            Log.warn("GameMapRenderer", "pointLights is null, skipping shadow rendering");
             lastTotalLights = 0;
             lastShadowLights = 0;
             return;
         }
 
         if (pointLights.lights.size == 0) {
-            Log.warn("GameMapRenderer", "pointLights.lights.size is 0, skipping shadow rendering");
             lastTotalLights = 0;
             lastShadowLights = 0;
             return;
         }
-
-        Log.info("GameMapRenderer", "Found " + pointLights.lights.size + " lights, proceeding with rendering");
-
-        // Check if we have the expected instances to render
-        Log.info("GameMapRenderer", "Number of model instances to render: " + instances.size);
 
         // Generate shadow maps for the N most significant lights (brightest overall)
         Array<PointLight> significantLights = getMostSignificantLights(pointLights, maxShadowCastingLights);
@@ -164,7 +156,6 @@ public class GameMapRenderer implements Disposable {
         lastShadowLights = significantLights.size;
 
         if (significantLights.size > 0) {
-            Log.info("GameMapRenderer", "Rendering " + significantLights.size + " significant lights with " + instances.size + " instances");
 
             // Reset light index for new frame
             cubeShadowMapRenderer.resetLightIndex();
@@ -177,15 +168,12 @@ public class GameMapRenderer implements Disposable {
             // CRITICAL: Restore the target framebuffer after shadow map generation
             // Shadow map generation changes framebuffer binding to screen (0)
             if (targetFrameBuffer != null) {
-                Log.info("GameMapRenderer", "Restoring target framebuffer after shadow generation");
                 targetFrameBuffer.begin();
             }
 
             // Render opaque geometry with shadows
             Vector3 ambientLight = getAmbientLight(environment);
-            Log.info("GameMapRenderer", "About to call renderWithMultipleCubeShadows");
             cubeShadowMapRenderer.renderWithMultipleCubeShadows(instances, camera, significantLights, pointLights.lights, ambientLight);
-            Log.info("GameMapRenderer", "Finished renderWithMultipleCubeShadows");
 
             // Render transparent surfaces with custom shaders
             if (waterInstance != null) {
@@ -226,7 +214,7 @@ public class GameMapRenderer implements Disposable {
     public FrameBuffer getBloomFrameBuffer() {
         return (bloomRenderer != null) ? bloomRenderer.getSceneFrameBuffer() : null;
     }
-    
+
     /**
      * Resize the renderer when the window size changes.
      */

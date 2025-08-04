@@ -165,19 +165,19 @@ public class BloomRenderer implements Disposable {
         storeGLState();
 
         sceneFrameBuffer.begin();
-        
+
         // CRITICAL: Set viewport to match framebuffer size
-        // This ensures 3D rendering uses the correct coordinate system  
+        // This ensures 3D rendering uses the correct coordinate system
         Gdx.gl.glViewport(0, 0, width, height);
-        
+
         // Ensure depth testing is properly configured for framebuffer rendering
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
         Gdx.gl.glDepthFunc(GL20.GL_LESS);
         Gdx.gl.glDepthMask(true);
-        
+
         // Disable multisampling if it was enabled - framebuffers don't support it the same way
         Gdx.gl.glDisable(GL20.GL_SAMPLE_COVERAGE);
-        
+
         // Enable polygon offset fill to help with Z-fighting in framebuffer
         // Using moderate values to eliminate gaps without visual artifacts
         Gdx.gl.glEnable(GL20.GL_POLYGON_OFFSET_FILL);
@@ -187,8 +187,6 @@ public class BloomRenderer implements Disposable {
         Gdx.gl.glClearColor(0.1f, 0.1f, 0.2f, 1.0f); // Dark blue sky color
         Gdx.gl.glClearDepthf(1.0f); // Ensure depth buffer is cleared to far plane
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
-
-        Log.info("BloomRenderer", "Scene framebuffer ready for 3D rendering");
     }
 
     /**
@@ -479,7 +477,7 @@ public class BloomRenderer implements Disposable {
 
         // Store cull face state
         cullFaceEnabled = Gdx.gl.glIsEnabled(GL20.GL_CULL_FACE);
-        
+
         // Store polygon offset state
         polygonOffsetEnabled = Gdx.gl.glIsEnabled(GL20.GL_POLYGON_OFFSET_FILL);
 
@@ -515,7 +513,7 @@ public class BloomRenderer implements Disposable {
         } else {
             Gdx.gl.glDisable(GL20.GL_BLEND);
         }
-        
+
         // Restore polygon offset state
         if (polygonOffsetEnabled) {
             Gdx.gl.glEnable(GL20.GL_POLYGON_OFFSET_FILL);
