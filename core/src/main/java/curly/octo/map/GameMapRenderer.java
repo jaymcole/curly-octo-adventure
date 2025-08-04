@@ -254,6 +254,15 @@ public class GameMapRenderer implements Disposable {
     }
 
     /**
+     * Apply post-processing effects to the current screen content (after bloom).
+     */
+    public void applyPostProcessingToScreen() {
+        if (postProcessingRenderer != null) {
+            postProcessingRenderer.captureScreenAndApplyEffects();
+        }
+    }
+
+    /**
      * Resize the renderer when the window size changes.
      */
     public void resize(int width, int height) {

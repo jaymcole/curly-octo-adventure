@@ -137,6 +137,20 @@ public class PostProcessingRenderer implements Disposable {
         applyPostProcessingEffect();
     }
     
+    public void captureScreenAndApplyEffects() {
+        if (disposed) return;
+        
+        Log.info("PostProcessingRenderer", "Capturing screen and applying " + currentEffect + " effect");
+        
+        // LibGDX approach: Use glCopyTexImage2D to copy screen to texture
+        sceneFrameBuffer.getColorBufferTexture().bind();
+        Gdx.gl.glCopyTexImage2D(GL20.GL_TEXTURE_2D, 0, GL20.GL_RGBA, 0, 0, width, height, 0);
+        
+        // Now apply post-processing effect to the captured screen
+        applyPostProcessingEffect();
+    }
+    
+    
     private void applyPostProcessingEffect() {
         // Save OpenGL state
         boolean depthTestEnabled = Gdx.gl.glIsEnabled(GL20.GL_DEPTH_TEST);

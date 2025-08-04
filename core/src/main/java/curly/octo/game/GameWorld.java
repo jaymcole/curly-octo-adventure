@@ -11,6 +11,7 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.GameMapRenderer;
 import curly.octo.map.MapTile;
+import curly.octo.map.enums.MapTileFillType;
 import curly.octo.player.PlayerController;
 
 import java.util.ArrayList;
@@ -195,11 +196,11 @@ public class GameWorld {
                 mapRenderer.setPostProcessingEffect(localPlayerController.getCurrentTileFillType());
             }
             
-            // Begin post-processing rendering (captures scene to framebuffer)
-            mapRenderer.beginPostProcessingRender();
+            // Step 1: Render scene with bloom effects first
+            mapRenderer.beginBloomRender();
             
-            // Render the map to post-processing framebuffer
-            mapRenderer.render(camera, environment, mapRenderer.getPostProcessingFrameBuffer());
+            // Render the map with bloom framebuffer
+            mapRenderer.render(camera, environment, mapRenderer.getBloomFrameBuffer());
             
             // Render all other players
             if (players != null && localPlayerController != null) {
@@ -215,8 +216,17 @@ public class GameWorld {
                 mapManager.renderPhysicsDebug(camera);
             }
             
-            // End post-processing render (applies underwater/lava/fog effects to screen)
-            mapRenderer.endPostProcessingRender();
+            // End bloom render (this renders bloom result to screen)
+            mapRenderer.endBloomRender();
+            
+            // Step 2: Apply post-processing effects to the bloom result
+            // Only apply post-processing if we have an effect to apply
+            if (localPlayerController != null && 
+                localPlayerController.getCurrentTileFillType() != MapTileFillType.AIR) {
+                
+                // Apply post-processing overlay to the current screen (with bloom)
+                mapRenderer.applyPostProcessingToScreen();
+            }
         }
     }
 
