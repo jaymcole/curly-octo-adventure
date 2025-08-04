@@ -24,11 +24,13 @@ import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.MapHint;
+import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.rendering.AllTilesMapModelBuilder;
 import curly.octo.map.rendering.BFSVisibleMapModelBuilder;
 import curly.octo.map.rendering.MapModelBuilder;
 import curly.octo.rendering.CubeShadowMapRenderer;
 import curly.octo.rendering.BloomRenderer;
+import curly.octo.rendering.PostProcessingRenderer;
 
 /**
  * Handles rendering of the VoxelMap in 3D space with shadow mapping.
@@ -36,6 +38,7 @@ import curly.octo.rendering.BloomRenderer;
 public class GameMapRenderer implements Disposable {
     private final CubeShadowMapRenderer cubeShadowMapRenderer;
     private final BloomRenderer bloomRenderer;
+    private final PostProcessingRenderer postProcessingRenderer;
     private final Array<ModelInstance> instances;
     private final Array<PointLight> mapLights; // Lights generated from LightHints
     private Model model;
@@ -73,6 +76,7 @@ public class GameMapRenderer implements Disposable {
     public GameMapRenderer() {
         cubeShadowMapRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH, maxShadowCastingLights);
         bloomRenderer = new BloomRenderer(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        postProcessingRenderer = new PostProcessingRenderer(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         instances = new Array<>();
         mapLights = new Array<>();
 
@@ -216,11 +220,48 @@ public class GameMapRenderer implements Disposable {
     }
 
     /**
+     * Begin post-processing rendering - should be called before rendering the 3D scene.
+     */
+    public void beginPostProcessingRender() {
+        if (postProcessingRenderer != null) {
+            postProcessingRenderer.beginSceneRender();
+        }
+    }
+
+    /**
+     * End post-processing rendering and apply effects - should be called after all 3D rendering is done.
+     */
+    public void endPostProcessingRender() {
+        if (postProcessingRenderer != null) {
+            postProcessingRenderer.endSceneRenderAndApplyEffects();
+        }
+    }
+
+    /**
+     * Set the current post-processing effect based on the player's tile location.
+     */
+    public void setPostProcessingEffect(MapTileFillType effect) {
+        if (postProcessingRenderer != null) {
+            postProcessingRenderer.setCurrentEffect(effect);
+        }
+    }
+
+    /**
+     * Get the post-processing framebuffer for external systems that need to restore it.
+     */
+    public FrameBuffer getPostProcessingFrameBuffer() {
+        return (postProcessingRenderer != null) ? postProcessingRenderer.getSceneFrameBuffer() : null;
+    }
+
+    /**
      * Resize the renderer when the window size changes.
      */
     public void resize(int width, int height) {
         if (bloomRenderer != null) {
             bloomRenderer.resize(width, height);
+        }
+        if (postProcessingRenderer != null) {
+            postProcessingRenderer.resize(width, height);
         }
         // Note: CubeShadowMapRenderer uses fixed-size shadow maps, no resize needed
         Log.info("GameMapRenderer", "Resized to " + width + "x" + height);
@@ -665,6 +706,15 @@ public class GameMapRenderer implements Disposable {
                 Log.info("GameMapRenderer", "Bloom renderer disposed");
             } catch (Exception e) {
                 Log.error("GameMapRenderer", "Error disposing bloom renderer: " + e.getMessage());
+            }
+        }
+
+        if (postProcessingRenderer != null && !disposed) {
+            try {
+                postProcessingRenderer.dispose();
+                Log.info("GameMapRenderer", "Post-processing renderer disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing post-processing renderer: " + e.getMessage());
             }
         }
 

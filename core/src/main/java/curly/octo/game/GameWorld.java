@@ -190,11 +190,16 @@ public class GameWorld {
 
     public void render(ModelBatch modelBatch, PerspectiveCamera camera) {
         if (mapRenderer != null && camera != null) {
-            // DEBUG: Test basic framebuffer capture and passthrough display
-            mapRenderer.beginBloomRender();
+            // Set post-processing effect based on local player's current tile
+            if (localPlayerController != null) {
+                mapRenderer.setPostProcessingEffect(localPlayerController.getCurrentTileFillType());
+            }
             
-            // Render the map with bloom framebuffer restoration
-            mapRenderer.render(camera, environment, mapRenderer.getBloomFrameBuffer());
+            // Begin post-processing rendering (captures scene to framebuffer)
+            mapRenderer.beginPostProcessingRender();
+            
+            // Render the map to post-processing framebuffer
+            mapRenderer.render(camera, environment, mapRenderer.getPostProcessingFrameBuffer());
             
             // Render all other players
             if (players != null && localPlayerController != null) {
@@ -210,8 +215,8 @@ public class GameWorld {
                 mapManager.renderPhysicsDebug(camera);
             }
             
-            // DEBUG: Test passthrough render (should show scene if working)
-            mapRenderer.endBloomRender();
+            // End post-processing render (applies underwater/lava/fog effects to screen)
+            mapRenderer.endPostProcessingRender();
         }
     }
 
