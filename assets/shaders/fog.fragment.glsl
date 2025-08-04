@@ -49,29 +49,46 @@ float fractalNoise(vec2 p) {
 void main() {
     vec3 normal = normalize(v_normal);
     
-    // Create drifting fog patterns
-    vec2 driftCoord1 = v_texCoord * 2.0 + vec2(u_time * 0.05, u_time * 0.03);
-    vec2 driftCoord2 = v_texCoord * 4.0 + vec2(u_time * -0.02, u_time * 0.08);
-    vec2 driftCoord3 = v_texCoord * 8.0 + vec2(u_time * 0.01, u_time * -0.04);
+    // Create rolling fog with much more obvious movement
+    vec2 rollCoord1 = v_texCoord * 1.5 + vec2(u_time * 0.3, u_time * 0.2);   // Large rolling patterns
+    vec2 rollCoord2 = v_texCoord * 3.2 + vec2(u_time * -0.25, u_time * 0.4); // Medium swirls  
+    vec2 rollCoord3 = v_texCoord * 6.7 + vec2(u_time * 0.15, u_time * -0.3); // Fine detail
     
-    float drift1 = fractalNoise(driftCoord1);
-    float drift2 = smoothNoise(driftCoord2);
-    float drift3 = smoothNoise(driftCoord3);
+    float roll1 = fractalNoise(rollCoord1);
+    float roll2 = fractalNoise(rollCoord2);
+    float roll3 = smoothNoise(rollCoord3);
     
-    // Combine drifts for volumetric fog density
-    float fogDensity = (drift1 * 0.5 + drift2 * 0.3 + drift3 * 0.2);
+    // Create flowing, rolling motion by warping coordinates with faster movement
+    vec2 warp = vec2(
+        sin(v_texCoord.x * 6.28 + u_time * 1.2 + roll1 * 3.14) * 0.15,
+        cos(v_texCoord.y * 4.71 + u_time * 1.6 + roll2 * 2.35) * 0.12
+    );
     
-    // Add wispy variations
-    float wisp = sin(u_time * 0.5 + fogDensity * 3.14) * 0.1 + 0.9;
-    fogDensity *= wisp;
+    float warpedFog = fractalNoise(v_texCoord * 2.8 + warp + vec2(u_time * 0.35, u_time * -0.28));
     
-    // Base fog color (light gray/white)
-    vec3 fogColor = vec3(0.8, 0.85, 0.9);
+    // Combine all layers for complex rolling fog density
+    float fogBase = roll1 * 0.4 + roll2 * 0.35 + roll3 * 0.15 + warpedFog * 0.1;
+    
+    // Create clear gaps by applying threshold with smooth falloff
+    float gapThreshold = 0.35;
+    float gapSoftness = 0.25;
+    float fogDensity = smoothstep(gapThreshold - gapSoftness, gapThreshold + gapSoftness, fogBase);
+    
+    // Add rolling waves that create moving gaps with much faster movement
+    float wave1 = sin(v_texCoord.x * 8.0 + u_time * 2.5) * 0.5 + 0.5;
+    float wave2 = cos(v_texCoord.y * 6.0 + u_time * 3.2) * 0.5 + 0.5;
+    float wavePattern = (wave1 * 0.6 + wave2 * 0.4);
+    
+    // Modulate fog density with wave pattern to create moving clear areas
+    fogDensity *= (0.3 + wavePattern * 0.7);
+    
+    // Highly reflective fog color - lighter and more responsive to lighting
+    vec3 fogColor = vec3(0.9, 0.92, 0.95);
     
     // Start with ambient lighting
-    vec3 totalLighting = u_ambientLight;
+    vec3 totalLighting = u_ambientLight * 1.2; // Slightly brighter ambient for fog
     
-    // Calculate lighting from all lights (fog scatters light)
+    // Calculate lighting from all lights (fog scatters light volumetrically with high reflectivity)
     for (int i = 0; i < 8; i++) {
         if (i >= u_numLights) break;
         
@@ -81,19 +98,35 @@ void main() {
         
         vec3 lightDirection = v_worldPos - lightPos;
         float distance = length(lightDirection);
-        float attenuation = lightIntensity / (1.0 + 0.05 * distance + 0.016 * distance * distance);
+        float attenuation = lightIntensity / (1.0 + 0.02 * distance + 0.005 * distance * distance);
         
-        // Fog scatters light more uniformly
-        float scattering = max(0.3, dot(normal, normalize(-lightDirection)));
-        vec3 lightContribution = scattering * lightColor * attenuation * 0.7; // Reduced intensity for fog
+        // Enhanced volumetric scattering - fog becomes very reflective and bright
+        vec3 lightVec = normalize(-lightDirection);
+        
+        // Forward scattering (light coming towards viewer through fog)
+        float forwardScatter = max(0.0, dot(normal, lightVec));
+        
+        // Back scattering (light hitting fog from behind)
+        float backScatter = max(0.0, -dot(normal, lightVec));
+        
+        // Side scattering (light hitting fog from sides)
+        float sideScatter = 1.0 - abs(dot(normal, lightVec));
+        
+        // Combine all scattering types with high intensity multipliers
+        float totalScatter = forwardScatter * 2.5 + backScatter * 1.8 + sideScatter * 1.2;
+        
+        // Extra boost for fog visibility - make it very reflective
+        vec3 lightContribution = totalScatter * lightColor * attenuation * 1.8;
         
         totalLighting += lightContribution;
     }
     
     vec3 finalColor = fogColor * totalLighting;
     
-    // Fog transparency varies with density and distance
-    float alpha = 0.15 + fogDensity * 0.2;
+    // Make fog fairly opaque with clear gaps - perfect for hiding traps
+    float baseOpacity = 0.4;  // Base opacity for atmospheric effect
+    float maxOpacity = 0.85;  // Maximum opacity in dense areas
+    float alpha = baseOpacity + fogDensity * (maxOpacity - baseOpacity);
     
     gl_FragColor = vec4(finalColor, alpha);
 }

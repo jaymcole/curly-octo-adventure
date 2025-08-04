@@ -61,25 +61,37 @@ float calculateBloom(vec2 uv, float intensity, float radius) {
 }
 
 void main() {
-    // Create flowing lava pattern
-    vec2 flowCoord1 = v_texCoord * 3.0 + vec2(u_time * 0.2, u_time * 0.1);
-    vec2 flowCoord2 = v_texCoord * 6.0 + vec2(u_time * -0.15, u_time * 0.25);
+    // Create seamless flowing lava pattern using only texture coordinates and time
+    // Multiple scales and flow directions for natural variation
+    vec2 flowCoord1 = v_texCoord * 2.8 + vec2(u_time * 0.18, u_time * 0.12);
+    vec2 flowCoord2 = v_texCoord * 5.3 + vec2(u_time * -0.13, u_time * 0.27);
+    vec2 flowCoord3 = v_texCoord * 8.7 + vec2(u_time * 0.08, u_time * -0.19);
     
+    // Create multiple noise layers for complexity
     float flow1 = fractalNoise(flowCoord1);
     float flow2 = smoothNoise(flowCoord2);
+    float flow3 = smoothNoise(flowCoord3);
     
-    // Combine flows for lava cracks and streams
-    float lavaPattern = flow1 * 0.7 + flow2 * 0.3;
+    // Create swirling motion by distorting coordinates
+    vec2 swirl = vec2(
+        sin(v_texCoord.x * 12.56 + u_time * 0.8) * 0.05,
+        cos(v_texCoord.y * 12.56 + u_time * 1.2) * 0.05
+    );
     
-    // Create hot spots that pulse more intensely
-    float hotSpot = sin(u_time * 2.0 + lavaPattern * 6.28) * 0.5 + 0.5;
-    float superHot = sin(u_time * 3.5 + lavaPattern * 12.56) * 0.3 + 0.7;
+    float swirlNoise = smoothNoise(v_texCoord * 4.2 + swirl + vec2(u_time * 0.15, u_time * -0.1));
     
-    // Enhanced lava color gradient with very bright peaks
-    vec3 darkLava = vec3(0.5, 0.1, 0.0);
-    vec3 hotLava = vec3(1.5, 0.8, 0.2);
-    vec3 brightLava = vec3(2.2, 1.6, 0.6);
-    vec3 whiteLava = vec3(3.5, 2.8, 1.5); // Very bright for glow effect
+    // Combine all flows for complex lava pattern
+    float lavaPattern = flow1 * 0.5 + flow2 * 0.3 + flow3 * 0.15 + swirlNoise * 0.05;
+    
+    // Create hot spots that pulse with different frequencies
+    float hotSpot = sin(u_time * 2.1 + lavaPattern * 6.28) * 0.5 + 0.5;
+    float superHot = sin(u_time * 3.7 + lavaPattern * 12.56 + v_texCoord.x * 3.14) * 0.3 + 0.7;
+    
+    // Toned down lava color gradient
+    vec3 darkLava = vec3(0.3, 0.05, 0.0);
+    vec3 hotLava = vec3(0.8, 0.3, 0.05);
+    vec3 brightLava = vec3(1.0, 0.5, 0.1);
+    vec3 whiteLava = vec3(1.2, 0.7, 0.2); // Much more reasonable brightness
     
     // Mix colors based on pattern and hot spots
     float intensity = lavaPattern * 0.7 + hotSpot * 0.3;
@@ -92,21 +104,21 @@ void main() {
         lavaColor = mix(brightLava, whiteLava, (intensity - 0.7) * 3.33);
     }
     
-    // Enhanced emissive glow with more dramatic effect
-    float emissive = 1.0 + hotSpot * 1.5 + superHot * 1.0;
+    // Toned down emissive glow
+    float emissive = 0.8 + hotSpot * 0.4 + superHot * 0.3;
     lavaColor *= emissive;
     
     // Simple bloom effect using shader-based expansion
     float bloomIntensity = smoothstep(0.6, 1.0, intensity) * superHot;
     float bloom = calculateBloom(v_texCoord, bloomIntensity, 0.03);
     
-    // Add bloom as additive glow
-    vec3 bloomColor = vec3(1.2, 0.6, 0.2) * bloom * 0.4;
+    // Increased bloom effect for better visibility
+    vec3 bloomColor = vec3(0.8, 0.4, 0.15) * bloom * 0.5;
     lavaColor += bloomColor;
     
-    // Create rim lighting effect for additional glow
+    // Subtle rim lighting effect
     float rimEffect = pow(1.0 - abs(dot(normalize(v_normal), vec3(0.0, 1.0, 0.0))), 1.5);
-    vec3 rimGlow = vec3(1.5, 0.7, 0.2) * rimEffect * intensity * 0.3;
+    vec3 rimGlow = vec3(0.4, 0.2, 0.05) * rimEffect * intensity * 0.15;
     lavaColor += rimGlow;
     
     gl_FragColor = vec4(lavaColor, 0.95);
