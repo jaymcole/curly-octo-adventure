@@ -79,9 +79,8 @@ public class ServerGameMode implements GameMode {
 
     @Override
     public void resize(int width, int height) {
-        PlayerController localPlayer = gameWorld.getLocalPlayerController();
-        if (localPlayer != null) {
-            localPlayer.resize(width, height);
+        if (gameWorld != null) {
+            gameWorld.resize(width, height);
         }
     }
 

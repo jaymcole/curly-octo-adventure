@@ -190,21 +190,28 @@ public class GameWorld {
 
     public void render(ModelBatch modelBatch, PerspectiveCamera camera) {
         if (mapRenderer != null && camera != null) {
-            mapRenderer.render(camera, environment);
-        }
-
-        // Render all other players
-        if (players != null && localPlayerController != null) {
-            for (PlayerController player : players) {
-                if (player.getPlayerId() != localPlayerController.getPlayerId()) {
-                    player.render(modelBatch, environment, localPlayerController.getCamera());
+            // DEBUG: Test basic framebuffer capture and passthrough display
+            mapRenderer.beginBloomRender();
+            
+            // Render the map with bloom framebuffer restoration
+            mapRenderer.render(camera, environment, mapRenderer.getBloomFrameBuffer());
+            
+            // Render all other players
+            if (players != null && localPlayerController != null) {
+                for (PlayerController player : players) {
+                    if (player.getPlayerId() != localPlayerController.getPlayerId()) {
+                        player.render(modelBatch, environment, localPlayerController.getCamera());
+                    }
                 }
             }
-        }
 
-        // Render physics debug information if enabled
-        if (mapManager != null) {
-            mapManager.renderPhysicsDebug(camera);
+            // Render physics debug information if enabled
+            if (mapManager != null) {
+                mapManager.renderPhysicsDebug(camera);
+            }
+            
+            // DEBUG: Test passthrough render (should show scene if working)
+            mapRenderer.endBloomRender();
         }
     }
 
@@ -224,6 +231,18 @@ public class GameWorld {
     public PlayerController getLocalPlayerController() { return localPlayerController; }
     public long getLocalPlayerId() { return localPlayerId; }
     public Random getRandom() { return random; }
+    
+    /**
+     * Handle window resize for all rendering components.
+     */
+    public void resize(int width, int height) {
+        if (mapRenderer != null) {
+            mapRenderer.resize(width, height);
+        }
+        if (localPlayerController != null) {
+            localPlayerController.resize(width, height);
+        }
+    }
 
     // Setters
     public void setLocalPlayerId(long localPlayerId) {

@@ -407,31 +407,23 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
     }
     
     private void buildTileGeometry(MeshPartBuilder builder, MapTile tile) {
-        // For simplicity, still building full boxes but counting only visible faces
-        // Could be optimized to build only visible faces using custom geometry building
+        // Build only the faces that are exposed to empty tiles to eliminate z-fighting
+        boolean[] faces = visibleFaces.get(tile);
+        if (faces == null) {
+            return; // No visible faces, skip this tile
+        }
+        
         switch(tile.geometryType) {
             case HALF:
-                BoxShapeBuilder.build(
-                    builder,
-                    tile.x + MapTile.TILE_SIZE / 2f,
-                    tile.y + MapTile.TILE_SIZE / 4f,
-                    tile.z + MapTile.TILE_SIZE / 2f,
-                    MapTile.TILE_SIZE, MapTile.TILE_SIZE / 2, MapTile.TILE_SIZE
-                );
+                buildCulledHalfTile(builder, tile, faces);
                 break;
             case SLAT:
             case HALF_SLANT:
             case TALL_HALF_SLANT:
-                buildSlant(builder, tile);
+                buildSlant(builder, tile); // Keep existing slant logic for now
                 break;
             default:
-                BoxShapeBuilder.build(
-                    builder,
-                    tile.x + MapTile.TILE_SIZE / 2f,
-                    tile.y + MapTile.TILE_SIZE / 2f,
-                    tile.z + MapTile.TILE_SIZE / 2f,
-                    MapTile.TILE_SIZE, MapTile.TILE_SIZE, MapTile.TILE_SIZE
-                );
+                buildCulledFullTile(builder, tile, faces);
                 break;
         }
     }
@@ -479,6 +471,99 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
                 break;
         }
         BoxShapeBuilder.build(meshPartBuilder, v000, v001, v010, v011, v100, v101, v110, v111);
+    }
+    
+    /**
+     * Build a full tile with face culling to eliminate z-fighting
+     */
+    private void buildCulledFullTile(MeshPartBuilder builder, MapTile tile, boolean[] visibleFaces) {
+        float x = tile.x;
+        float y = tile.y;
+        float z = tile.z;
+        float size = MapTile.TILE_SIZE;
+        
+        // Define vertices for the cube
+        Vector3[] vertices = {
+            new Vector3(x, y, z),           // 0: min x, min y, min z
+            new Vector3(x + size, y, z),    // 1: max x, min y, min z
+            new Vector3(x, y + size, z),    // 2: min x, max y, min z
+            new Vector3(x + size, y + size, z), // 3: max x, max y, min z
+            new Vector3(x, y, z + size),    // 4: min x, min y, max z
+            new Vector3(x + size, y, z + size), // 5: max x, min y, max z
+            new Vector3(x, y + size, z + size), // 6: min x, max y, max z
+            new Vector3(x + size, y + size, z + size) // 7: max x, max y, max z
+        };
+        
+        // Build only visible faces with correct vertex ordering for outward-facing normals
+        // Face indices: -X=0, +X=1, -Y=2, +Y=3, -Z=4, +Z=5
+        if (visibleFaces[0]) buildFace(builder, vertices[0], vertices[4], vertices[6], vertices[2]); // -X face  
+        if (visibleFaces[1]) buildFace(builder, vertices[5], vertices[1], vertices[3], vertices[7]); // +X face
+        if (visibleFaces[2]) buildFace(builder, vertices[4], vertices[0], vertices[1], vertices[5]); // -Y face
+        if (visibleFaces[3]) buildFace(builder, vertices[2], vertices[6], vertices[7], vertices[3]); // +Y face
+        if (visibleFaces[4]) buildFace(builder, vertices[1], vertices[0], vertices[2], vertices[3]); // -Z face
+        if (visibleFaces[5]) buildFace(builder, vertices[4], vertices[5], vertices[7], vertices[6]); // +Z face
+    }
+    
+    /**
+     * Build a half-height tile with face culling
+     */
+    private void buildCulledHalfTile(MeshPartBuilder builder, MapTile tile, boolean[] visibleFaces) {
+        float x = tile.x;
+        float y = tile.y;
+        float z = tile.z;
+        float size = MapTile.TILE_SIZE;
+        float halfHeight = size / 2f;
+        
+        // Define vertices for the half-height cube
+        Vector3[] vertices = {
+            new Vector3(x, y, z),           // 0: min x, min y, min z
+            new Vector3(x + size, y, z),    // 1: max x, min y, min z
+            new Vector3(x, y + halfHeight, z), // 2: min x, max y, min z
+            new Vector3(x + size, y + halfHeight, z), // 3: max x, max y, min z
+            new Vector3(x, y, z + size),    // 4: min x, min y, max z
+            new Vector3(x + size, y, z + size), // 5: max x, min y, max z
+            new Vector3(x, y + halfHeight, z + size), // 6: min x, max y, max z
+            new Vector3(x + size, y + halfHeight, z + size) // 7: max x, max y, max z
+        };
+        
+        // Build only visible faces with correct vertex ordering for outward-facing normals
+        if (visibleFaces[0]) buildFace(builder, vertices[0], vertices[4], vertices[6], vertices[2]); // -X face
+        if (visibleFaces[1]) buildFace(builder, vertices[5], vertices[1], vertices[3], vertices[7]); // +X face
+        if (visibleFaces[2]) buildFace(builder, vertices[4], vertices[0], vertices[1], vertices[5]); // -Y face
+        if (visibleFaces[3]) buildFace(builder, vertices[2], vertices[6], vertices[7], vertices[3]); // +Y face
+        if (visibleFaces[4]) buildFace(builder, vertices[1], vertices[0], vertices[2], vertices[3]); // -Z face
+        if (visibleFaces[5]) buildFace(builder, vertices[4], vertices[5], vertices[7], vertices[6]); // +Z face
+    }
+    
+    /**
+     * Build a single face as two triangles with proper normals and texture coordinates
+     */
+    private void buildFace(MeshPartBuilder builder, Vector3 v0, Vector3 v1, Vector3 v2, Vector3 v3) {
+        // Calculate normal by cross product (ensure consistent winding order)
+        Vector3 edge1 = new Vector3(v1).sub(v0);
+        Vector3 edge2 = new Vector3(v3).sub(v0); // Use v3 instead of v2 for proper quad normal
+        Vector3 normal = new Vector3(edge1).crs(edge2).nor();
+        
+        // Define texture coordinates
+        Vector2 uv0 = new Vector2(0, 0);
+        Vector2 uv1 = new Vector2(1, 0);
+        Vector2 uv2 = new Vector2(1, 1);
+        Vector2 uv3 = new Vector2(0, 1);
+        
+        // Build two triangles to form the quad with consistent winding
+        // Triangle 1: v0, v1, v2 (counter-clockwise when viewed from outside)
+        builder.triangle(
+            builder.vertex(v0, normal, null, uv0),
+            builder.vertex(v1, normal, null, uv1),
+            builder.vertex(v2, normal, null, uv2)
+        );
+        
+        // Triangle 2: v0, v2, v3 (counter-clockwise when viewed from outside)
+        builder.triangle(
+            builder.vertex(v0, normal, null, uv0),
+            builder.vertex(v2, normal, null, uv2),
+            builder.vertex(v3, normal, null, uv3)
+        );
     }
     
     /**

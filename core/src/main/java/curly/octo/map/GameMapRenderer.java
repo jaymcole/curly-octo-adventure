@@ -13,7 +13,10 @@ import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.graphics.g3d.model.Node;
 import com.badlogic.gdx.graphics.g3d.model.NodePart;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
+import com.badlogic.gdx.graphics.glutils.FrameBuffer;
+import com.badlogic.gdx.graphics.glutils.GLFrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Mesh;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
@@ -25,12 +28,14 @@ import curly.octo.map.rendering.AllTilesMapModelBuilder;
 import curly.octo.map.rendering.BFSVisibleMapModelBuilder;
 import curly.octo.map.rendering.MapModelBuilder;
 import curly.octo.rendering.CubeShadowMapRenderer;
+import curly.octo.rendering.BloomRenderer;
 
 /**
  * Handles rendering of the VoxelMap in 3D space with shadow mapping.
  */
 public class GameMapRenderer implements Disposable {
     private final CubeShadowMapRenderer cubeShadowMapRenderer;
+    private final BloomRenderer bloomRenderer;
     private final Array<ModelInstance> instances;
     private final Array<PointLight> mapLights; // Lights generated from LightHints
     private Model model;
@@ -67,6 +72,7 @@ public class GameMapRenderer implements Disposable {
 
     public GameMapRenderer() {
         cubeShadowMapRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH, maxShadowCastingLights);
+        bloomRenderer = new BloomRenderer(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         instances = new Array<>();
         mapLights = new Array<>();
 
@@ -75,6 +81,7 @@ public class GameMapRenderer implements Disposable {
 
         Log.info("GameMapRenderer", "Initialized with HIGH quality cube shadow mapping (" + maxShadowCastingLights + " shadow-casting lights, 512x512 per face)");
         Log.info("GameMapRenderer", "Loaded custom shaders: water, lava, fog");
+        Log.info("GameMapRenderer", "Initialized bloom post-processing for realistic lava glow");
     }
 
     /**
@@ -89,7 +96,7 @@ public class GameMapRenderer implements Disposable {
         this.maxShadowCastingLights = maxLights;
         Log.info("GameMapRenderer", "Set max shadow-casting lights to: " + maxLights);
     }
-    
+
     private void loadCustomShaders() {
         // Load water shader
         String waterVertexShader = Gdx.files.internal("shaders/water.vertex.glsl").readString();
@@ -99,7 +106,7 @@ public class GameMapRenderer implements Disposable {
             Log.error("GameMapRenderer", "Water shader compilation failed: " + waterShader.getLog());
             throw new RuntimeException("Water shader compilation failed");
         }
-        
+
         // Load lava shader
         String lavaVertexShader = Gdx.files.internal("shaders/lava.vertex.glsl").readString();
         String lavaFragmentShader = Gdx.files.internal("shaders/lava.fragment.glsl").readString();
@@ -108,7 +115,7 @@ public class GameMapRenderer implements Disposable {
             Log.error("GameMapRenderer", "Lava shader compilation failed: " + lavaShader.getLog());
             throw new RuntimeException("Lava shader compilation failed");
         }
-        
+
         // Load fog shader
         String fogVertexShader = Gdx.files.internal("shaders/fog.vertex.glsl").readString();
         String fogFragmentShader = Gdx.files.internal("shaders/fog.fragment.glsl").readString();
@@ -120,16 +127,34 @@ public class GameMapRenderer implements Disposable {
     }
 
     public void render(PerspectiveCamera camera, Environment environment) {
+        render(camera, environment, null);
+    }
+
+    public void render(PerspectiveCamera camera, Environment environment, FrameBuffer targetFrameBuffer) {
+        Log.info("GameMapRenderer", "render() called - checking for lights");
+
         // Get all point lights in the environment
         PointLightsAttribute pointLights = environment.get(PointLightsAttribute.class, PointLightsAttribute.Type);
 
         // Always update light counts for debug UI (even if no lights)
-        if (pointLights == null || pointLights.lights.size == 0) {
+        if (pointLights == null) {
+            Log.warn("GameMapRenderer", "pointLights is null, skipping shadow rendering");
             lastTotalLights = 0;
             lastShadowLights = 0;
-            Log.warn("GameMapRenderer", "No lights found, skipping shadow rendering");
             return;
         }
+
+        if (pointLights.lights.size == 0) {
+            Log.warn("GameMapRenderer", "pointLights.lights.size is 0, skipping shadow rendering");
+            lastTotalLights = 0;
+            lastShadowLights = 0;
+            return;
+        }
+
+        Log.info("GameMapRenderer", "Found " + pointLights.lights.size + " lights, proceeding with rendering");
+
+        // Check if we have the expected instances to render
+        Log.info("GameMapRenderer", "Number of model instances to render: " + instances.size);
 
         // Generate shadow maps for the N most significant lights (brightest overall)
         Array<PointLight> significantLights = getMostSignificantLights(pointLights, maxShadowCastingLights);
@@ -139,6 +164,8 @@ public class GameMapRenderer implements Disposable {
         lastShadowLights = significantLights.size;
 
         if (significantLights.size > 0) {
+            Log.info("GameMapRenderer", "Rendering " + significantLights.size + " significant lights with " + instances.size + " instances");
+
             // Reset light index for new frame
             cubeShadowMapRenderer.resetLightIndex();
 
@@ -147,9 +174,18 @@ public class GameMapRenderer implements Disposable {
                 cubeShadowMapRenderer.generateCubeShadowMap(instances, light);
             }
 
+            // CRITICAL: Restore the target framebuffer after shadow map generation
+            // Shadow map generation changes framebuffer binding to screen (0)
+            if (targetFrameBuffer != null) {
+                Log.info("GameMapRenderer", "Restoring target framebuffer after shadow generation");
+                targetFrameBuffer.begin();
+            }
+
             // Render opaque geometry with shadows
             Vector3 ambientLight = getAmbientLight(environment);
+            Log.info("GameMapRenderer", "About to call renderWithMultipleCubeShadows");
             cubeShadowMapRenderer.renderWithMultipleCubeShadows(instances, camera, significantLights, pointLights.lights, ambientLight);
+            Log.info("GameMapRenderer", "Finished renderWithMultipleCubeShadows");
 
             // Render transparent surfaces with custom shaders
             if (waterInstance != null) {
@@ -164,6 +200,42 @@ public class GameMapRenderer implements Disposable {
         } else {
             Log.warn("GameMapRenderer", "No lights found for shadow casting");
         }
+    }
+
+    /**
+     * Begin bloom rendering - should be called before rendering the 3D scene.
+     */
+    public void beginBloomRender() {
+        if (bloomRenderer != null) {
+            bloomRenderer.beginSceneRender();
+        }
+    }
+
+    /**
+     * End bloom rendering and composite to screen - should be called after all 3D rendering is done.
+     */
+    public void endBloomRender() {
+        if (bloomRenderer != null) {
+            bloomRenderer.endSceneRenderAndApplyBloom();
+        }
+    }
+
+    /**
+     * Get the bloom framebuffer for external systems that need to restore it.
+     */
+    public FrameBuffer getBloomFrameBuffer() {
+        return (bloomRenderer != null) ? bloomRenderer.getSceneFrameBuffer() : null;
+    }
+    
+    /**
+     * Resize the renderer when the window size changes.
+     */
+    public void resize(int width, int height) {
+        if (bloomRenderer != null) {
+            bloomRenderer.resize(width, height);
+        }
+        // Note: CubeShadowMapRenderer uses fixed-size shadow maps, no resize needed
+        Log.info("GameMapRenderer", "Resized to " + width + "x" + height);
     }
 
     private Array<PointLight> getMostSignificantLights(PointLightsAttribute pointLights, int maxLights) {
@@ -225,22 +297,22 @@ public class GameMapRenderer implements Disposable {
 
         // Begin shader
         shader.begin();
-        
+
         // Set common uniforms
         shader.setUniformMatrix("u_projViewTrans", camera.combined);
         shader.setUniformMatrix("u_worldTrans", surfaceInstance.transform);
         // Use a more reasonable time scale for animations (avoid precision issues)
         float time = (System.currentTimeMillis() % 60000) / 1000.0f; // Reset every minute to avoid precision loss
         shader.setUniformf("u_time", time);
-        
+
         // Set lighting uniforms (if lights provided and shader supports them)
         if (lights != null && ambientLight != null && shader.hasUniform("u_numLights")) {
             shader.setUniformi("u_numLights", Math.min(lights.size, 8));
-            
+
             if (shader.hasUniform("u_ambientLight")) {
                 shader.setUniformf("u_ambientLight", ambientLight);
             }
-            
+
             for (int i = 0; i < Math.min(lights.size, 8); i++) {
                 PointLight light = lights.get(i);
                 if (shader.hasUniform("u_lightPositions[" + i + "]")) {
@@ -267,7 +339,7 @@ public class GameMapRenderer implements Disposable {
                 }
             }
         }
-        
+
         shader.end();
 
         // Restore depth mask
@@ -377,8 +449,8 @@ public class GameMapRenderer implements Disposable {
         Material material = new Material();
         // Simple material for custom shader - color handled in shader
         material.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_NONE));              // No culling for transparency
-        // Enable blending for transparency with proper depth handling
-        BlendingAttribute blending = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.9f);
+        // Use additive blending for bright glow effect (shader-based bloom)
+        BlendingAttribute blending = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE, 0.95f);
         blending.blended = true; // Explicitly enable blending
         material.set(blending);
         return material;
@@ -511,6 +583,29 @@ public class GameMapRenderer implements Disposable {
         return lastTilesProcessed;
     }
 
+    /**
+     * Configure bloom effect parameters.
+     * @param threshold Brightness threshold for bloom extraction (0.5-2.0 recommended)
+     * @param intensity Bloom intensity multiplier (0.5-2.0 recommended)
+     */
+    public void setBloomParameters(float threshold, float intensity) {
+        if (bloomRenderer != null) {
+            bloomRenderer.setBloomParameters(threshold, intensity);
+            Log.info("GameMapRenderer", "Set bloom parameters: threshold=" + threshold + ", intensity=" + intensity);
+        }
+    }
+
+    /**
+     * Get current bloom parameters.
+     */
+    public float getBloomThreshold() {
+        return bloomRenderer != null ? bloomRenderer.getBloomThreshold() : 1.0f;
+    }
+
+    public float getBloomIntensity() {
+        return bloomRenderer != null ? bloomRenderer.getBloomIntensity() : 0.8f;
+    }
+
     @Override
     public void dispose() {
         if (disposed) {
@@ -573,6 +668,15 @@ public class GameMapRenderer implements Disposable {
                 Log.info("GameMapRenderer", "Cube shadow map renderer disposed");
             } catch (Exception e) {
                 Log.error("GameMapRenderer", "Error disposing cube shadow map renderer: " + e.getMessage());
+            }
+        }
+
+        if (bloomRenderer != null && !disposed) {
+            try {
+                bloomRenderer.dispose();
+                Log.info("GameMapRenderer", "Bloom renderer disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing bloom renderer: " + e.getMessage());
             }
         }
 
