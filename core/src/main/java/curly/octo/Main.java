@@ -80,7 +80,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             // Initialize UI
             this.lobbyUI = new LobbyUI(this);
             this.debugUI = new DebugUI();
-            
+
             // Set debug listener
             debugUI.setDebugListener(this);
 
@@ -125,13 +125,13 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
                     gameWorld.getMapRenderer().getLastShadowLights()
                 );
             }
-            
+
             // Update physics debug info
             debugUI.setPhysicsDebugEnabled(gameWorld.isPhysicsDebugEnabled());
             debugUI.setPhysicsStrategy(gameWorld.getPhysicsStrategyInfo(), gameWorld.getPhysicsTriangleCount());
-            
+
             // Update rendering strategy info
-            debugUI.setRenderingStrategy(gameWorld.getRenderingStrategyInfo(), 
+            debugUI.setRenderingStrategy(gameWorld.getRenderingStrategyInfo(),
                 gameWorld.getRenderingFacesBuilt(), gameWorld.getRenderingTilesProcessed());
         }
 
@@ -216,7 +216,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
 
         Log.info("Main", "All resources disposed");
     }
-    
+
     // DebugUI.DebugListener implementation
     @Override
     public void onTogglePhysicsDebug() {
@@ -225,7 +225,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             Log.info("Main", "Physics debug toggled: " + gameWorld.isPhysicsDebugEnabled());
         }
     }
-    
+
     @Override
     public void onTogglePhysicsStrategy() {
         if (gameWorld != null) {
@@ -233,7 +233,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             Log.info("Main", "Physics strategy switched to: " + gameWorld.getPhysicsStrategyInfo());
         }
     }
-    
+
     @Override
     public void onToggleRenderingStrategy() {
         if (gameWorld != null) {

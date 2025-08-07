@@ -1,6 +1,7 @@
 package curly.octo.map.generators;
 
 import com.badlogic.gdx.math.Vector3;
+import curly.octo.lighting.LightType;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
@@ -46,11 +47,11 @@ public class PoolGenerator extends MapGenerator{
         map[centerX + 1][centerY][centerZ + 1].AddHint(new SpawnPointHint());
         encloseIndoorSpace();
 
-        for(int i = 0; i < 3; i++) {
+        for(int i = 0; i < 100; i++) {
 
             LightHint light = new LightHint();
             light.intensity = 2; // Increase intensity for visibility
-
+//            light.lightType = LightType.BAKED_STATIC;
             // Set different colors for variety
             switch(random.nextInt(3)) {
                 case 0: // Warm torch light

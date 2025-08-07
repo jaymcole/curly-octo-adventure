@@ -51,7 +51,7 @@ public class PlayerController extends InputAdapter  {
     private transient PointLight playerLight;
 
     private transient final Random random;
-    
+
     private MapTileFillType currentTileFillType = MapTileFillType.AIR;
     private MapTile currentTile = null;
 
@@ -203,14 +203,14 @@ public class PlayerController extends InputAdapter  {
         if (gameMap == null || camera == null) {
             return;
         }
-        
+
         Vector3 cameraPos = camera.position;
         MapTile tile = gameMap.getTileFromWorldCoordinates(cameraPos.x, cameraPos.y, cameraPos.z);
-        
+
         if (tile != null) {
             currentTile = tile;
             MapTileFillType newFillType = tile.fillType;
-            
+
             if (currentTileFillType != newFillType) {
                 currentTileFillType = newFillType;
                 onTileFillTypeChanged(newFillType);
@@ -223,7 +223,7 @@ public class PlayerController extends InputAdapter  {
             }
         }
     }
-    
+
     private void onTileFillTypeChanged(MapTileFillType newType) {
         switch (newType) {
             case FOG:
@@ -373,23 +373,23 @@ public class PlayerController extends InputAdapter  {
     public void setTimeToFlicker(float timeToFlicker) {
         this.timeToFlicker = timeToFlicker;
     }
-    
+
     public MapTileFillType getCurrentTileFillType() {
         return currentTileFillType;
     }
-    
+
     public MapTile getCurrentTile() {
         return currentTile;
     }
-    
+
     public boolean isInFog() {
         return currentTileFillType == MapTileFillType.FOG;
     }
-    
+
     public boolean isInWater() {
         return currentTileFillType == MapTileFillType.WATER;
     }
-    
+
     public boolean isInLava() {
         return currentTileFillType == MapTileFillType.LAVA;
     }

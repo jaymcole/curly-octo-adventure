@@ -9,7 +9,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
-import curly.octo.map.GameMapRenderer;
+import curly.octo.map.EnhancedGameMapRenderer;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.player.PlayerController;
@@ -27,7 +27,7 @@ import static curly.octo.player.PlayerUtilities.createPlayerController;
 public class GameWorld {
 
     private GameMap mapManager;
-    private GameMapRenderer mapRenderer;
+    private EnhancedGameMapRenderer mapRenderer;
     private Environment environment;
     private Array<PointLight> dungeonLights;
     private PointLight playerLantern;
@@ -71,11 +71,16 @@ public class GameWorld {
 
             mapManager = new GameMap(size, height, size, System.currentTimeMillis());
             Log.info("GameWorld", "Created moderate map ("+size+"x"+height+"x"+size+" = " + (size*height*size) + " tiles) with 5MB network buffers");
-            mapRenderer = new GameMapRenderer();
+
+            mapRenderer = new EnhancedGameMapRenderer(4, 100);
             mapRenderer.updateMap(mapManager);
 
-            // Add lights from map LightHints to the environment
-            mapRenderer.addMapLightsToEnvironment(environment);
+            // Configure lighting for balanced performance/quality
+            mapRenderer.setLightingQuality(0.005f, 0.7f, 1.0f);
+
+            // Increase light culling distance for better visibility
+            mapRenderer.getLightManager().setMaxLightDistance(10000.0f);
+            mapRenderer.getLightManager().setLightCullingThreshold(0.0005f);
 
             Log.info("GameWorld", "Initialized new map");
         }
@@ -84,14 +89,12 @@ public class GameWorld {
     public void setMap(GameMap map) {
         this.mapManager = map;
         if (mapRenderer == null) {
-            mapRenderer = new GameMapRenderer();
+            mapRenderer = new EnhancedGameMapRenderer(4, 100);
+            mapRenderer.setLightingQuality(0.005f, 0.7f, 1.0f);
         }
         mapRenderer.updateMap(mapManager);
 
-        // Add lights from map LightHints to the environment
-        mapRenderer.addMapLightsToEnvironment(environment);
-
-        Log.info("GameWorld", "Set map from network");
+        Log.info("GameWorld", "Set map from network with enhanced lighting");
     }
 
     public void setupLocalPlayer() {
@@ -122,9 +125,9 @@ public class GameWorld {
             localPlayerController.setGameMap(mapManager);
             localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z, 0);
 
-            // Add local player light to environment
-            Log.info("GameWorld", "About to add local player light to environment for player " + localPlayerController.getPlayerId());
-            addPlayerToEnvironment(localPlayerController);
+            // Add local player light to enhanced lighting system
+            Log.info("GameWorld", "Adding player light to enhanced lighting system for player " + localPlayerController.getPlayerId());
+            addPlayerToEnhancedLighting(localPlayerController);
 
             Log.info("GameWorld", "Setup local player at position: " + playerStart);
         }
@@ -162,6 +165,28 @@ public class GameWorld {
     }
 
 
+    public void addPlayerToEnhancedLighting(PlayerController player) {
+        PointLight light = player.getPlayerLight();
+        if (light != null && mapRenderer != null) {
+            // Add player light as a dynamic unshadowed light (for performance)
+            String lightId = "player_" + player.getPlayerId();
+            mapRenderer.addDynamicLight(lightId, light.position, light.color, light.intensity,
+                curly.octo.lighting.LightType.DYNAMIC_UNSHADOWED, false);
+            Log.info("GameWorld", "Added dynamic light for player " + player.getPlayerId() + " at (" +
+                light.position.x + "," + light.position.y + "," + light.position.z + ") intensity=" + light.intensity);
+        } else {
+            Log.warn("GameWorld", "Player " + player.getPlayerId() + " has no light or renderer not available");
+        }
+    }
+
+    public void removePlayerFromEnhancedLighting(PlayerController player) {
+        if (mapRenderer != null) {
+            String lightId = "player_" + player.getPlayerId();
+            mapRenderer.removeDynamicLight(lightId);
+            Log.info("GameWorld", "Removed dynamic light for player " + player.getPlayerId());
+        }
+    }
+
     public void addPlayerToEnvironment(PlayerController player) {
         PointLight light = player.getPlayerLight();
         if (light != null) {
@@ -191,18 +216,17 @@ public class GameWorld {
 
     public void render(ModelBatch modelBatch, PerspectiveCamera camera) {
         if (mapRenderer != null && camera != null) {
-            // Set post-processing effect based on local player's current tile
-            if (localPlayerController != null) {
-                mapRenderer.setPostProcessingEffect(localPlayerController.getCurrentTileFillType());
-            }
-            
-            // Step 1: Render scene with bloom effects first
-            mapRenderer.beginBloomRender();
-            
-            // Render the map with bloom framebuffer
-            mapRenderer.render(camera, environment, mapRenderer.getBloomFrameBuffer());
-            
-            // Render all other players
+            // Update player light positions in the enhanced lighting system
+            updatePlayerLightPositions();
+
+            // Get viewer position for lighting culling
+            Vector3 viewerPosition = (localPlayerController != null) ?
+                localPlayerController.getPosition() : camera.position;
+
+            // Render the map with enhanced lighting system
+            mapRenderer.render(camera, environment, viewerPosition);
+
+            // Render all other players (these still use the legacy environment for now)
             if (players != null && localPlayerController != null) {
                 for (PlayerController player : players) {
                     if (player.getPlayerId() != localPlayerController.getPlayerId()) {
@@ -215,17 +239,24 @@ public class GameWorld {
             if (mapManager != null) {
                 mapManager.renderPhysicsDebug(camera);
             }
-            
-            // End bloom render (this renders bloom result to screen)
-            mapRenderer.endBloomRender();
-            
-            // Step 2: Apply post-processing effects to the bloom result
-            // Only apply post-processing if we have an effect to apply
-            if (localPlayerController != null && 
-                localPlayerController.getCurrentTileFillType() != MapTileFillType.AIR) {
-                
-                // Apply post-processing overlay to the current screen (with bloom)
-                mapRenderer.applyPostProcessingToScreen();
+        }
+    }
+
+    private void updatePlayerLightPositions() {
+        // Update dynamic light positions for all players in enhanced lighting system
+        if (mapRenderer != null && players != null) {
+            for (PlayerController player : players) {
+                PointLight light = player.getPlayerLight();
+                if (light != null) {
+                    String lightId = "player_" + player.getPlayerId();
+                    // Use efficient position update instead of remove/re-add
+                    boolean updated = mapRenderer.updateDynamicLightPosition(lightId, light.position);
+                    if (!updated) {
+                        // Light doesn't exist yet, add it
+                        mapRenderer.addDynamicLight(lightId, light.position, light.color, light.intensity,
+                            curly.octo.lighting.LightType.DYNAMIC_UNSHADOWED, false);
+                    }
+                }
             }
         }
     }
@@ -240,20 +271,18 @@ public class GameWorld {
 
     // Getters
     public GameMap getMapManager() { return mapManager; }
-    public GameMapRenderer getMapRenderer() { return mapRenderer; }
+    public EnhancedGameMapRenderer getMapRenderer() { return mapRenderer; }
     public Environment getEnvironment() { return environment; }
     public List<PlayerController> getPlayers() { return players; }
     public PlayerController getLocalPlayerController() { return localPlayerController; }
     public long getLocalPlayerId() { return localPlayerId; }
     public Random getRandom() { return random; }
-    
+
     /**
      * Handle window resize for all rendering components.
      */
     public void resize(int width, int height) {
-        if (mapRenderer != null) {
-            mapRenderer.resize(width, height);
-        }
+        // Enhanced renderer doesn't need resize for now
         if (localPlayerController != null) {
             localPlayerController.resize(width, height);
         }
@@ -309,31 +338,63 @@ public class GameWorld {
 
     public void toggleRenderingStrategy() {
         if (mapRenderer != null && mapManager != null) {
-            // Switch between strategies
-            GameMapRenderer.RenderingStrategy currentStrategy = mapRenderer.getRenderingStrategy();
-            GameMapRenderer.RenderingStrategy newStrategy = (currentStrategy == GameMapRenderer.RenderingStrategy.ALL_TILES)
-                ? GameMapRenderer.RenderingStrategy.BFS_VISIBLE
-                : GameMapRenderer.RenderingStrategy.ALL_TILES;
-
-            Log.info("GameWorld", "Switching rendering strategy from " + currentStrategy + " to " + newStrategy);
-            mapRenderer.setRenderingStrategy(newStrategy);
-            mapRenderer.updateMap(mapManager);
+            Log.info("GameWorld", "Enhanced lighting system doesn't support legacy rendering strategy toggle");
+            Log.info("GameWorld", "Enhanced renderer automatically optimizes geometry and lighting");
         }
     }
 
     public String getRenderingStrategyInfo() {
         if (mapRenderer != null) {
-            return mapRenderer.getRenderingStrategy().name();
+            return "ENHANCED_LIGHTING (baked+dynamic)";
         }
         return "N/A";
     }
 
     public long getRenderingFacesBuilt() {
-        return mapRenderer != null ? mapRenderer.getLastFacesBuilt() : 0;
+        // Enhanced renderer doesn't expose these legacy metrics
+        return 0;
     }
 
     public long getRenderingTilesProcessed() {
-        return mapRenderer != null ? mapRenderer.getLastTilesProcessed() : 0;
+        // Enhanced renderer doesn't expose these legacy metrics
+        return 0;
+    }
+
+    // New methods for enhanced lighting system
+    public void printLightingStatistics() {
+        if (mapRenderer != null) {
+            mapRenderer.printLightingStatistics();
+        }
+    }
+
+    public void configureLightingQuality(boolean highQuality) {
+        if (mapRenderer != null) {
+            if (highQuality) {
+                // High quality settings
+                mapRenderer.setLightingQuality(0.002f, 0.5f, 1.2f);
+                mapRenderer.getLightManager().setMaxShadowedLights(4);
+                mapRenderer.getLightManager().setMaxUnshadowedLights(16);
+                Log.info("GameWorld", "Configured for high quality lighting");
+            } else {
+                // Performance settings
+                mapRenderer.setLightingQuality(0.005f, 0.8f, 1.0f);
+                mapRenderer.getLightManager().setMaxShadowedLights(2);
+                mapRenderer.getLightManager().setMaxUnshadowedLights(8);
+                Log.info("GameWorld", "Configured for performance lighting");
+            }
+        }
+    }
+    
+    public void toggleDebugBakedLights() {
+        if (mapRenderer != null) {
+            boolean newState = !mapRenderer.isDebugRenderBakedLights();
+            mapRenderer.setDebugRenderBakedLights(newState);
+            Log.info("GameWorld", "Debug baked lights rendering: " + (newState ? "ENABLED" : "DISABLED"));
+        }
+    }
+    
+    public boolean isDebugBakedLightsEnabled() {
+        return mapRenderer != null && mapRenderer.isDebugRenderBakedLights();
     }
 
     public void dispose() {
@@ -344,13 +405,13 @@ public class GameWorld {
 
         Log.info("GameWorld", "Disposing game world...");
 
-        // Dispose map renderer first
+        // Dispose enhanced map renderer first
         if (mapRenderer != null) {
             try {
-                mapRenderer.disposeAll();
-                Log.info("GameWorld", "Map renderer disposed");
+                mapRenderer.dispose();
+                Log.info("GameWorld", "Enhanced map renderer disposed");
             } catch (Exception e) {
-                Log.error("GameWorld", "Error disposing map renderer: " + e.getMessage());
+                Log.error("GameWorld", "Error disposing enhanced map renderer: " + e.getMessage());
             }
             mapRenderer = null;
         }
