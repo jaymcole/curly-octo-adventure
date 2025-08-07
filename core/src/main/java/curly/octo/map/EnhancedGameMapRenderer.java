@@ -122,14 +122,17 @@ public class EnhancedGameMapRenderer implements Disposable {
                             LightHint lightHint = (LightHint) hint;
 
                             // Create light with enhanced properties
+                            float lightX = tile.x + MapTile.TILE_SIZE / 2f;
+                            float lightY = tile.y + MapTile.TILE_SIZE / 2f + 2f;
+                            float lightZ = tile.z + MapTile.TILE_SIZE / 2f;
+                            
+                            Log.info("EnhancedGameMapRenderer", "Creating light at tile(" + tile.x + "," + tile.y + "," + tile.z + 
+                                ") -> world(" + lightX + "," + lightY + "," + lightZ + ")");
+                            
                             Light light = new Light.Builder()
                                 .setId("map_light_" + lightId++)
                                 .setType(lightHint.lightType)
-                                .setPosition(
-                                    tile.x + MapTile.TILE_SIZE / 2f,
-                                    tile.y + MapTile.TILE_SIZE / 2f + 2f, // Slightly above ground
-                                    tile.z + MapTile.TILE_SIZE / 2f
-                                )
+                                .setPosition(lightX, lightY, lightZ)
                                 .setColor(lightHint.color_r, lightHint.color_g, lightHint.color_b)
                                 .setIntensity(lightHint.intensity)
                                 .setRange(lightHint.range)
@@ -233,7 +236,10 @@ public class EnhancedGameMapRenderer implements Disposable {
                     if (result.hasLightmap()) {
                         lightmaps.put(result.regionId, result.lightmapTexture);
                         bakedRegions++;
-                        Log.debug("EnhancedGameMapRenderer", "Baked lightmap for region: " + result.regionId);
+                        Log.info("EnhancedGameMapRenderer", "Stored lightmap for region: " + result.regionId + 
+                            ", texture=" + result.lightmapTexture + ", total lightmaps=" + lightmaps.size);
+                    } else {
+                        Log.warn("EnhancedGameMapRenderer", "No lightmap texture for region: " + result.regionId);
                     }
                 }
             }
@@ -264,14 +270,17 @@ public class EnhancedGameMapRenderer implements Disposable {
         Log.debug("EnhancedGameMapRenderer", "Rendering " + instances.size + " instances with enhanced lighting");
 
         // Try to render with enhanced lighting system
+        Log.info("EnhancedGameMapRenderer", "Passing " + lightmaps.size + " lightmaps to renderer: " + lightmaps.keys().toArray());
         try {
             lightingRenderer.render(instances, camera, viewerPosition, lightmaps, ambientLight);
             Log.debug("EnhancedGameMapRenderer", "Enhanced lighting render successful");
         } catch (Exception e) {
             Log.error("EnhancedGameMapRenderer", "Enhanced lighting render failed: " + e.getMessage());
+            Log.error("EnhancedGameMapRenderer", "ERROR DETAILS: " + e.getClass().getSimpleName() + " - " + e.toString());
             e.printStackTrace();
 
             // Create simple fallback rendering using LibGDX ModelBatch
+            Log.warn("EnhancedGameMapRenderer", "FALLING BACK to ModelBatch rendering - baked lights will not work!");
             try {
                 com.badlogic.gdx.graphics.g3d.ModelBatch modelBatch = new com.badlogic.gdx.graphics.g3d.ModelBatch();
                 modelBatch.begin(camera);
@@ -280,7 +289,7 @@ public class EnhancedGameMapRenderer implements Disposable {
                 }
                 modelBatch.end();
                 modelBatch.dispose();
-                Log.debug("EnhancedGameMapRenderer", "Used fallback ModelBatch rendering");
+                Log.info("EnhancedGameMapRenderer", "Used fallback ModelBatch rendering successfully");
             } catch (Exception fallbackError) {
                 Log.error("EnhancedGameMapRenderer", "Even fallback rendering failed: " + fallbackError.getMessage());
             }
@@ -346,8 +355,17 @@ public class EnhancedGameMapRenderer implements Disposable {
             builder.buildGeometry(modelBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null);
             com.badlogic.gdx.graphics.g3d.Model model = modelBuilder.end();
 
-            // Create model instance
+            // Create model instance  
             com.badlogic.gdx.graphics.g3d.ModelInstance instance = new com.badlogic.gdx.graphics.g3d.ModelInstance(model);
+            
+            // TEMPORARY FIX: Set userData to the first available lightmap
+            // This allows the single geometry to use at least one lightmap
+            if (lightmaps.size > 0) {
+                String firstRegionId = lightmaps.keys().toArray().iterator().next();
+                instance.userData = firstRegionId;
+                Log.info("EnhancedGameMapRenderer", "Set geometry userData to first available lightmap: " + firstRegionId);
+            }
+            
             mapInstances.add(instance);
 
             Log.info("EnhancedGameMapRenderer", "Generated geometry: " + mapInstances.size + " instances");

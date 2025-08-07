@@ -109,8 +109,8 @@ public class LightManager {
         for (Light light : dynamicShadowedLights) {
             if (!light.isEnabled() || !light.castsShadows()) continue;
             
+            // No distance limit - render all lights for dark game environment
             float distance = light.getPosition().dst(viewPosition);
-            if (distance > maxLightDistance) continue;
             
             float significance = calculateLightSignificance(light, distance);
             if (significance > lightCullingThreshold) {
@@ -176,8 +176,8 @@ public class LightManager {
     }
     
     private void addLightCandidate(Light light, Vector3 viewPosition, Array<LightWithDistance> candidates) {
+        // No distance limit - render all lights for dark game environment
         float distance = light.getPosition().dst(viewPosition);
-        if (distance > maxLightDistance) return;
         
         float significance = calculateLightSignificance(light, distance);
         if (significance > lightCullingThreshold) {
@@ -187,7 +187,7 @@ public class LightManager {
     
     /**
      * Calculate light significance for prioritization
-     * Takes into account intensity, distance, and light type
+     * Optimized for dark environments where dim lights should be visible from far distances
      */
     private float calculateLightSignificance(Light light, float distance) {
         float attenuation = light.calculateAttenuation(distance);
@@ -195,9 +195,22 @@ public class LightManager {
         
         float significance = attenuation * colorBrightness;
         
+        // Dark environment boost: lights are much more noticeable in darkness
+        // Apply distance-scaled boost - closer lights get normal treatment, 
+        // distant lights get exponential boost for visibility
+        if (distance > 50.0f) {
+            float darkBoost = 1.0f + (distance - 50.0f) * 0.02f; // Exponential boost for distant lights
+            significance *= Math.min(darkBoost, 5.0f); // Cap at 5x boost
+        }
+        
         // Boost significance for shadow-casting lights
         if (light.getType() == LightType.DYNAMIC_SHADOWED) {
             significance *= 1.5f;
+        }
+        
+        // Additional boost for very dim lights that would be visible in darkness
+        if (light.getIntensity() <= 3.0f && significance > 0.001f) {
+            significance *= 2.0f; // Double significance for dim atmospheric lights
         }
         
         return significance;

@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.lighting.LightType;
 import curly.octo.map.GameMap;
 import curly.octo.map.EnhancedGameMapRenderer;
 import curly.octo.map.MapTile;
@@ -72,7 +73,7 @@ public class GameWorld {
             mapManager = new GameMap(size, height, size, System.currentTimeMillis());
             Log.info("GameWorld", "Created moderate map ("+size+"x"+height+"x"+size+" = " + (size*height*size) + " tiles) with 5MB network buffers");
 
-            mapRenderer = new EnhancedGameMapRenderer(4, 100);
+            mapRenderer = new EnhancedGameMapRenderer(1000, 1000); // No practical limits
             mapRenderer.updateMap(mapManager);
 
             // Configure lighting for balanced performance/quality
@@ -81,6 +82,9 @@ public class GameWorld {
             // Increase light culling distance for better visibility
             mapRenderer.getLightManager().setMaxLightDistance(10000.0f);
             mapRenderer.getLightManager().setLightCullingThreshold(0.0005f);
+            
+            // Enable debug baked lights for testing
+            mapRenderer.setDebugRenderBakedLights(true);
 
             Log.info("GameWorld", "Initialized new map");
         }
@@ -89,7 +93,7 @@ public class GameWorld {
     public void setMap(GameMap map) {
         this.mapManager = map;
         if (mapRenderer == null) {
-            mapRenderer = new EnhancedGameMapRenderer(4, 100);
+            mapRenderer = new EnhancedGameMapRenderer(1000, 1000); // No practical limits
             mapRenderer.setLightingQuality(0.005f, 0.7f, 1.0f);
         }
         mapRenderer.updateMap(mapManager);
@@ -171,7 +175,7 @@ public class GameWorld {
             // Add player light as a dynamic unshadowed light (for performance)
             String lightId = "player_" + player.getPlayerId();
             mapRenderer.addDynamicLight(lightId, light.position, light.color, light.intensity,
-                curly.octo.lighting.LightType.DYNAMIC_UNSHADOWED, false);
+                LightType.DYNAMIC_SHADOWED, true);
             Log.info("GameWorld", "Added dynamic light for player " + player.getPlayerId() + " at (" +
                 light.position.x + "," + light.position.y + "," + light.position.z + ") intensity=" + light.intensity);
         } else {
@@ -384,7 +388,7 @@ public class GameWorld {
             }
         }
     }
-    
+
     public void toggleDebugBakedLights() {
         if (mapRenderer != null) {
             boolean newState = !mapRenderer.isDebugRenderBakedLights();
@@ -392,7 +396,7 @@ public class GameWorld {
             Log.info("GameWorld", "Debug baked lights rendering: " + (newState ? "ENABLED" : "DISABLED"));
         }
     }
-    
+
     public boolean isDebugBakedLightsEnabled() {
         return mapRenderer != null && mapRenderer.isDebugRenderBakedLights();
     }

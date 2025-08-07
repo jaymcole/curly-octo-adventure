@@ -83,12 +83,16 @@ public class UnifiedLightingRenderer implements Disposable {
     public void render(Array<ModelInstance> instances, Camera camera, Vector3 viewerPosition, 
                       ObjectMap<String, Texture> lightmaps, Vector3 ambientLight) {
         
+        Log.info("UnifiedLightingRenderer", "RENDER START: " + instances.size + " instances, " + lightmaps.size + " lightmaps");
+        
         long startTime = System.currentTimeMillis();
         lastFrameDrawCalls = 0;
         
         // Get lights from manager
         Array<PointLight> shadowedLights = lightManager.getShadowCastingLights(viewerPosition);
         Array<PointLight> allDynamicLights = lightManager.getAllDynamicLights(viewerPosition);
+        
+        Log.info("UnifiedLightingRenderer", "Lights: " + shadowedLights.size + " shadowed, " + allDynamicLights.size + " dynamic");
         
         // Separate unshadowed lights
         Array<PointLight> unshadowedLights = new Array<>();
@@ -107,7 +111,9 @@ public class UnifiedLightingRenderer implements Disposable {
         }
         
         // Render with unified lighting
+        Log.info("UnifiedLightingRenderer", "About to render with unified lighting...");
         renderWithUnifiedLighting(instances, camera, shadowedLights, unshadowedLights, lightmaps, ambientLight);
+        Log.info("UnifiedLightingRenderer", "Unified lighting render completed");
         
         // Update statistics
         lastFrameShadowedLights = shadowedLights.size;
@@ -119,7 +125,9 @@ public class UnifiedLightingRenderer implements Disposable {
                                          Array<PointLight> shadowedLights, Array<PointLight> unshadowedLights,
                                          ObjectMap<String, Texture> lightmaps, Vector3 ambientLight) {
         
+        Log.info("UnifiedLightingRenderer", "renderWithUnifiedLighting: binding shader...");
         unifiedShader.bind();
+        Log.info("UnifiedLightingRenderer", "Shader bound successfully");
         
         // Set common uniforms
         unifiedShader.setUniformMatrix("u_projViewTrans", camera.combined);
@@ -143,10 +151,13 @@ public class UnifiedLightingRenderer implements Disposable {
         Gdx.gl.glDepthFunc(GL20.GL_LEQUAL);
         
         // Render each instance
+        Log.info("UnifiedLightingRenderer", "Rendering " + instances.size + " instances...");
         for (ModelInstance instance : instances) {
+            Log.info("UnifiedLightingRenderer", "Rendering instance with userData: " + instance.userData);
             renderInstance(instance, lightmaps);
             lastFrameDrawCalls++;
         }
+        Log.info("UnifiedLightingRenderer", "Completed rendering all instances");
     }
     
     private void bindShadowMaps(Array<PointLight> shadowedLights) {
@@ -195,6 +206,9 @@ public class UnifiedLightingRenderer implements Disposable {
         // Determine if this instance has a lightmap
         String lightmapKey = instance.userData instanceof String ? (String) instance.userData : null;
         Texture lightmap = (lightmapKey != null) ? lightmaps.get(lightmapKey) : null;
+        
+        Log.info("UnifiedLightingRenderer", "Instance userData='" + lightmapKey + "', lightmap=" + 
+            (lightmap != null ? "FOUND" : "NOT_FOUND") + ", available lightmaps=" + lightmaps.size);
         
         if (lightmap != null) {
             lightmap.bind(25); // Use high texture unit for lightmaps

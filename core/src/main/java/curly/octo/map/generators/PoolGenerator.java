@@ -47,11 +47,14 @@ public class PoolGenerator extends MapGenerator{
         map[centerX + 1][centerY][centerZ + 1].AddHint(new SpawnPointHint());
         encloseIndoorSpace();
 
-        for(int i = 0; i < 100; i++) {
+        for(int i = 0; i < 10; i++) {
 
             LightHint light = new LightHint();
             light.intensity = 2; // Increase intensity for visibility
-//            light.lightType = LightType.BAKED_STATIC;
+            light.lightType = LightType.BAKED_STATIC;
+            light.castsShadows = false;
+            light.bakingPriority = 1;
+            light.range = 100;
             // Set different colors for variety
             switch(random.nextInt(3)) {
                 case 0: // Warm torch light

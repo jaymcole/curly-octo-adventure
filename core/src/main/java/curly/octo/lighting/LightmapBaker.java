@@ -114,6 +114,8 @@ public class LightmapBaker implements Disposable {
             return new BakedLightingResult(regionId, null, null);
         }
         
+        Log.info("LightmapBaker", "Region " + regionId + " will be baked with " + relevantLights.size + " lights");
+        
         // Create geometry for the region
         Array<ModelInstance> regionGeometry = createRegionGeometry(map, regionX, regionY, regionZ, 
             regionWidth, regionHeight, regionDepth);
@@ -123,17 +125,23 @@ public class LightmapBaker implements Disposable {
             return new BakedLightingResult(regionId, null, null);
         }
         
+        Log.info("LightmapBaker", "Region " + regionId + " has " + regionGeometry.size + " geometry instances, proceeding with bake");
+        
         // Set up camera to view the region
         setupRegionCamera(regionX, regionY, regionZ, regionWidth, regionHeight, regionDepth);
         
         // Bake lightmap
         Texture lightmapTexture = bakeLightmap(regionGeometry, relevantLights, regionId);
+        Log.info("LightmapBaker", "Lightmap texture result for " + regionId + ": " + 
+            (lightmapTexture != null ? "SUCCESS" : "FAILED"));
         
         // Bake shadow map for the primary light (if any cast shadows)
         Texture shadowmapTexture = null;
         Light primaryShadowLight = getPrimaryShadowLight(relevantLights);
         if (primaryShadowLight != null) {
             shadowmapTexture = bakeShadowmap(regionGeometry, primaryShadowLight, regionId);
+            Log.info("LightmapBaker", "Shadowmap texture result for " + regionId + ": " + 
+                (shadowmapTexture != null ? "SUCCESS" : "FAILED"));
         }
         
         // Store results
@@ -155,11 +163,15 @@ public class LightmapBaker implements Disposable {
                                           int regionWidth, int regionHeight, int regionDepth) {
         Array<Light> relevant = new Array<>();
         
+        // Convert tile coordinates to world coordinates for proper distance calculations
         Vector3 regionCenter = new Vector3(
-            regionX + regionWidth * MapTile.TILE_SIZE / 2f,
-            regionY + regionHeight * MapTile.TILE_SIZE / 2f,
-            regionZ + regionDepth * MapTile.TILE_SIZE / 2f
+            (regionX + regionWidth / 2f) * MapTile.TILE_SIZE,
+            (regionY + regionHeight / 2f) * MapTile.TILE_SIZE,
+            (regionZ + regionDepth / 2f) * MapTile.TILE_SIZE
         );
+        
+        Log.info("LightmapBaker", "Region " + regionX + "," + regionY + "," + regionZ + 
+            " → world center(" + regionCenter.x + "," + regionCenter.y + "," + regionCenter.z + ")");
         
         float regionRadius = (float) Math.sqrt(
             regionWidth * regionWidth + regionHeight * regionHeight + regionDepth * regionDepth
@@ -168,10 +180,11 @@ public class LightmapBaker implements Disposable {
         for (Light light : allLights) {
             if (light.getType() != LightType.BAKED_STATIC || !light.isEnabled()) continue;
             
+            // For debugging and dark environments: include ALL baked lights regardless of distance
+            relevant.add(light);
             float distance = light.getPosition().dst(regionCenter);
-            if (distance <= light.getEffectiveRange() + regionRadius) {
-                relevant.add(light);
-            }
+            Log.info("LightmapBaker", "Light " + light.getId() + " affects region (distance: " + 
+                String.format("%.1f", distance) + ") - NO DISTANCE LIMIT");
         }
         
         // Sort by baking priority (higher priority first)
@@ -184,22 +197,114 @@ public class LightmapBaker implements Disposable {
                                                      int regionWidth, int regionHeight, int regionDepth) {
         Array<ModelInstance> geometry = new Array<>();
         
-        // For now, create simplified box geometry for each solid tile in the region
-        // In a real implementation, you'd use your existing map geometry generation
+        Log.info("LightmapBaker", "Building geometry for region (" + regionX + "," + regionY + "," + regionZ + 
+            ") size " + regionWidth + "x" + regionHeight + "x" + regionDepth);
         
-        // This is a placeholder - you would integrate with your existing GameMapRenderer geometry
-        Log.debug("LightmapBaker", "Creating geometry for region - integration point for map renderer");
+        try {
+            // Use the same geometry builder as the main renderer
+            curly.octo.map.rendering.BFSVisibleMapModelBuilder builder = 
+                new curly.octo.map.rendering.BFSVisibleMapModelBuilder(map);
+            
+            // Create materials (same as EnhancedGameMapRenderer)
+            com.badlogic.gdx.graphics.g3d.Material stoneMaterial = createMaterial(com.badlogic.gdx.graphics.Color.GRAY, 0.2f, 8f);
+            com.badlogic.gdx.graphics.g3d.Material dirtMaterial = createMaterial(com.badlogic.gdx.graphics.Color.BROWN, 0.1f, 4f);
+            com.badlogic.gdx.graphics.g3d.Material grassMaterial = createMaterial(com.badlogic.gdx.graphics.Color.GREEN, 0.1f, 4f);
+            com.badlogic.gdx.graphics.g3d.Material pinkWall = createMaterial(com.badlogic.gdx.graphics.Color.PINK, 0.1f, 4f);
+            com.badlogic.gdx.graphics.g3d.Material spawnMaterial = createMaterial(com.badlogic.gdx.graphics.Color.LIME, 0.1f, 4f);
+            
+            // Create a ModelBuilder for this region
+            com.badlogic.gdx.graphics.g3d.utils.ModelBuilder modelBuilder = new com.badlogic.gdx.graphics.g3d.utils.ModelBuilder();
+            modelBuilder.begin();
+            
+            // Build geometry for the specific region
+            // Note: BFSVisibleMapModelBuilder builds the entire map, but we only need this region
+            // For now, build the full map and we'll optimize later if needed
+            builder.buildGeometry(modelBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null);
+            
+            com.badlogic.gdx.graphics.g3d.Model regionModel = modelBuilder.end();
+            
+            if (regionModel != null) {
+                com.badlogic.gdx.graphics.g3d.ModelInstance instance = new com.badlogic.gdx.graphics.g3d.ModelInstance(regionModel);
+                
+                // CRITICAL: Set userData to region ID so renderer can find the lightmap
+                String regionId = regionX + "_" + regionY + "_" + regionZ;
+                instance.userData = regionId;
+                
+                geometry.add(instance);
+                
+                Log.info("LightmapBaker", "Created geometry for region " + regionId + 
+                    ": " + geometry.size + " instances, " + builder.getTotalFacesBuilt() + " faces, userData='" + regionId + "'");
+            } else {
+                Log.warn("LightmapBaker", "Failed to create model for region " + regionX + "_" + regionY + "_" + regionZ);
+            }
+            
+        } catch (Exception e) {
+            Log.error("LightmapBaker", "Error creating geometry for region " + regionX + "_" + regionY + "_" + regionZ + ": " + e.getMessage());
+            e.printStackTrace();
+            
+            // Create fallback test geometry so we can still test lightmap baking
+            createFallbackRegionGeometry(geometry, regionX, regionY, regionZ, regionWidth, regionHeight, regionDepth);
+        }
         
         return geometry;
+    }
+    
+    private com.badlogic.gdx.graphics.g3d.Material createMaterial(com.badlogic.gdx.graphics.Color diffuse, float specular, float shininess) {
+        com.badlogic.gdx.graphics.g3d.Material material = new com.badlogic.gdx.graphics.g3d.Material();
+        material.set(new com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute(com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.Diffuse, diffuse));
+        material.set(new com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute(com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.Specular, specular, specular, specular, 1f));
+        material.set(new com.badlogic.gdx.graphics.g3d.attributes.FloatAttribute(com.badlogic.gdx.graphics.g3d.attributes.FloatAttribute.Shininess, shininess));
+        material.set(new com.badlogic.gdx.graphics.g3d.attributes.IntAttribute(com.badlogic.gdx.graphics.g3d.attributes.IntAttribute.CullFace, GL20.GL_BACK));
+        return material;
+    }
+    
+    private void createFallbackRegionGeometry(Array<ModelInstance> geometry, int regionX, int regionY, int regionZ, 
+                                            int regionWidth, int regionHeight, int regionDepth) {
+        Log.info("LightmapBaker", "Creating fallback test geometry for region " + regionX + "_" + regionY + "_" + regionZ);
+        
+        try {
+            // Create a simple test cube for the region center
+            com.badlogic.gdx.graphics.g3d.utils.ModelBuilder modelBuilder = new com.badlogic.gdx.graphics.g3d.utils.ModelBuilder();
+            modelBuilder.begin();
+            
+            com.badlogic.gdx.graphics.g3d.Material testMaterial = new com.badlogic.gdx.graphics.g3d.Material();
+            testMaterial.set(com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.createDiffuse(com.badlogic.gdx.graphics.Color.GRAY));
+            
+            modelBuilder.node().id = "test_region_" + regionX + "_" + regionY + "_" + regionZ;
+            modelBuilder.part("test_cube", GL20.GL_TRIANGLES,
+                com.badlogic.gdx.graphics.VertexAttributes.Usage.Position |
+                com.badlogic.gdx.graphics.VertexAttributes.Usage.Normal, testMaterial)
+                .box(regionWidth * MapTile.TILE_SIZE, regionHeight * MapTile.TILE_SIZE, regionDepth * MapTile.TILE_SIZE);
+            
+            com.badlogic.gdx.graphics.g3d.Model testModel = modelBuilder.end();
+            com.badlogic.gdx.graphics.g3d.ModelInstance testInstance = new com.badlogic.gdx.graphics.g3d.ModelInstance(testModel);
+            
+            // CRITICAL: Set userData to region ID so renderer can find the lightmap
+            String regionId = regionX + "_" + regionY + "_" + regionZ;
+            testInstance.userData = regionId;
+            
+            // Position at region center in world coordinates
+            float worldX = (regionX + regionWidth / 2f) * MapTile.TILE_SIZE;
+            float worldY = (regionY + regionHeight / 2f) * MapTile.TILE_SIZE;
+            float worldZ = (regionZ + regionDepth / 2f) * MapTile.TILE_SIZE;
+            testInstance.transform.setToTranslation(worldX, worldY, worldZ);
+            
+            geometry.add(testInstance);
+            Log.info("LightmapBaker", "Created fallback geometry: 1 test cube at (" + worldX + "," + worldY + "," + worldZ + ")");
+            
+        } catch (Exception fallbackError) {
+            Log.error("LightmapBaker", "Even fallback geometry creation failed: " + fallbackError.getMessage());
+        }
     }
     
     private void setupRegionCamera(int regionX, int regionY, int regionZ, 
                                   int regionWidth, int regionHeight, int regionDepth) {
         // Position camera to view the entire region
+        // Convert tile coordinates to world coordinates for proper distance calculations
         Vector3 regionCenter = new Vector3(
-            regionX + regionWidth * MapTile.TILE_SIZE / 2f,
-            regionY + regionHeight * MapTile.TILE_SIZE / 2f,
-            regionZ + regionDepth * MapTile.TILE_SIZE / 2f
+            (regionX + regionWidth / 2f) * MapTile.TILE_SIZE,
+            (regionY + regionHeight / 2f) * MapTile.TILE_SIZE,
+            (regionZ + regionDepth / 2f) * MapTile.TILE_SIZE
         );
         
         // Position camera above the region looking down
@@ -284,7 +389,7 @@ public class LightmapBaker implements Disposable {
         lightCamera.lookAt(light.getPosition().x, light.getPosition().y - 10f, light.getPosition().z);
         lightCamera.up.set(0, 0, 1);
         lightCamera.near = 0.1f;
-        lightCamera.far = light.getEffectiveRange();
+        lightCamera.far = 200.0f; // Use generous far plane instead of effective range
         lightCamera.update();
         
         return new Matrix4(lightCamera.combined);
