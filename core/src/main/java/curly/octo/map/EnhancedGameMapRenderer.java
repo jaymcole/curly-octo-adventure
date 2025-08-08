@@ -125,10 +125,10 @@ public class EnhancedGameMapRenderer implements Disposable {
                             float lightX = tile.x + MapTile.TILE_SIZE / 2f;
                             float lightY = tile.y + MapTile.TILE_SIZE / 2f + 2f;
                             float lightZ = tile.z + MapTile.TILE_SIZE / 2f;
-                            
-                            Log.info("EnhancedGameMapRenderer", "Creating light at tile(" + tile.x + "," + tile.y + "," + tile.z + 
+
+                            Log.info("EnhancedGameMapRenderer", "Creating light at tile(" + tile.x + "," + tile.y + "," + tile.z +
                                 ") -> world(" + lightX + "," + lightY + "," + lightZ + ")");
-                            
+
                             Light light = new Light.Builder()
                                 .setId("map_light_" + lightId++)
                                 .setType(lightHint.lightType)
@@ -153,10 +153,10 @@ public class EnhancedGameMapRenderer implements Disposable {
 
         Log.info("EnhancedGameMapRenderer", "Registered " + totalLights + " lights from map");
 
-        // Print breakdown by light type for debugging  
+        // Print breakdown by light type for debugging
         Array<Light> baked = lightingRenderer.getLightManager().getBakedLights();
         Log.info("EnhancedGameMapRenderer", "Light breakdown: " + baked.size + " baked lights");
-        
+
         // Update debug light visualization
         updateDebugLightVisualization();
     }
@@ -206,46 +206,7 @@ public class EnhancedGameMapRenderer implements Disposable {
     }
 
     private void bakeMapLightmaps(GameMap map) {
-        if (!hasStaticLights()) {
-            Log.info("EnhancedGameMapRenderer", "No static lights found, skipping lightmap baking");
-            return;
-        }
-
-        Log.info("EnhancedGameMapRenderer", "Baking lightmaps for static lights...");
-        LightmapBaker baker = lightingRenderer.getLightmapBaker();
-        Array<Light> staticLights = lightingRenderer.getLightManager().getBakedLights();
-
-        // Bake lightmaps in regions to handle large maps efficiently
-        int mapWidth = map.getWidth();
-        int mapHeight = map.getHeight();
-        int mapDepth = map.getDepth();
-
-        for (int regionX = 0; regionX < mapWidth; regionX += regionSize) {
-            for (int regionY = 0; regionY < mapHeight; regionY += regionSize) {
-                for (int regionZ = 0; regionZ < mapDepth; regionZ += regionSize) {
-
-                    int regionWidth = Math.min(regionSize, mapWidth - regionX);
-                    int regionHeight = Math.min(regionSize, mapHeight - regionY);
-                    int regionDepth = Math.min(regionSize, mapDepth - regionZ);
-
-                    LightmapBaker.BakedLightingResult result = baker.bakeRegionLighting(
-                        map, staticLights, regionX, regionY, regionZ,
-                        regionWidth, regionHeight, regionDepth
-                    );
-
-                    if (result.hasLightmap()) {
-                        lightmaps.put(result.regionId, result.lightmapTexture);
-                        bakedRegions++;
-                        Log.info("EnhancedGameMapRenderer", "Stored lightmap for region: " + result.regionId + 
-                            ", texture=" + result.lightmapTexture + ", total lightmaps=" + lightmaps.size);
-                    } else {
-                        Log.warn("EnhancedGameMapRenderer", "No lightmap texture for region: " + result.regionId);
-                    }
-                }
-            }
-        }
-
-        Log.info("EnhancedGameMapRenderer", "Lightmap baking completed: " + bakedRegions + " regions baked");
+        Log.info("EnhancedGameMapRenderer", "DISABLED: Lightmap baking disabled - using cached shadow maps instead");
     }
 
     /**
@@ -271,9 +232,14 @@ public class EnhancedGameMapRenderer implements Disposable {
 
         // Try to render with enhanced lighting system
         Log.info("EnhancedGameMapRenderer", "Passing " + lightmaps.size + " lightmaps to renderer: " + lightmaps.keys().toArray());
+        Log.info("EnhancedGameMapRenderer", "ABOUT TO CALL UnifiedLightingRenderer.render()");
         try {
             lightingRenderer.render(instances, camera, viewerPosition, lightmaps, ambientLight);
-            Log.debug("EnhancedGameMapRenderer", "Enhanced lighting render successful");
+            Log.info("EnhancedGameMapRenderer", "SUCCESS: Enhanced lighting render completed without errors");
+
+            // Render debug lights even on success
+            renderDebugLights(camera, environment);
+            return; // Exit early on success, don't fall back to ModelBatch
         } catch (Exception e) {
             Log.error("EnhancedGameMapRenderer", "Enhanced lighting render failed: " + e.getMessage());
             Log.error("EnhancedGameMapRenderer", "ERROR DETAILS: " + e.getClass().getSimpleName() + " - " + e.toString());
@@ -355,9 +321,9 @@ public class EnhancedGameMapRenderer implements Disposable {
             builder.buildGeometry(modelBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null);
             com.badlogic.gdx.graphics.g3d.Model model = modelBuilder.end();
 
-            // Create model instance  
+            // Create model instance
             com.badlogic.gdx.graphics.g3d.ModelInstance instance = new com.badlogic.gdx.graphics.g3d.ModelInstance(model);
-            
+
             // TEMPORARY FIX: Set userData to the first available lightmap
             // This allows the single geometry to use at least one lightmap
             if (lightmaps.size > 0) {
@@ -365,7 +331,7 @@ public class EnhancedGameMapRenderer implements Disposable {
                 instance.userData = firstRegionId;
                 Log.info("EnhancedGameMapRenderer", "Set geometry userData to first available lightmap: " + firstRegionId);
             }
-            
+
             mapInstances.add(instance);
 
             Log.info("EnhancedGameMapRenderer", "Generated geometry: " + mapInstances.size + " instances");
@@ -518,6 +484,14 @@ public class EnhancedGameMapRenderer implements Disposable {
 
     public boolean isDebugRenderBakedLights() {
         return debugRenderBakedLights;
+    }
+
+    public void setShadowMapDebug(boolean enable) {
+        lightingRenderer.setDebugShadowMaps(enable);
+    }
+
+    public boolean isShadowMapDebugEnabled() {
+        return lightingRenderer.isDebugShadowMapsEnabled();
     }
 
     private void renderDebugLights(PerspectiveCamera camera, Environment environment) {

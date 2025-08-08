@@ -241,4 +241,14 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             Log.info("Main", "Rendering strategy switched to: " + gameWorld.getRenderingStrategyInfo());
         }
     }
+    
+    @Override
+    public void onToggleShadowMapDebug() {
+        if (gameWorld != null) {
+            gameWorld.toggleShadowMapDebug();
+            boolean enabled = gameWorld.isShadowMapDebugEnabled();
+            debugUI.setShadowMapDebugEnabled(enabled);
+            Log.info("Main", "Shadow map debug toggled: " + enabled);
+        }
+    }
 }

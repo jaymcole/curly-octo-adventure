@@ -21,16 +21,22 @@ import curly.octo.rendering.CubeShadowMapRenderer;
 public class UnifiedLightingRenderer implements Disposable {
     
     private final LightManager lightManager;
-    private final LightmapBaker lightmapBaker;
+    private final LightmapBaker lightmapBaker; // Keep for backward compatibility, but won't be used
     private final CubeShadowMapRenderer shadowRenderer;
+    private final ShadowMapDebugRenderer debugRenderer;
+    private final CachedShadowMapManager cachedShadowMapManager;
     
     // Unified lighting shader
     private ShaderProgram unifiedShader;
     
     // Rendering configuration
     private float shadowBias = 0.005f;
-    private float lightmapBlendFactor = 0.7f; // How much to favor baked lighting over dynamic
+    private float lightmapBlendFactor = 0.1f; // How much to favor baked lighting over dynamic - REDUCED FOR DEBUG
     private float lightmapIntensity = 1.0f;
+    
+    // Debug configuration
+    private boolean debugShadowMaps = false;
+    private boolean debugShowDepth = true;
     
     // Statistics
     private int lastFrameDrawCalls = 0;
@@ -49,8 +55,10 @@ public class UnifiedLightingRenderer implements Disposable {
         lightManager.setMaxShadowedLights(maxShadowedLights);
         lightManager.setMaxUnshadowedLights(maxUnshadowedLights);
         
-        lightmapBaker = new LightmapBaker();
+        lightmapBaker = new LightmapBaker(); // Keep for backward compatibility
         shadowRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH, maxShadowedLights);
+        debugRenderer = new ShadowMapDebugRenderer();
+        cachedShadowMapManager = new CachedShadowMapManager(shadowRenderer);
         
         loadUnifiedShader();
         
@@ -78,52 +86,83 @@ public class UnifiedLightingRenderer implements Disposable {
     }
     
     /**
-     * Render geometry with unified lighting (baked + dynamic)
+     * Render geometry with unified lighting (cached static shadows + dynamic)
      */
     public void render(Array<ModelInstance> instances, Camera camera, Vector3 viewerPosition, 
                       ObjectMap<String, Texture> lightmaps, Vector3 ambientLight) {
         
-        Log.info("UnifiedLightingRenderer", "RENDER START: " + instances.size + " instances, " + lightmaps.size + " lightmaps");
+        Log.info("UnifiedLightingRenderer", "RENDER START: " + instances.size + " instances, using cached shadow maps");
         
         long startTime = System.currentTimeMillis();
         lastFrameDrawCalls = 0;
         
-        // Get lights from manager
-        Array<PointLight> shadowedLights = lightManager.getShadowCastingLights(viewerPosition);
+        // Get dynamic lights from manager
+        Array<PointLight> dynamicShadowedLights = lightManager.getShadowCastingLights(viewerPosition);
         Array<PointLight> allDynamicLights = lightManager.getAllDynamicLights(viewerPosition);
         
-        Log.info("UnifiedLightingRenderer", "Lights: " + shadowedLights.size + " shadowed, " + allDynamicLights.size + " dynamic");
+        // Update cached shadow maps for static lights
+        Array<Light> staticLights = lightManager.getBakedLights();
+        Log.info("UnifiedLightingRenderer", "Updating cached shadow maps for " + staticLights.size + " static lights");
+        cachedShadowMapManager.updateCachedShadowMaps(instances, staticLights);
         
-        // Separate unshadowed lights
-        Array<PointLight> unshadowedLights = new Array<>();
+        // Get static lights as PointLights (they'll use cached shadow maps)
+        Array<PointLight> cachedStaticLights = cachedShadowMapManager.getCachedLightsAsPointLights(staticLights);
+        
+        Log.info("UnifiedLightingRenderer", "Lights: " + dynamicShadowedLights.size + " dynamic shadowed, " + 
+            allDynamicLights.size + " dynamic total, " + cachedStaticLights.size + " cached static");
+        
+        // Separate unshadowed dynamic lights
+        Array<PointLight> unshadowedDynamicLights = new Array<>();
         for (PointLight light : allDynamicLights) {
-            if (!shadowedLights.contains(light, true)) {
-                unshadowedLights.add(light);
+            if (!dynamicShadowedLights.contains(light, true)) {
+                unshadowedDynamicLights.add(light);
             }
         }
         
-        // Generate shadow maps for shadowed lights
-        if (shadowedLights.size > 0) {
-            shadowRenderer.resetLightIndex();
-            for (PointLight light : shadowedLights) {
-                shadowRenderer.generateCubeShadowMap(instances, light);
-            }
+        // Generate shadow maps for dynamic shadowed lights only
+        shadowRenderer.resetLightIndex();
+        for (PointLight light : dynamicShadowedLights) {
+            shadowRenderer.generateCubeShadowMap(instances, light);
         }
+        
+        // Combine all lights for rendering
+        Array<PointLight> allShadowedLights = new Array<>();
+        Array<PointLight> allUnshadowedLights = new Array<>();
+        
+        // Add dynamic lights
+        allShadowedLights.addAll(dynamicShadowedLights);
+        allUnshadowedLights.addAll(unshadowedDynamicLights);
+        
+        // Add cached static lights (they all have shadow maps)
+        allShadowedLights.addAll(cachedStaticLights);
+        
+        Log.info("UnifiedLightingRenderer", "Final lighting: " + allShadowedLights.size + 
+            " shadowed (" + dynamicShadowedLights.size + " dynamic + " + cachedStaticLights.size + " cached), " + 
+            allUnshadowedLights.size + " unshadowed");
         
         // Render with unified lighting
         Log.info("UnifiedLightingRenderer", "About to render with unified lighting...");
-        renderWithUnifiedLighting(instances, camera, shadowedLights, unshadowedLights, lightmaps, ambientLight);
+        renderWithUnifiedLighting(instances, camera, allShadowedLights, allUnshadowedLights, lightmaps, ambientLight, staticLights);
         Log.info("UnifiedLightingRenderer", "Unified lighting render completed");
         
+        // Debug render shadow maps if enabled
+        if (debugShadowMaps) {
+            int totalLightsWithShadows = allShadowedLights.size;
+            if (totalLightsWithShadows > 0) {
+                debugRenderer.renderShadowMaps(shadowRenderer, dynamicShadowedLights.size, cachedStaticLights.size, debugShowDepth);
+            }
+        }
+        
         // Update statistics
-        lastFrameShadowedLights = shadowedLights.size;
-        lastFrameUnshadowedLights = unshadowedLights.size;
+        lastFrameShadowedLights = allShadowedLights.size;
+        lastFrameUnshadowedLights = allUnshadowedLights.size;
         lastFrameRenderTime = System.currentTimeMillis() - startTime;
     }
     
     private void renderWithUnifiedLighting(Array<ModelInstance> instances, Camera camera,
                                          Array<PointLight> shadowedLights, Array<PointLight> unshadowedLights,
-                                         ObjectMap<String, Texture> lightmaps, Vector3 ambientLight) {
+                                         ObjectMap<String, Texture> lightmaps, Vector3 ambientLight, 
+                                         Array<Light> staticLights) {
         
         Log.info("UnifiedLightingRenderer", "renderWithUnifiedLighting: binding shader...");
         unifiedShader.bind();
@@ -137,8 +176,8 @@ public class UnifiedLightingRenderer implements Disposable {
         unifiedShader.setUniformf("u_lightmapIntensity", lightmapIntensity);
         unifiedShader.setUniformf("u_farPlane", 50.0f); // Should match shadow camera far plane
         
-        // Bind shadow maps
-        bindShadowMaps(shadowedLights);
+        // Bind shadow maps (both dynamic and cached)
+        bindShadowMaps(shadowedLights, staticLights);
         
         // Set shadowed light uniforms
         setShadowedLightUniforms(shadowedLights);
@@ -160,28 +199,44 @@ public class UnifiedLightingRenderer implements Disposable {
         Log.info("UnifiedLightingRenderer", "Completed rendering all instances");
     }
     
-    private void bindShadowMaps(Array<PointLight> shadowedLights) {
+    private void bindShadowMaps(Array<PointLight> shadowedLights, Array<Light> staticLights) {
         int textureUnit = 1; // Start from texture unit 1 (0 is reserved for diffuse)
-        int numShadowLights = Math.min(shadowedLights.size, 4);
+        int lightIndex = 0;
         
-        for (int lightIndex = 0; lightIndex < numShadowLights; lightIndex++) {
+        // Bind dynamic shadow maps first
+        int numDynamicShadowLights = Math.min(shadowedLights.size, 4);
+        Log.info("UnifiedLightingRenderer", "Binding " + numDynamicShadowLights + " dynamic shadow maps:");
+        for (int i = 0; i < numDynamicShadowLights; i++) {
             for (int face = 0; face < 6; face++) {
-                Texture shadowMap = shadowRenderer.getShadowMapTexture(lightIndex, face);
+                Texture shadowMap = shadowRenderer.getShadowMapTexture(i, face);
                 if (shadowMap != null) {
                     shadowMap.bind(textureUnit);
                     unifiedShader.setUniformi("u_cubeShadowMaps[" + (lightIndex * 6 + face) + "]", textureUnit);
+                    Log.debug("UnifiedLightingRenderer", "  Bound dynamic light[" + lightIndex + "] face[" + face + "] to texture unit " + textureUnit);
                     textureUnit++;
+                } else {
+                    Log.warn("UnifiedLightingRenderer", "  Missing dynamic shadow map for light[" + lightIndex + "] face[" + face + "]");
                 }
             }
+            lightIndex++;
         }
+        
+        // Bind cached shadow maps for remaining slots
+        Log.info("UnifiedLightingRenderer", "Binding cached shadow maps starting at light index " + lightIndex + ":");
+        textureUnit = cachedShadowMapManager.bindCachedShadowMaps(staticLights, textureUnit, unifiedShader);
+        
+        Log.info("UnifiedLightingRenderer", "Total shadow maps bound, next texture unit: " + textureUnit);
     }
     
     private void setShadowedLightUniforms(Array<PointLight> shadowedLights) {
         int numLights = Math.min(shadowedLights.size, 4);
         unifiedShader.setUniformi("u_numShadowLights", numLights);
         
+        Log.info("UnifiedLightingRenderer", "Setting " + numLights + " shadowed light uniforms:");
         for (int i = 0; i < numLights; i++) {
             PointLight light = shadowedLights.get(i);
+            Log.info("UnifiedLightingRenderer", "  Light[" + i + "]: pos(" + light.position.x + "," + light.position.y + "," + light.position.z + 
+                ") color(" + light.color.r + "," + light.color.g + "," + light.color.b + ") intensity=" + light.intensity);
             unifiedShader.setUniformf("u_shadowLightPositions[" + i + "]", light.position);
             unifiedShader.setUniformf("u_shadowLightColors[" + i + "]", light.color.r, light.color.g, light.color.b);
             unifiedShader.setUniformf("u_shadowLightIntensities[" + i + "]", light.intensity);
@@ -203,20 +258,11 @@ public class UnifiedLightingRenderer implements Disposable {
     private void renderInstance(ModelInstance instance, ObjectMap<String, Texture> lightmaps) {
         unifiedShader.setUniformMatrix("u_worldTrans", instance.transform);
         
-        // Determine if this instance has a lightmap
-        String lightmapKey = instance.userData instanceof String ? (String) instance.userData : null;
-        Texture lightmap = (lightmapKey != null) ? lightmaps.get(lightmapKey) : null;
+        // DISABLED: Using cached shadow maps instead of lightmaps
+        // No longer apply lightmaps - using cached shadow map approach instead
+        unifiedShader.setUniformi("u_hasLightmap", 0);
         
-        Log.info("UnifiedLightingRenderer", "Instance userData='" + lightmapKey + "', lightmap=" + 
-            (lightmap != null ? "FOUND" : "NOT_FOUND") + ", available lightmaps=" + lightmaps.size);
-        
-        if (lightmap != null) {
-            lightmap.bind(25); // Use high texture unit for lightmaps
-            unifiedShader.setUniformi("u_lightmapTexture", 25);
-            unifiedShader.setUniformi("u_hasLightmap", 1);
-        } else {
-            unifiedShader.setUniformi("u_hasLightmap", 0);
-        }
+        Log.info("UnifiedLightingRenderer", "Rendering instance with cached shadow maps (lightmaps disabled)");
         
         // Render each node part
         for (Node node : instance.nodes) {
@@ -291,6 +337,21 @@ public class UnifiedLightingRenderer implements Disposable {
         this.lightmapIntensity = Math.max(0.0f, intensity);
     }
     
+    // Debug configuration methods
+    public void setDebugShadowMaps(boolean enable) {
+        this.debugShadowMaps = enable;
+        Log.info("UnifiedLightingRenderer", "Shadow map debug rendering " + (enable ? "enabled" : "disabled"));
+    }
+    
+    public void setDebugShowDepth(boolean showDepth) {
+        this.debugShowDepth = showDepth;
+        Log.info("UnifiedLightingRenderer", "Shadow map debug mode: " + (showDepth ? "depth" : "color"));
+    }
+    
+    public boolean isDebugShadowMapsEnabled() {
+        return debugShadowMaps;
+    }
+    
     // Statistics
     public int getLastFrameDrawCalls() { return lastFrameDrawCalls; }
     public int getLastFrameShadowedLights() { return lastFrameShadowedLights; }
@@ -317,6 +378,14 @@ public class UnifiedLightingRenderer implements Disposable {
         
         if (shadowRenderer != null) {
             shadowRenderer.dispose();
+        }
+        
+        if (debugRenderer != null) {
+            debugRenderer.dispose();
+        }
+        
+        if (cachedShadowMapManager != null) {
+            cachedShadowMapManager.dispose();
         }
         
         disposed = true;

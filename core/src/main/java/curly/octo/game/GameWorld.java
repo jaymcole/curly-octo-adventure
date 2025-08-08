@@ -76,8 +76,8 @@ public class GameWorld {
             mapRenderer = new EnhancedGameMapRenderer(1000, 1000); // No practical limits
             mapRenderer.updateMap(mapManager);
 
-            // Configure lighting for balanced performance/quality
-            mapRenderer.setLightingQuality(0.005f, 0.7f, 1.0f);
+            // Configure lighting to favor static lights for debugging
+            mapRenderer.setLightingQuality(0.005f, 1.0f, 2.0f); // Full static light blend, boosted intensity
 
             // Increase light culling distance for better visibility
             mapRenderer.getLightManager().setMaxLightDistance(10000.0f);
@@ -85,6 +85,9 @@ public class GameWorld {
             
             // Enable debug baked lights for testing
             mapRenderer.setDebugRenderBakedLights(true);
+            
+            // Disable shadow map debug to test pure lightmap rendering
+            mapRenderer.setShadowMapDebug(false);
 
             Log.info("GameWorld", "Initialized new map");
         }
@@ -129,9 +132,9 @@ public class GameWorld {
             localPlayerController.setGameMap(mapManager);
             localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z, 0);
 
-            // Add local player light to enhanced lighting system
-            Log.info("GameWorld", "Adding player light to enhanced lighting system for player " + localPlayerController.getPlayerId());
-            addPlayerToEnhancedLighting(localPlayerController);
+            // DISABLED: Add local player light to enhanced lighting system
+            Log.info("GameWorld", "DISABLED: Player light disabled for debugging static lights");
+            // addPlayerToEnhancedLighting(localPlayerController);
 
             Log.info("GameWorld", "Setup local player at position: " + playerStart);
         }
@@ -192,14 +195,16 @@ public class GameWorld {
     }
 
     public void addPlayerToEnvironment(PlayerController player) {
-        PointLight light = player.getPlayerLight();
-        if (light != null) {
-            environment.add(light);
-            Log.info("GameWorld", "Added light for player " + player.getPlayerId() + " to environment at (" +
-                light.position.x + "," + light.position.y + "," + light.position.z + ") intensity=" + light.intensity);
-        } else {
-            Log.warn("GameWorld", "Player " + player.getPlayerId() + " has no light to add to environment");
-        }
+        // DISABLED: Player lights disabled for debugging static lights
+        Log.info("GameWorld", "DISABLED: Player light to environment disabled for debugging static lights");
+        // PointLight light = player.getPlayerLight();
+        // if (light != null) {
+        //     environment.add(light);
+        //     Log.info("GameWorld", "Added light for player " + player.getPlayerId() + " to environment at (" +
+        //         light.position.x + "," + light.position.y + "," + light.position.z + ") intensity=" + light.intensity);
+        // } else {
+        //     Log.warn("GameWorld", "Player " + player.getPlayerId() + " has no light to add to environment");
+        // }
     }
 
     public void removePlayerFromEnvironment(PlayerController player) {
@@ -247,22 +252,9 @@ public class GameWorld {
     }
 
     private void updatePlayerLightPositions() {
-        // Update dynamic light positions for all players in enhanced lighting system
-        if (mapRenderer != null && players != null) {
-            for (PlayerController player : players) {
-                PointLight light = player.getPlayerLight();
-                if (light != null) {
-                    String lightId = "player_" + player.getPlayerId();
-                    // Use efficient position update instead of remove/re-add
-                    boolean updated = mapRenderer.updateDynamicLightPosition(lightId, light.position);
-                    if (!updated) {
-                        // Light doesn't exist yet, add it
-                        mapRenderer.addDynamicLight(lightId, light.position, light.color, light.intensity,
-                            curly.octo.lighting.LightType.DYNAMIC_UNSHADOWED, false);
-                    }
-                }
-            }
-        }
+        // DISABLED: Update dynamic light positions for all players in enhanced lighting system
+        Log.debug("GameWorld", "DISABLED: Player light updates disabled for debugging static lights");
+        // Player lights are disabled for debugging static light issues
     }
 
     public boolean shouldSendPositionUpdate() {
@@ -399,6 +391,18 @@ public class GameWorld {
 
     public boolean isDebugBakedLightsEnabled() {
         return mapRenderer != null && mapRenderer.isDebugRenderBakedLights();
+    }
+    
+    public void toggleShadowMapDebug() {
+        if (mapRenderer != null) {
+            boolean currentState = mapRenderer.isShadowMapDebugEnabled();
+            mapRenderer.setShadowMapDebug(!currentState);
+            Log.info("GameWorld", "Shadow map debug toggled: " + !currentState);
+        }
+    }
+    
+    public boolean isShadowMapDebugEnabled() {
+        return mapRenderer != null && mapRenderer.isShadowMapDebugEnabled();
     }
 
     public void dispose() {

@@ -52,7 +52,7 @@ public class PoolGenerator extends MapGenerator{
             LightHint light = new LightHint();
             light.intensity = 2; // Increase intensity for visibility
             light.lightType = LightType.BAKED_STATIC;
-            light.castsShadows = false;
+            light.castsShadows = true;
             light.bakingPriority = 1;
             light.range = 100;
             // Set different colors for variety

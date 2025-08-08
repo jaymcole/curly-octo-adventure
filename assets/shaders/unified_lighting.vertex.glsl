@@ -1,7 +1,6 @@
 attribute vec3 a_position;
 attribute vec3 a_normal;
 attribute vec2 a_texCoord0;
-attribute vec2 a_lightmapCoord; // Second UV set for lightmaps
 
 uniform mat4 u_worldTrans;
 uniform mat4 u_projViewTrans;
@@ -21,7 +20,10 @@ void main() {
     
     // Pass through texture coordinates
     v_texCoord = a_texCoord0;
-    v_lightmapCoord = a_lightmapCoord;
+    
+    // Use world position as lightmap coordinates (simple planar mapping)
+    // This ensures we have valid coordinates even when lightmap UVs aren't provided
+    v_lightmapCoord = worldPos.xz * 0.1; // Scale down world coords for UV range
     
     // Transform to camera projection space
     gl_Position = u_projViewTrans * worldPos;

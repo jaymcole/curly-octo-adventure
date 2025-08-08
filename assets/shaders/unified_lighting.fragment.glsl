@@ -74,40 +74,37 @@ float sampleCubeShadowMap(vec3 lightDirection, int lightIndex) {
     // Convert from [-1,1] to [0,1]
     uv = uv * 0.5 + 0.5;
     
-    // Calculate shadow map texture index: lightIndex * 6 + face
+    // Sample the appropriate shadow map - use dynamic indexing with fallback
+    float closestDepth = 1.0; // Default to no shadow
     int shadowMapIndex = lightIndex * 6 + face;
     
-    // Sample the appropriate shadow map with unrolled loops for GLSL compatibility
-    float closestDepth = 1.0; // Default to no shadow
-    
-    if (lightIndex == 0) {
-        if (face == 0) closestDepth = texture2D(u_cubeShadowMaps[0], uv).r;
-        else if (face == 1) closestDepth = texture2D(u_cubeShadowMaps[1], uv).r;
-        else if (face == 2) closestDepth = texture2D(u_cubeShadowMaps[2], uv).r;
-        else if (face == 3) closestDepth = texture2D(u_cubeShadowMaps[3], uv).r;
-        else if (face == 4) closestDepth = texture2D(u_cubeShadowMaps[4], uv).r;
-        else closestDepth = texture2D(u_cubeShadowMaps[5], uv).r;
-    } else if (lightIndex == 1) {
-        if (face == 0) closestDepth = texture2D(u_cubeShadowMaps[6], uv).r;
-        else if (face == 1) closestDepth = texture2D(u_cubeShadowMaps[7], uv).r;
-        else if (face == 2) closestDepth = texture2D(u_cubeShadowMaps[8], uv).r;
-        else if (face == 3) closestDepth = texture2D(u_cubeShadowMaps[9], uv).r;
-        else if (face == 4) closestDepth = texture2D(u_cubeShadowMaps[10], uv).r;
-        else closestDepth = texture2D(u_cubeShadowMaps[11], uv).r;
-    } else if (lightIndex == 2) {
-        if (face == 0) closestDepth = texture2D(u_cubeShadowMaps[12], uv).r;
-        else if (face == 1) closestDepth = texture2D(u_cubeShadowMaps[13], uv).r;
-        else if (face == 2) closestDepth = texture2D(u_cubeShadowMaps[14], uv).r;
-        else if (face == 3) closestDepth = texture2D(u_cubeShadowMaps[15], uv).r;
-        else if (face == 4) closestDepth = texture2D(u_cubeShadowMaps[16], uv).r;
-        else closestDepth = texture2D(u_cubeShadowMaps[17], uv).r;
-    } else if (lightIndex == 3) {
-        if (face == 0) closestDepth = texture2D(u_cubeShadowMaps[18], uv).r;
-        else if (face == 1) closestDepth = texture2D(u_cubeShadowMaps[19], uv).r;
-        else if (face == 2) closestDepth = texture2D(u_cubeShadowMaps[20], uv).r;
-        else if (face == 3) closestDepth = texture2D(u_cubeShadowMaps[21], uv).r;
-        else if (face == 4) closestDepth = texture2D(u_cubeShadowMaps[22], uv).r;
-        else closestDepth = texture2D(u_cubeShadowMaps[23], uv).r;
+    // Dynamic sampling with bounds checking
+    if (shadowMapIndex >= 0 && shadowMapIndex < 24) {
+        // Unroll the first few common cases for better performance
+        if (shadowMapIndex == 0) closestDepth = texture2D(u_cubeShadowMaps[0], uv).r;
+        else if (shadowMapIndex == 1) closestDepth = texture2D(u_cubeShadowMaps[1], uv).r;
+        else if (shadowMapIndex == 2) closestDepth = texture2D(u_cubeShadowMaps[2], uv).r;
+        else if (shadowMapIndex == 3) closestDepth = texture2D(u_cubeShadowMaps[3], uv).r;
+        else if (shadowMapIndex == 4) closestDepth = texture2D(u_cubeShadowMaps[4], uv).r;
+        else if (shadowMapIndex == 5) closestDepth = texture2D(u_cubeShadowMaps[5], uv).r;
+        else if (shadowMapIndex == 6) closestDepth = texture2D(u_cubeShadowMaps[6], uv).r;
+        else if (shadowMapIndex == 7) closestDepth = texture2D(u_cubeShadowMaps[7], uv).r;
+        else if (shadowMapIndex == 8) closestDepth = texture2D(u_cubeShadowMaps[8], uv).r;
+        else if (shadowMapIndex == 9) closestDepth = texture2D(u_cubeShadowMaps[9], uv).r;
+        else if (shadowMapIndex == 10) closestDepth = texture2D(u_cubeShadowMaps[10], uv).r;
+        else if (shadowMapIndex == 11) closestDepth = texture2D(u_cubeShadowMaps[11], uv).r;
+        else if (shadowMapIndex == 12) closestDepth = texture2D(u_cubeShadowMaps[12], uv).r;
+        else if (shadowMapIndex == 13) closestDepth = texture2D(u_cubeShadowMaps[13], uv).r;
+        else if (shadowMapIndex == 14) closestDepth = texture2D(u_cubeShadowMaps[14], uv).r;
+        else if (shadowMapIndex == 15) closestDepth = texture2D(u_cubeShadowMaps[15], uv).r;
+        else if (shadowMapIndex == 16) closestDepth = texture2D(u_cubeShadowMaps[16], uv).r;
+        else if (shadowMapIndex == 17) closestDepth = texture2D(u_cubeShadowMaps[17], uv).r;
+        else if (shadowMapIndex == 18) closestDepth = texture2D(u_cubeShadowMaps[18], uv).r;
+        else if (shadowMapIndex == 19) closestDepth = texture2D(u_cubeShadowMaps[19], uv).r;
+        else if (shadowMapIndex == 20) closestDepth = texture2D(u_cubeShadowMaps[20], uv).r;
+        else if (shadowMapIndex == 21) closestDepth = texture2D(u_cubeShadowMaps[21], uv).r;
+        else if (shadowMapIndex == 22) closestDepth = texture2D(u_cubeShadowMaps[22], uv).r;
+        else if (shadowMapIndex == 23) closestDepth = texture2D(u_cubeShadowMaps[23], uv).r;
     }
     
     // Calculate current distance from light
@@ -181,6 +178,9 @@ void main() {
     if (u_hasLightmap == 1) {
         vec3 lightmapColor = texture2D(u_lightmapTexture, v_lightmapCoord).rgb;
         bakedLighting = lightmapColor * u_lightmapIntensity;
+        
+        // Use normal lightmap calculation
+        bakedLighting = lightmapColor * u_lightmapIntensity;
     }
     
     // Calculate dynamic lighting
@@ -191,10 +191,10 @@ void main() {
     if (u_hasLightmap == 1) {
         // Blend between baked and dynamic lighting
         totalLighting = u_ambientLight + 
-                       mix(dynamicLighting, bakedLighting, u_lightmapBlendFactor) + 
+                       bakedLighting * u_lightmapBlendFactor + 
                        dynamicLighting * (1.0 - u_lightmapBlendFactor);
     } else {
-        // Pure dynamic lighting
+        // Pure dynamic lighting (includes static lights converted to dynamic in debug mode)
         totalLighting = u_ambientLight + dynamicLighting;
     }
     

@@ -16,8 +16,8 @@ void main() {
     vec3 lightDir = normalize(u_lightPosition - v_worldPos);
     float distance = length(u_lightPosition - v_worldPos);
     
-    // Attenuation
-    float attenuation = u_lightIntensity / (1.0 + 0.05 * distance + 0.016 * distance * distance);
+    // More forgiving attenuation for lightmap baking (less aggressive falloff)
+    float attenuation = u_lightIntensity / (1.0 + 0.01 * distance + 0.001 * distance * distance);
     
     // Diffuse lighting
     float diff = max(dot(normal, lightDir), 0.0);
