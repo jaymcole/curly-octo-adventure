@@ -5,10 +5,12 @@ import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.GameObjectManager;
 import curly.octo.network.GameServer;
 import curly.octo.player.PlayerController;
 
 import java.io.IOException;
+import java.util.UUID;
 
 /**
  * Server game mode that handles hosting and broadcasting to clients.
@@ -41,7 +43,7 @@ public class ServerGameMode implements GameMode {
                 try {
                     Thread.sleep(1000);
                     active = true;
-                    Gdx.input.setInputProcessor(gameWorld.getLocalPlayerController());
+                    Gdx.input.setInputProcessor(GameObjectManager.playerController);
                     Log.info("ServerGameMode", "Server mode activated");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -71,7 +73,7 @@ public class ServerGameMode implements GameMode {
     public void render(ModelBatch modelBatch, Environment environment) {
         if (!active) return;
 
-        PlayerController localPlayer = gameWorld.getLocalPlayerController();
+        PlayerController localPlayer = GameObjectManager.playerController;
         if (localPlayer != null) {
             gameWorld.render(modelBatch, localPlayer.getCamera());
         }
@@ -108,15 +110,10 @@ public class ServerGameMode implements GameMode {
         return active;
     }
 
-    @Override
-    public long getLocalPlayerId() {
-        return gameWorld.getLocalPlayerId();
-    }
-
     private void sendPositionUpdate() {
-        if (gameServer != null && gameWorld.getLocalPlayerController() != null) {
-            PlayerController localPlayer = gameWorld.getLocalPlayerController();
-            long localPlayerId = gameWorld.getLocalPlayerId();
+        if (gameServer != null && GameObjectManager.playerController != null) {
+            PlayerController localPlayer = GameObjectManager.playerController;
+            UUID localPlayerId = GameObjectManager.playerController.getPlayerId();
             Vector3 position = localPlayer.getPosition();
             gameServer.broadcastPlayerPosition(localPlayerId, position);
         }

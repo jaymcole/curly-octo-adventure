@@ -57,14 +57,6 @@ public class CubeShadowMapRenderer implements Disposable {
 
     private boolean disposed = false;
 
-    public CubeShadowMapRenderer() {
-        this(QUALITY_HIGH, 1); // Default to high quality, 1 light
-    }
-
-    public CubeShadowMapRenderer(int quality) {
-        this(quality, 1); // Default to 1 light
-    }
-
     public CubeShadowMapRenderer(int quality, int maxLights) {
         SHADOW_MAP_SIZE = quality;
         MAX_LIGHTS = Math.max(1, Math.min(8, maxLights)); // Clamp between 1-8
@@ -126,8 +118,8 @@ public class CubeShadowMapRenderer implements Disposable {
             Log.warn("CubeShadowMapRenderer", "Too many lights for shadow casting, skipping light");
             return;
         }
-        
-        Log.debug("CubeShadowMapRenderer", "Generating shadow map " + currentLightIndex + " for light at (" + 
+
+        Log.debug("CubeShadowMapRenderer", "Generating shadow map " + currentLightIndex + " for light at (" +
             light.position.x + "," + light.position.y + "," + light.position.z + ") intensity=" + light.intensity);
 
         // Position all 6 cameras at the light position
@@ -148,10 +140,10 @@ public class CubeShadowMapRenderer implements Disposable {
         for (int face = 0; face < 6; face++) {
             renderShadowMapFace(instances, face, light, currentLightIndex);
         }
-        
+
         currentLightIndex++;
     }
-    
+
     public void resetLightIndex() {
         currentLightIndex = 0;
     }
@@ -181,30 +173,30 @@ public class CubeShadowMapRenderer implements Disposable {
 
         // Pass shadow lights first, then remaining lights for proper shader indexing
         Array<PointLight> orderedLights = new Array<>();
-        
+
         // Add shadow-casting lights first (these must match the shadow map order)
         for (PointLight shadowLight : shadowLights) {
             orderedLights.add(shadowLight);
         }
-        
+
         // Add remaining non-shadow lights
         for (PointLight light : allLights) {
             if (!shadowLights.contains(light, true)) {
                 orderedLights.add(light);
             }
         }
-        
+
         // Send ordered lights to shader
         int totalLights = Math.min(orderedLights.size, 8);
         shadowShader.setUniformi("u_numLights", totalLights);
-        
+
         Log.debug("CubeShadowMapRenderer", "Sending " + totalLights + " lights to shader (" + numShadowLights + " with shadows):");
         for (int i = 0; i < totalLights; i++) {
             PointLight light = orderedLights.get(i);
             boolean hasShadow = i < numShadowLights;
-            Log.debug("CubeShadowMapRenderer", "  Light[" + i + "]: pos(" + light.position.x + "," + light.position.y + "," + light.position.z + 
+            Log.debug("CubeShadowMapRenderer", "  Light[" + i + "]: pos(" + light.position.x + "," + light.position.y + "," + light.position.z +
                 ") intensity=" + light.intensity + " shadow=" + hasShadow);
-                
+
             shadowShader.setUniformf("u_lightPositions[" + i + "]", light.position);
             shadowShader.setUniformf("u_lightColors[" + i + "]", light.color.r, light.color.g, light.color.b);
             shadowShader.setUniformf("u_lightIntensities[" + i + "]", light.intensity);
@@ -239,8 +231,8 @@ public class CubeShadowMapRenderer implements Disposable {
                 if (distance <= light.intensity * 1.5f) { // Wider range for additional lights
                     float attenuation = light.intensity / (1.0f + 0.03f * distance + 0.008f * distance * distance);
                     // Boost additional lights for better visibility
-                    additionalLighting.add(light.color.r * attenuation * 1.5f, 
-                                         light.color.g * attenuation * 1.5f, 
+                    additionalLighting.add(light.color.r * attenuation * 1.5f,
+                                         light.color.g * attenuation * 1.5f,
                                          light.color.b * attenuation * 1.5f);
                 }
             }
@@ -248,12 +240,12 @@ public class CubeShadowMapRenderer implements Disposable {
 
         // Material with additional lighting contribution
         baseMaterial.add(additionalLighting.x * 0.5f, additionalLighting.y * 0.5f, additionalLighting.z * 0.5f);
-        
-        // Clamp to reasonable values  
+
+        // Clamp to reasonable values
         baseMaterial.x = Math.min(2.0f, baseMaterial.x);
         baseMaterial.y = Math.min(2.0f, baseMaterial.y);
         baseMaterial.z = Math.min(2.0f, baseMaterial.z);
-        
+
         return baseMaterial;
     }
 
@@ -325,17 +317,17 @@ public class CubeShadowMapRenderer implements Disposable {
                         Vector3 diffuseColor = new Vector3(0.7f, 0.7f, 0.7f); // Default gray
                         float diffuseAlpha = 1.0f; // Default opaque
                         boolean hasTexture = false;
-                        
+
                         if (nodePart.material != null) {
-                            com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute diffuseAttr = 
+                            com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute diffuseAttr =
                                 (com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute) nodePart.material.get(com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.Diffuse);
                             if (diffuseAttr != null) {
                                 diffuseColor.set(diffuseAttr.color.r, diffuseAttr.color.g, diffuseAttr.color.b);
                                 diffuseAlpha = diffuseAttr.color.a; // Extract alpha from diffuse color
                             }
-                            
+
                             // Check for diffuse texture
-                            com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute textureAttr = 
+                            com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute textureAttr =
                                 (com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute) nodePart.material.get(com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute.Diffuse);
                             if (textureAttr != null && textureAttr.textureDescription != null && textureAttr.textureDescription.texture != null) {
                                 hasTexture = true;
@@ -343,13 +335,13 @@ public class CubeShadowMapRenderer implements Disposable {
                                 shader.setUniformi("u_diffuseTexture", 0);
                             }
                         }
-                        
+
                         // Set uniforms
                         shader.setUniformf("u_diffuseColor", diffuseColor);
                         shader.setUniformf("u_diffuseAlpha", diffuseAlpha);
                         shader.setUniformi("u_hasTexture", hasTexture ? 1 : 0);
                     }
-                    
+
                     Mesh mesh = nodePart.meshPart.mesh;
                     mesh.render(shader, nodePart.meshPart.primitiveType,
                                nodePart.meshPart.offset, nodePart.meshPart.size);
@@ -361,7 +353,7 @@ public class CubeShadowMapRenderer implements Disposable {
     public Texture getShadowMapTexture(int face) {
         return getShadowMapTexture(0, face); // Default to first light
     }
-    
+
     public Texture getShadowMapTexture(int lightIndex, int face) {
         if (lightIndex >= 0 && lightIndex < MAX_LIGHTS && face >= 0 && face < 6) {
             return shadowFrameBuffers[lightIndex][face].getColorBufferTexture();

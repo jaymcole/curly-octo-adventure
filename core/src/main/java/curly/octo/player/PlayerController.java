@@ -19,6 +19,8 @@ import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
 
 import java.util.Random;
+import java.util.UUID;
+
 /**
  * Handles camera movement and input for 3D navigation.
  */
@@ -46,17 +48,15 @@ public class PlayerController extends InputAdapter  {
     private static final float MAX_PITCH = 89f;
     private static final float MIN_PITCH = -89f;
 
-    private long playerId;
+    private UUID playerId;
     private transient GameMap gameMap;
-    private transient PointLight playerLight;
+//    private transient PointLight playerLight;
 
-    private transient final Random random;
-    
+
     private MapTileFillType currentTileFillType = MapTileFillType.AIR;
     private MapTile currentTile = null;
 
     public PlayerController() {
-        random = new Random();
         // Initialize camera with default values
         yaw = 0f;
         pitch = 0f;
@@ -64,12 +64,9 @@ public class PlayerController extends InputAdapter  {
 
         // Initialize camera on the OpenGL thread
         Gdx.app.postRunnable(this::initialize);
-
-        // Initialize player light
-        createPlayerLight();
     }
 
-    public void setPlayerId(long playerId) {
+    public void setPlayerId(UUID playerId) {
         this.playerId = playerId;
     }
 
@@ -81,12 +78,9 @@ public class PlayerController extends InputAdapter  {
             camera.lookAt(position.x + direction.x, position.y + direction.y + playerHeight, position.z + direction.z);
             camera.update();
         }
-
-        // Update player light position
-        updatePlayerLightPosition(delta);
     }
 
-    public long getPlayerId() {
+    public UUID getPlayerId() {
         return playerId;
     }
 
@@ -203,14 +197,14 @@ public class PlayerController extends InputAdapter  {
         if (gameMap == null || camera == null) {
             return;
         }
-        
+
         Vector3 cameraPos = camera.position;
         MapTile tile = gameMap.getTileFromWorldCoordinates(cameraPos.x, cameraPos.y, cameraPos.z);
-        
+
         if (tile != null) {
             currentTile = tile;
             MapTileFillType newFillType = tile.fillType;
-            
+
             if (currentTileFillType != newFillType) {
                 currentTileFillType = newFillType;
                 onTileFillTypeChanged(newFillType);
@@ -223,7 +217,7 @@ public class PlayerController extends InputAdapter  {
             }
         }
     }
-    
+
     private void onTileFillTypeChanged(MapTileFillType newType) {
         switch (newType) {
             case FOG:
@@ -322,43 +316,38 @@ public class PlayerController extends InputAdapter  {
         return false;
     }
 
-    private void createPlayerLight() {
-        playerLight = new PointLight();
-        playerLight.set(1f, 0.9f, 0.7f, position.x, position.y + 3f, position.z, 1); // Warm lantern light
-        Log.info("PlayerController", "Created player light for player " + playerId);
-    }
+//    private void createPlayerLight() {
+//        playerLight = new PointLight();
+//        playerLight.set(1f, 0.9f, 0.7f, position.x, position.y + 3f, position.z, 1); // Warm lantern light
+//        Log.info("PlayerController", "Created player light for player " + playerId);
+//    }
 
-    private float timeToFlicker = 0.1f;
-    private float timeSinceLastLightFlicker = timeToFlicker+123;
-    private float lightXOffset = 0;
-    private float lightZOffset = 0;
-
-    private void updatePlayerLightPosition(float delta) {
+//    private void updatePlayerLightPosition(float delta) {
         // Ensure light exists (recreate if needed after network deserialization)
-        if (playerLight == null) {
-            createPlayerLight();
-        }
-        if (playerLight != null) {
-            timeSinceLastLightFlicker+=delta;
+//        if (playerLight == null) {
+//            createPlayerLight();
+//        }
+//        if (playerLight != null) {
+//            timeSinceLastLightFlicker+=delta;
+//
+//            if (timeSinceLastLightFlicker > timeToFlicker) {
+//                lightXOffset = random.nextFloat() * 2.25f;
+//                lightZOffset = random.nextFloat() * 2.25f;
+//                timeSinceLastLightFlicker = 0;
+//            }
+//
+//            // Position light slightly above player
+//            playerLight.position.set(position.x + lightXOffset - (direction.x * 2), position.y + 3f, position.z + lightZOffset- (direction.z * 2));
+//        }
+//    }
 
-            if (timeSinceLastLightFlicker > timeToFlicker) {
-                lightXOffset = random.nextFloat() * 2.25f;
-                lightZOffset = random.nextFloat() * 2.25f;
-                timeSinceLastLightFlicker = 0;
-            }
-
-            // Position light slightly above player
-            playerLight.position.set(position.x + lightXOffset - (direction.x * 2), position.y + 3f, position.z + lightZOffset- (direction.z * 2));
-        }
-    }
-
-    public PointLight getPlayerLight() {
-        // Recreate light if it's null (happens after network deserialization)
-        if (playerLight == null) {
-            createPlayerLight();
-        }
-        return playerLight;
-    }
+//    public PointLight getPlayerLight() {
+//        // Recreate light if it's null (happens after network deserialization)
+//        if (playerLight == null) {
+//            createPlayerLight();
+//        }
+//        return playerLight;
+//    }
 
     public void resize(int width, int height) {
         camera.viewportWidth = width;
@@ -366,30 +355,22 @@ public class PlayerController extends InputAdapter  {
         camera.update();
     }
 
-    public float getTimeToFlicker() {
-        return timeToFlicker;
-    }
-
-    public void setTimeToFlicker(float timeToFlicker) {
-        this.timeToFlicker = timeToFlicker;
-    }
-    
     public MapTileFillType getCurrentTileFillType() {
         return currentTileFillType;
     }
-    
+
     public MapTile getCurrentTile() {
         return currentTile;
     }
-    
+
     public boolean isInFog() {
         return currentTileFillType == MapTileFillType.FOG;
     }
-    
+
     public boolean isInWater() {
         return currentTileFillType == MapTileFillType.WATER;
     }
-    
+
     public boolean isInLava() {
         return currentTileFillType == MapTileFillType.LAVA;
     }

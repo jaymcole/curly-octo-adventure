@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.GameObjectManager;
 import curly.octo.map.GameMap;
 import curly.octo.map.GameMapRenderer;
 import curly.octo.map.MapTile;
@@ -32,7 +33,6 @@ public class GameWorld {
     private Array<PointLight> dungeonLights;
     private PointLight playerLantern;
     private List<PlayerController> players;
-    private PlayerController localPlayerController;
     private long localPlayerId;
     private Random random;
 
@@ -95,15 +95,12 @@ public class GameWorld {
     }
 
     public void setupLocalPlayer() {
-        if (localPlayerController == null) {
+        if (GameObjectManager.playerController == null) {
             Log.info("GameWorld", "Creating local player controller");
-            localPlayerController = createPlayerController(random);
+            GameObjectManager.playerController = createPlayerController();
             // Don't set localPlayerId here - it will be set by the server assignment
-            players.add(localPlayerController);
-            Log.info("GameWorld", "Local player controller created with ID: " + localPlayerController.getPlayerId() + " and added to players list");
-
-            // Set the localPlayerId to match the created player (important for server mode)
-            setLocalPlayerId(localPlayerController.getPlayerId());
+            players.add(GameObjectManager.playerController);
+            Log.info("GameWorld", "Local player controller created with ID: " + GameObjectManager.playerController.getPlayerId() + " and added to players list");
         }
 
         if (mapManager != null) {
@@ -119,12 +116,8 @@ public class GameWorld {
 
             mapManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
 
-            localPlayerController.setGameMap(mapManager);
-            localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z, 0);
-
-            // Add local player light to environment
-            Log.info("GameWorld", "About to add local player light to environment for player " + localPlayerController.getPlayerId());
-            addPlayerToEnvironment(localPlayerController);
+            GameObjectManager.playerController.setGameMap(mapManager);
+            GameObjectManager.playerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z, 0);
 
             Log.info("GameWorld", "Setup local player at position: " + playerStart);
         }
@@ -135,15 +128,15 @@ public class GameWorld {
         updateDungeonLights(deltaTime);
 
         // Update physics
-        if (mapManager != null && localPlayerController != null) {
+        if (mapManager != null && GameObjectManager.playerController != null) {
             mapManager.stepPhysics(deltaTime);
             Vector3 bulletPlayerPos = mapManager.getPlayerPosition();
-            localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z, deltaTime);
+            GameObjectManager.playerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z, deltaTime);
         }
 
         // Update local player
-        if (localPlayerController != null) {
-            localPlayerController.update(deltaTime);
+        if (GameObjectManager.playerController != null) {
+            GameObjectManager.playerController.update(deltaTime);
         }
 
         // Update position update timer
@@ -161,52 +154,24 @@ public class GameWorld {
         }
     }
 
-
-    public void addPlayerToEnvironment(PlayerController player) {
-        PointLight light = player.getPlayerLight();
-        if (light != null) {
-            environment.add(light);
-            Log.info("GameWorld", "Added light for player " + player.getPlayerId() + " to environment at (" +
-                light.position.x + "," + light.position.y + "," + light.position.z + ") intensity=" + light.intensity);
-        } else {
-            Log.warn("GameWorld", "Player " + player.getPlayerId() + " has no light to add to environment");
-        }
-    }
-
-    public void removePlayerFromEnvironment(PlayerController player) {
-        if (player.getPlayerLight() != null) {
-            environment.remove(player.getPlayerLight());
-            Log.info("GameWorld", "Removed light for player " + player.getPlayerId() + " from environment");
-        }
-    }
-
-    private void removeAllPlayerLights() {
-        for (PlayerController player : players) {
-            if (player.getPlayerLight() != null) {
-                environment.remove(player.getPlayerLight());
-            }
-        }
-        Log.info("GameWorld", "Removed all player lights from environment");
-    }
-
     public void render(ModelBatch modelBatch, PerspectiveCamera camera) {
         if (mapRenderer != null && camera != null) {
             // Set post-processing effect based on local player's current tile
-            if (localPlayerController != null) {
-                mapRenderer.setPostProcessingEffect(localPlayerController.getCurrentTileFillType());
+            if (GameObjectManager.playerController != null) {
+                mapRenderer.setPostProcessingEffect(GameObjectManager.playerController.getCurrentTileFillType());
             }
-            
+
             // Step 1: Render scene with bloom effects first
             mapRenderer.beginBloomRender();
-            
+
             // Render the map with bloom framebuffer
             mapRenderer.render(camera, environment, mapRenderer.getBloomFrameBuffer());
-            
+
             // Render all other players
-            if (players != null && localPlayerController != null) {
+            if (players != null && GameObjectManager.playerController != null) {
                 for (PlayerController player : players) {
-                    if (player.getPlayerId() != localPlayerController.getPlayerId()) {
-                        player.render(modelBatch, environment, localPlayerController.getCamera());
+                    if (player.getPlayerId() != GameObjectManager.playerController.getPlayerId()) {
+                        player.render(modelBatch, environment, GameObjectManager.playerController.getCamera());
                     }
                 }
             }
@@ -215,15 +180,15 @@ public class GameWorld {
             if (mapManager != null) {
                 mapManager.renderPhysicsDebug(camera);
             }
-            
+
             // End bloom render (this renders bloom result to screen)
             mapRenderer.endBloomRender();
-            
+
             // Step 2: Apply post-processing effects to the bloom result
             // Only apply post-processing if we have an effect to apply
-            if (localPlayerController != null && 
-                localPlayerController.getCurrentTileFillType() != MapTileFillType.AIR) {
-                
+            if (GameObjectManager.playerController != null &&
+                GameObjectManager.playerController.getCurrentTileFillType() != MapTileFillType.AIR) {
+
                 // Apply post-processing overlay to the current screen (with bloom)
                 mapRenderer.applyPostProcessingToScreen();
             }
@@ -243,10 +208,8 @@ public class GameWorld {
     public GameMapRenderer getMapRenderer() { return mapRenderer; }
     public Environment getEnvironment() { return environment; }
     public List<PlayerController> getPlayers() { return players; }
-    public PlayerController getLocalPlayerController() { return localPlayerController; }
-    public long getLocalPlayerId() { return localPlayerId; }
     public Random getRandom() { return random; }
-    
+
     /**
      * Handle window resize for all rendering components.
      */
@@ -254,16 +217,11 @@ public class GameWorld {
         if (mapRenderer != null) {
             mapRenderer.resize(width, height);
         }
-        if (localPlayerController != null) {
-            localPlayerController.resize(width, height);
+        if (GameObjectManager.playerController != null) {
+            GameObjectManager.playerController.resize(width, height);
         }
     }
 
-    // Setters
-    public void setLocalPlayerId(long localPlayerId) {
-        Log.info("GameWorld", "Setting local player ID to: " + localPlayerId);
-        this.localPlayerId = localPlayerId;
-    }
 
     // Physics debug methods
     public void togglePhysicsDebug() {
@@ -355,9 +313,6 @@ public class GameWorld {
             mapRenderer = null;
         }
 
-        // Remove all player lights from environment
-        removeAllPlayerLights();
-
         // Clear dungeon lights
         if (dungeonLights != null) {
             dungeonLights.clear();
@@ -377,7 +332,7 @@ public class GameWorld {
 
         // Clear references
         players.clear();
-        localPlayerController = null;
+        GameObjectManager.playerController = null;
 
         disposed = true;
         Log.info("GameWorld", "Game world disposed");

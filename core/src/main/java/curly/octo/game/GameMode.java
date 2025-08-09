@@ -46,10 +46,4 @@ public interface GameMode {
      * @return true if active
      */
     boolean isActive();
-
-    /**
-     * Get the local player ID
-     * @return local player ID
-     */
-    long getLocalPlayerId();
 }

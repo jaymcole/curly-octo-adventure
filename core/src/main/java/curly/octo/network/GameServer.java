@@ -16,12 +16,7 @@ import curly.octo.player.PlayerController;
 import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Handles server-side network operations.
@@ -32,7 +27,7 @@ public class GameServer {
     private final GameMap map;
     private final List<PlayerController> players;
     private final GameWorld gameWorld;
-    private final Map<Integer, Long> connectionToPlayerMap = new HashMap<>();
+    private final Map<Integer, UUID> connectionToPlayerMap = new HashMap<>();
     private final Set<Integer> readyClients = new HashSet<>(); // Track clients that have received map and assignment
 
     public GameServer(Random random, GameMap map, List<PlayerController> players, GameWorld gameWorld) {
@@ -43,13 +38,6 @@ public class GameServer {
         this.server = new Server(5242880, 5242880);
         this.networkListener = new NetworkListener(server);
 
-        Log.info("GameServer", "Created with " + players.size() + " initial players:");
-        for (int i = 0; i < players.size(); i++) {
-            PlayerController player = players.get(i);
-            Log.info("GameServer", "  Initial Player[" + i + "]: ID=" + player.getPlayerId() +
-                " hasLight=" + (player.getPlayerLight() != null));
-        }
-
         // Register all network classes
         Network.register(server);
 
@@ -58,11 +46,8 @@ public class GameServer {
             @Override
             public void connected(Connection connection) {
                 sendMapRefreshToUser(connection);
-                PlayerController newPlayer = PlayerUtilities.createPlayerController(random);
+                PlayerController newPlayer = PlayerUtilities.createPlayerController();
                 players.add(newPlayer);
-
-                // Add the new player's light to the server's environment
-                gameWorld.addPlayerToEnvironment(newPlayer);
 
                 connectionToPlayerMap.put(connection.getID(), newPlayer.getPlayerId());
                 broadcastNewPlayerRoster();
@@ -122,9 +107,9 @@ public class GameServer {
             public void disconnected(Connection connection) {
                 // Remove from ready clients
                 readyClients.remove(connection.getID());
-                
+
                 // Find and remove the disconnected player using the connection mapping
-                Long playerId = connectionToPlayerMap.remove(connection.getID());
+                UUID playerId = connectionToPlayerMap.remove(connection.getID());
                 if (playerId != null) {
                     PlayerController disconnectedPlayer = null;
                     for (PlayerController player : players) {
@@ -138,7 +123,7 @@ public class GameServer {
                         players.remove(disconnectedPlayer);
 
                         // Remove the disconnected player's light from the server's environment
-                        gameWorld.removePlayerFromEnvironment(disconnectedPlayer);
+//                        gameWorld.removePlayerFromEnvironment(disconnectedPlayer);
 
                         // Broadcast disconnect message to all remaining clients
                         broadcastPlayerDisconnect(disconnectedPlayer.getPlayerId());
@@ -202,7 +187,7 @@ public class GameServer {
      * @param playerId The ID of the player whose position is being updated
      * @param position The new position of the player
      */
-    public void broadcastPlayerPosition(long playerId, Vector3 position) {
+    public void broadcastPlayerPosition(UUID playerId, Vector3 position) {
         if (server != null) {
             PlayerUpdate update = new PlayerUpdate(playerId, position);
             server.sendToAllUDP(update); // Using UDP for faster, less reliable but faster updates
@@ -240,30 +225,22 @@ public class GameServer {
     private PlayerRosterUpdate createPlayerRosterUpdate() {
         PlayerRosterUpdate update = new PlayerRosterUpdate();
         PlayerController[] playerRoster = new PlayerController[players.size()];
-
-        Log.info("GameServer", "Creating player roster with " + players.size() + " players:");
-        for(int i = 0; i < playerRoster.length; i++) {
-            playerRoster[i] = players.get(i);
-            Log.info("GameServer", "  Player[" + i + "]: ID=" + players.get(i).getPlayerId() +
-                " hasLight=" + (players.get(i).getPlayerLight() != null));
-        }
-
         update.players = playerRoster;
         return update;
     }
 
-    public void assignPlayer(Connection connection, long playerId)
+    public void assignPlayer(Connection connection, UUID playerId)
     {
         PlayerAssignmentUpdate assignmentUpdate = new PlayerAssignmentUpdate();
         assignmentUpdate.playerId = playerId;
         server.sendToTCP(connection.getID(), assignmentUpdate);
-        
+
         // Mark this client as ready to receive position updates
         readyClients.add(connection.getID());
         Log.info("GameServer", "Client " + connection.getID() + " marked as ready for position updates");
     }
 
-    public void broadcastPlayerDisconnect(long playerId) {
+    public void broadcastPlayerDisconnect(UUID playerId) {
         if (server != null) {
             PlayerDisconnectUpdate disconnectUpdate = new PlayerDisconnectUpdate(playerId);
             server.sendToAllTCP(disconnectUpdate);
