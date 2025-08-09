@@ -26,6 +26,10 @@ public class ClientGameMode implements GameMode {
     private boolean active = false;
     private boolean mapReceived = false;
     private boolean playerAssigned = false;
+    
+    // Network threading
+    private Thread networkThread;
+    private volatile boolean networkRunning = false;
 
     public ClientGameMode(String host, java.util.Random random) {
         this.host = host;
@@ -43,12 +47,65 @@ public class ClientGameMode implements GameMode {
             // Connect to server
             gameClient.connect(5000);
 
+            // Start network thread for processing network updates
+            startNetworkThread();
+
             Log.info("ClientGameMode", "Connected to server at " + host);
 
         } catch (IOException e) {
             Log.error("ClientGameMode", "Failed to connect to server: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+    
+    private void startNetworkThread() {
+        networkRunning = true;
+        networkThread = new Thread(() -> {
+            Log.info("ClientGameMode", "Network thread started");
+            
+            while (networkRunning) {
+                try {
+                    // Process network updates
+                    if (gameClient != null) {
+                        // Handle connection state
+                        if (gameClient.isConnecting()) {
+                            if (gameClient.updateConnection()) {
+                                if (gameClient.isConnected()) {
+                                    Log.info("ClientGameMode", "Successfully connected to server");
+                                } else {
+                                    Log.error("ClientGameMode", "Failed to connect to server");
+                                    continue;
+                                }
+                            }
+                        } else {
+                            // Regular client updates - this is the blocking operation!
+                            gameClient.update();
+                        }
+                        
+                        // Send position updates
+                        if (active && gameWorld.shouldSendPositionUpdate()) {
+                            sendPositionUpdate();
+                        }
+                    }
+                    
+                    // Don't overwhelm the network - 60 FPS updates
+                    Thread.sleep(16); // ~60 FPS
+                    
+                } catch (IOException e) {
+                    Log.error("ClientGameMode", "Network thread error: " + e.getMessage());
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    Log.info("ClientGameMode", "Network thread interrupted");
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            
+            Log.info("ClientGameMode", "Network thread exiting");
+        }, "ClientNetworkThread");
+        
+        networkThread.setDaemon(false);
+        networkThread.start();
     }
 
     private void setupNetworkListeners() {
@@ -301,33 +358,13 @@ public class ClientGameMode implements GameMode {
 
     @Override
     public void update(float deltaTime) throws IOException {
-        // Always update the client for network processing
-        if (gameClient != null) {
-            // Handle connection state
-            if (gameClient.isConnecting()) {
-                if (gameClient.updateConnection()) {
-                    if (gameClient.isConnected()) {
-                        Log.info("ClientGameMode", "Successfully connected to server");
-                    } else {
-                        Log.error("ClientGameMode", "Failed to connect to server");
-                        return;
-                    }
-                }
-            } else {
-                // Regular client updates
-                gameClient.update();
-            }
-        }
-
+        // Network updates are now handled in separate thread
+        // This method only handles game world updates on main thread
+        
         if (!active) return;
 
-        // Update game world
+        // Update game world (input processing, physics, player movement)
         gameWorld.update(deltaTime);
-
-        // Send position updates
-        if (gameWorld.shouldSendPositionUpdate()) {
-            sendPositionUpdate();
-        }
     }
 
     @Override
@@ -368,6 +405,21 @@ public class ClientGameMode implements GameMode {
     @Override
     public void dispose() {
         Log.info("ClientGameMode", "Disposing client game mode...");
+
+        // Stop network thread
+        networkRunning = false;
+        if (networkThread != null && networkThread.isAlive()) {
+            try {
+                networkThread.interrupt();
+                networkThread.join(3000); // Wait up to 3 seconds
+                if (networkThread.isAlive()) {
+                    Log.warn("ClientGameMode", "Network thread did not stop within timeout");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                Log.warn("ClientGameMode", "Interrupted while waiting for network thread to stop");
+            }
+        }
 
         // Disconnect from server
         if (gameClient != null) {

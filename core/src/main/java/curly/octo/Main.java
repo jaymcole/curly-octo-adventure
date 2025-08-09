@@ -29,9 +29,8 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
     private boolean showLobby = true;
 
     // Game Components
-    private GameMode currentGameMode;
     private ThreadedHostedGameMode hostedGameMode;
-    private ThreadedClientGameMode clientGameMode;
+    private ClientGameMode clientGameMode;
 
     public Main() {
     }
@@ -55,15 +54,10 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
 
         hostedGameMode = new ThreadedHostedGameMode(random);
         hostedGameMode.initialize();
-        
+
         // In hosted mode, we get the client mode directly for rendering
-        // The HostedGameMode is already threaded, so we wrap for consistent interface
-        ClientGameMode rawClientMode = hostedGameMode.getClientGameMode();
-        if (rawClientMode != null) {
-            // Wrap in ThreadedClientGameMode for consistent interface (no separate thread needed)
-            clientGameMode = new ThreadedClientGameMode(rawClientMode);
-            currentGameMode = clientGameMode;
-        }
+        // The server runs in its own thread, but client runs on main thread
+        clientGameMode = hostedGameMode.getClientGameMode();
 
         lobbyUI.setStatus("Server started on port " + Network.TCP_PORT);
         lobbyUI.disableInputs();
@@ -74,9 +68,8 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         // Dispose previous game modes
         disposePreviousGameModes();
 
-        clientGameMode = new ThreadedClientGameMode(host, random);
+        clientGameMode = new ClientGameMode(host, random);
         clientGameMode.initialize();
-        currentGameMode = clientGameMode;
 
         lobbyUI.setStatus("Connected to " + host);
         lobbyUI.disableInputs();
@@ -118,8 +111,14 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
-        // Threaded game modes handle their own updates in separate threads
-        // No need to update them here - this prevents blocking the render thread
+        // Update client game mode (runs on main thread for input/physics/rendering sync)
+        if (clientGameMode != null) {
+            try {
+                clientGameMode.update(deltaTime);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
 
         // Render the client game mode (this handles rendering for both hosted and direct client)
         if (clientGameMode != null && clientGameMode.isActive()) {
@@ -191,8 +190,6 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             clientGameMode.dispose();
             clientGameMode = null;
         }
-
-        currentGameMode = null;
     }
 
     @Override
