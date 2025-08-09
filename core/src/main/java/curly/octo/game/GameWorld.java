@@ -3,6 +3,7 @@ package curly.octo.game;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
+import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.math.Vector3;
@@ -216,17 +217,26 @@ public class GameWorld {
             // Step 1: Render scene with bloom effects first
             mapRenderer.beginBloomRender();
 
-            // Render the map with bloom framebuffer
-            mapRenderer.render(camera, environment, mapRenderer.getBloomFrameBuffer());
-
-            // Render all other players from activePlayers list
+            // Collect other players' ModelInstances for shadow casting
+            Array<ModelInstance> playerInstances = new Array<>();
             if (gameObjectManager.activePlayers != null && gameObjectManager.localPlayerController != null) {
                 for (PlayerController player : gameObjectManager.activePlayers) {
                     if (!player.getPlayerId().equals(gameObjectManager.localPlayerController.getPlayerId())) {
-                        player.render(modelBatch, environment, gameObjectManager.localPlayerController.getCamera());
+                        // Get the player's ModelInstance for shadow casting
+                        ModelInstance playerModel = player.getModelInstance();
+                        if (playerModel != null) {
+                            // Update the model position to match player position
+                            Vector3 playerPos = player.getPosition();
+                            playerModel.transform.idt();
+                            playerModel.transform.setToTranslation(playerPos.x, playerPos.y + 2.5f, playerPos.z);
+                            playerInstances.add(playerModel);
+                        }
                     }
                 }
             }
+
+            // Render the map with other players included in shadow casting
+            mapRenderer.render(camera, environment, mapRenderer.getBloomFrameBuffer(), playerInstances);
 
             // Render physics debug information if enabled
             if (mapManager != null) {

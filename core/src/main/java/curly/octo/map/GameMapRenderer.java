@@ -135,6 +135,13 @@ public class GameMapRenderer implements Disposable {
     }
 
     public void render(PerspectiveCamera camera, Environment environment, FrameBuffer targetFrameBuffer) {
+        render(camera, environment, targetFrameBuffer, null);
+    }
+    
+    /**
+     * Renders the map with additional dynamic objects (like players) included in shadow casting
+     */
+    public void render(PerspectiveCamera camera, Environment environment, FrameBuffer targetFrameBuffer, Array<ModelInstance> additionalInstances) {
 
         // Get all point lights in the environment
         PointLightsAttribute pointLights = environment.get(PointLightsAttribute.class, PointLightsAttribute.Type);
@@ -164,9 +171,16 @@ public class GameMapRenderer implements Disposable {
             // Reset light index for new frame
             cubeShadowMapRenderer.resetLightIndex();
 
+            // Combine map instances with additional dynamic objects for shadow generation
+            Array<ModelInstance> allInstances = instances;
+            if (additionalInstances != null && additionalInstances.size > 0) {
+                allInstances = new Array<>(instances);
+                allInstances.addAll(additionalInstances);
+            }
+
             // Generate cube shadow maps for each significant light
             for (PointLight light : significantLights) {
-                cubeShadowMapRenderer.generateCubeShadowMap(instances, light);
+                cubeShadowMapRenderer.generateCubeShadowMap(allInstances, light);
             }
 
             // CRITICAL: Restore the target framebuffer after shadow map generation
@@ -177,7 +191,7 @@ public class GameMapRenderer implements Disposable {
 
             // Render opaque geometry with shadows
             Vector3 ambientLight = getAmbientLight(environment);
-            cubeShadowMapRenderer.renderWithMultipleCubeShadows(instances, camera, significantLights, pointLights.lights, ambientLight);
+            cubeShadowMapRenderer.renderWithMultipleCubeShadows(allInstances, camera, significantLights, pointLights.lights, ambientLight);
 
             // Render transparent surfaces with custom shaders
             if (waterInstance != null) {

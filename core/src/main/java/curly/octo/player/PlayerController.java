@@ -169,6 +169,16 @@ public class PlayerController extends InputAdapter {
             e.printStackTrace();
         }
     }
+    
+    /**
+     * Gets the ModelInstance for this player for shadow casting and other rendering purposes
+     */
+    public ModelInstance getModelInstance() {
+        if (!initialized) {
+            initialize();
+        }
+        return placeHolderModelInstance;
+    }
 
     public void update(float delta) {
         if (gameMap != null) {
