@@ -5,7 +5,6 @@ import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
-import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.esotericsoftware.minlog.Log;
@@ -30,10 +29,7 @@ public class GameWorld {
     private GameMap mapManager;
     private GameMapRenderer mapRenderer;
     private Environment environment;
-    private Array<PointLight> dungeonLights;
-    private PointLight playerLantern;
     private List<PlayerController> players;
-    private long localPlayerId;
     private Random random;
     private GameObjectManager gameObjectManager;
 
@@ -46,7 +42,6 @@ public class GameWorld {
         this.random = random;
         this.players = new ArrayList<>();
         this.environment = new Environment();
-        this.dungeonLights = new Array<>();
         this.gameObjectManager = new GameObjectManager();
         setupEnvironment();
     }
@@ -67,7 +62,6 @@ public class GameWorld {
             // Normal client initialization
             this.players = new ArrayList<>();
             this.environment = new Environment();
-            this.dungeonLights = new Array<>();
             this.gameObjectManager = new GameObjectManager();
             setupEnvironment();
         }
@@ -77,24 +71,6 @@ public class GameWorld {
         // Extremely low ambient light for very hard shadows
 //        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.02f, 0.02f, 0.03f, 1f));
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.0f, .0f, .0f, 1f));
-    }
-
-    public void initializeMap() {
-        if (mapManager == null) {
-            // Moderate map size with increased network buffers
-            int size = 50;
-            int height = 10;
-
-            mapManager = new GameMap(size, height, size, System.currentTimeMillis());
-            Log.info("GameWorld", "Created moderate map ("+size+"x"+height+"x"+size+" = " + (size*height*size) + " tiles) with 5MB network buffers");
-            mapRenderer = new GameMapRenderer();
-            mapRenderer.updateMap(mapManager);
-
-            // Add lights from map LightHints to the environment
-            mapRenderer.addMapLightsToEnvironment(environment);
-
-            Log.info("GameWorld", "Initialized new map");
-        }
     }
 
     /**
@@ -109,10 +85,10 @@ public class GameWorld {
 
             mapManager = new GameMap(size, height, size, System.currentTimeMillis(), true); // true = server-only
             Log.info("GameWorld", "Created server-only map ("+size+"x"+height+"x"+size+" = " + (size*height*size) + " tiles) - no rendering, no physics");
-            
+
             // Server doesn't need renderer or environment lights
             // mapRenderer = null (stays null)
-            
+
             Log.info("GameWorld", "Initialized server-only map");
         }
     }
@@ -120,13 +96,9 @@ public class GameWorld {
     public void setMap(GameMap map) {
         this.mapManager = map;
         if (mapRenderer == null) {
-            mapRenderer = new GameMapRenderer();
+            mapRenderer = new GameMapRenderer(gameObjectManager);
         }
-        mapRenderer.updateMap(mapManager);
-
-        // Add lights from map LightHints to the environment
-        mapRenderer.addMapLightsToEnvironment(environment);
-
+        mapRenderer.updateMap(mapManager, environment);
         Log.info("GameWorld", "Set map from network");
     }
 
@@ -160,9 +132,6 @@ public class GameWorld {
     }
 
     public void update(float deltaTime) {
-        // Update torch flicker effect
-        updateDungeonLights(deltaTime);
-
         // Update physics
         if (mapManager != null && gameObjectManager.localPlayerController != null) {
             mapManager.stepPhysics(deltaTime);
@@ -194,17 +163,6 @@ public class GameWorld {
 
         // Keep position update timer for network sync timing
         positionUpdateTimer += deltaTime;
-    }
-
-    private void updateDungeonLights(float deltaTime) {
-        // Add subtle flickering to torch lights for atmosphere
-        for (int i = 0; i < dungeonLights.size; i++) {
-            PointLight light = dungeonLights.get(i);
-            if (i < 3) { // First 3 are torches
-                float flicker = 0.9f + 0.1f * (float) Math.sin(System.currentTimeMillis() * 0.005f + i);
-                light.intensity = flicker;
-            }
-        }
     }
 
     public void render(ModelBatch modelBatch, PerspectiveCamera camera) {
@@ -337,7 +295,7 @@ public class GameWorld {
 
             Log.info("GameWorld", "Switching rendering strategy from " + currentStrategy + " to " + newStrategy);
             mapRenderer.setRenderingStrategy(newStrategy);
-            mapRenderer.updateMap(mapManager);
+            mapRenderer.updateMap(mapManager, environment);
         }
     }
 
@@ -373,12 +331,6 @@ public class GameWorld {
                 Log.error("GameWorld", "Error disposing map renderer: " + e.getMessage());
             }
             mapRenderer = null;
-        }
-
-        // Clear dungeon lights
-        if (dungeonLights != null) {
-            dungeonLights.clear();
-            Log.info("GameWorld", "Dungeon lights cleared");
         }
 
         // Dispose map manager

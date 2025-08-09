@@ -16,6 +16,10 @@ public abstract class GameObject {
 
     public abstract void update(float delta);
 
+    public void setPosition(Vector3 newPosition) {
+        this.position = newPosition.cpy();
+    }
+
     public Vector3 getPosition() {
         return position.cpy();
     }

@@ -26,7 +26,7 @@ public class ClientGameMode implements GameMode {
     private boolean active = false;
     private boolean mapReceived = false;
     private boolean playerAssigned = false;
-    
+
     // Network threading
     private Thread networkThread;
     private volatile boolean networkRunning = false;
@@ -57,12 +57,12 @@ public class ClientGameMode implements GameMode {
             e.printStackTrace();
         }
     }
-    
+
     private void startNetworkThread() {
         networkRunning = true;
         networkThread = new Thread(() -> {
             Log.info("ClientGameMode", "Network thread started");
-            
+
             while (networkRunning) {
                 try {
                     // Process network updates
@@ -81,16 +81,16 @@ public class ClientGameMode implements GameMode {
                             // Regular client updates - this is the blocking operation!
                             gameClient.update();
                         }
-                        
+
                         // Send position updates
                         if (active && gameWorld.shouldSendPositionUpdate()) {
                             sendPositionUpdate();
                         }
                     }
-                    
+
                     // Don't overwhelm the network - 60 FPS updates
                     Thread.sleep(16); // ~60 FPS
-                    
+
                 } catch (IOException e) {
                     Log.error("ClientGameMode", "Network thread error: " + e.getMessage());
                     e.printStackTrace();
@@ -100,10 +100,10 @@ public class ClientGameMode implements GameMode {
                     break;
                 }
             }
-            
+
             Log.info("ClientGameMode", "Network thread exiting");
         }, "ClientNetworkThread");
-        
+
         networkThread.setDaemon(false);
         networkThread.start();
     }
@@ -193,7 +193,7 @@ public class ClientGameMode implements GameMode {
                 //     playerUpdate.x + ", " + playerUpdate.y + ", " + playerUpdate.z);
 
                 // Skip updates for the local player (if local player is set up)
-                if (gameWorld.getGameObjectManager().localPlayerController != null && 
+                if (gameWorld.getGameObjectManager().localPlayerController != null &&
                     playerUpdate.playerId.equals(gameWorld.getGameObjectManager().localPlayerController.getPlayerId())) {
                     return;
                 }
@@ -361,7 +361,7 @@ public class ClientGameMode implements GameMode {
     public void update(float deltaTime) throws IOException {
         // Network updates are now handled in separate thread
         // This method only handles game world updates on main thread
-        
+
         if (!active) return;
 
         // Update game world (input processing, physics, player movement)

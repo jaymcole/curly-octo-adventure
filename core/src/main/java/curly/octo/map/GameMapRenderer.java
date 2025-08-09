@@ -8,20 +8,18 @@ import com.badlogic.gdx.graphics.g3d.attributes.IntAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.FloatAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.PointLightsAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute;
-import com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.graphics.g3d.model.Node;
 import com.badlogic.gdx.graphics.g3d.model.NodePart;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
-import com.badlogic.gdx.graphics.glutils.GLFrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Mesh;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.GameObjectManager;
 import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.MapHint;
 import curly.octo.map.enums.MapTileFillType;
@@ -31,6 +29,9 @@ import curly.octo.map.rendering.MapModelBuilder;
 import curly.octo.rendering.CubeShadowMapRenderer;
 import curly.octo.rendering.BloomRenderer;
 import curly.octo.rendering.PostProcessingRenderer;
+import jdk.javadoc.internal.doclint.Env;
+import lights.BaseLight;
+import lights.LightType;
 
 /**
  * Handles rendering of the VoxelMap in 3D space with shadow mapping.
@@ -40,7 +41,6 @@ public class GameMapRenderer implements Disposable {
     private final BloomRenderer bloomRenderer;
     private final PostProcessingRenderer postProcessingRenderer;
     private final Array<ModelInstance> instances;
-    private final Array<PointLight> mapLights; // Lights generated from LightHints
     private Model model;
     private Model waterModel; // Separate model for transparent water
     private Model lavaModel;  // Separate model for transparent lava
@@ -49,6 +49,9 @@ public class GameMapRenderer implements Disposable {
     private ModelInstance lavaInstance;
     private ModelInstance fogInstance;
     private boolean disposed = false;
+
+    private GameObjectManager objectManager;
+    private Environment environment;
 
     // Custom shaders for fill types
     private ShaderProgram waterShader;
@@ -73,12 +76,12 @@ public class GameMapRenderer implements Disposable {
     private long lastFacesBuilt = 0;
     private long lastTilesProcessed = 0;
 
-    public GameMapRenderer() {
+    public GameMapRenderer(GameObjectManager objectManager) {
+        this.objectManager = objectManager;
         cubeShadowMapRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH, maxShadowCastingLights);
         bloomRenderer = new BloomRenderer(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         postProcessingRenderer = new PostProcessingRenderer(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         instances = new Array<>();
-        mapLights = new Array<>();
 
         // Load custom shaders for fill types
         loadCustomShaders();
@@ -137,7 +140,7 @@ public class GameMapRenderer implements Disposable {
     public void render(PerspectiveCamera camera, Environment environment, FrameBuffer targetFrameBuffer) {
         render(camera, environment, targetFrameBuffer, null);
     }
-    
+
     /**
      * Renders the map with additional dynamic objects (like players) included in shadow casting
      */
@@ -400,16 +403,15 @@ public class GameMapRenderer implements Disposable {
     }
 
 
-    public void updateMap(GameMap map) {
+    public void updateMap(GameMap map, Environment environment) {
         Log.info("GameMapRenderer", "Starting optimized map update for " + map.getWidth() + "x" + map.getHeight() + "x" + map.getDepth() + " map");
         long startTime = System.currentTimeMillis();
 
         // Clear previous model and lights
         dispose();
-        clearMapLights();
 
         // Extract lights from map tiles with LightHints
-        extractLightsFromMap(map);
+        extractLightsFromMap(map, environment);
 
         // Create materials
         Material stoneMaterial = createMaterial(Color.GRAY, 0.2f, 8f);
@@ -527,32 +529,21 @@ public class GameMapRenderer implements Disposable {
     }
 
 
-    private void extractLightsFromMap(GameMap map) {
+    private void extractLightsFromMap(GameMap map, Environment environment) {
         int lightCount = 0;
 
         for (int x = 0; x < map.getWidth(); x++) {
             for (int y = 0; y < map.getHeight(); y++) {
                 for (int z = 0; z < map.getDepth(); z++) {
                     MapTile tile = map.getTile(x, y, z);
-
                     // Check if this tile has any LightHints
                     for (MapHint hint : tile.getHints()) {
                         if (hint instanceof LightHint) {
                             LightHint lightHint = (LightHint) hint;
-
-                            // Create a PointLight from the LightHint
-                            PointLight mapLight = new PointLight();
-                            mapLight.set(
-                                lightHint.color_r, lightHint.color_g, lightHint.color_b,  // Color
-                                tile.x + MapTile.TILE_SIZE / 2f,                        // X position (center of tile)
-                                tile.y + MapTile.TILE_SIZE / 2f + 2f,                   // Y position (slightly above tile)
-                                tile.z + MapTile.TILE_SIZE / 2f,                        // Z position (center of tile)
-                                lightHint.intensity                                      // Intensity/range
-                            );
-
-                            mapLights.add(mapLight);
+                            BaseLight light = new BaseLight(environment, objectManager, lightHint.entityId, lightHint.color_r, lightHint.color_g, lightHint.color_b, lightHint.intensity, null);
+                            light.setPosition(new Vector3(tile.x + MapTile.TILE_SIZE / 2f, tile.y + MapTile.TILE_SIZE / 2f, tile.z + MapTile.TILE_SIZE / 2f));
+                            objectManager.add(light);
                             lightCount++;
-
                             Log.info("GameMapRenderer", "Created light from LightHint at (" + tile.x + "," + tile.y + "," + tile.z +
                                 ") with intensity " + lightHint.intensity + " and color (" + lightHint.color_r + "," + lightHint.color_g + "," + lightHint.color_b + ")");
                         }
@@ -562,31 +553,6 @@ public class GameMapRenderer implements Disposable {
         }
 
         Log.info("GameMapRenderer", "Extracted " + lightCount + " lights from map LightHints");
-    }
-
-    private void clearMapLights() {
-        mapLights.clear();
-    }
-
-    /**
-     * Get the lights generated from map LightHints
-     * @return Array of PointLights created from map tiles
-     */
-    public Array<PointLight> getMapLights() {
-        return mapLights;
-    }
-
-    /**
-     * Add the map lights to an environment for rendering
-     * @param environment The environment to add lights to
-     */
-    public void addMapLightsToEnvironment(Environment environment) {
-        for (PointLight light : mapLights) {
-            environment.add(light);
-        }
-        if (mapLights.size > 0) {
-            Log.info("GameMapRenderer", "Added " + mapLights.size + " map lights to environment");
-        }
     }
 
     /**

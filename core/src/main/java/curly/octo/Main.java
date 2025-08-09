@@ -20,7 +20,7 @@ import java.util.Random;
  */
 public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, DebugUI.DebugListener {
 
-    private Random random;
+    public static Random random = new Random();
     private ModelBatch modelBatch;
 
     // UI Components
@@ -82,7 +82,6 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             Log.info("Main", "Starting initialization...");
             Log.info("Main", "Working directory: " + System.getProperty("user.dir"));
 
-            this.random = new Random();
             this.modelBatch = new ModelBatch();
 
             // Initialize UI

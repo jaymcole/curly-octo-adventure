@@ -200,7 +200,7 @@ public class FlatRandomPathGenerator extends MapGenerator {
     }
 
     private void addLights(ArrayList<Vector3> ceilingNeeded) {
-        int numberOfLightsToAdd = 5; // Add more lights for testing
+        int numberOfLightsToAdd = 10; // Add more lights for testing
         for(int i = 0; i < numberOfLightsToAdd; i++) {
 
             Vector3 nextLightSpot = ceilingNeeded.get(random.nextInt(ceilingNeeded.size())-1);

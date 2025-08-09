@@ -3,43 +3,42 @@ package lights;
 import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.environment.PointLight;
 import com.badlogic.gdx.math.Vector3;
+import curly.octo.Main;
 import curly.octo.game.GameObjectManager;
 import curly.octo.gameobjects.GameObject;
 
-public abstract class BaseLight extends GameObject{
-    public static final float FLICKER_TICK_TIME = 0.01f;
+import static lights.LightPresets.getRandomFlicker;
 
-    private float r,g,b,i;
-    private float calculatedIntensity;
-    private boolean enabled;
-    private LightType type;
+public class BaseLight extends GameObject{
+    public static final float FLICKER_TICK_TIME = 0.1f;
+
+    private final float intensity;
 
     private GameObject parent;
-    private String parentId;
+    private final String parentId;
     private float offsetDistance;
     private Vector3 offsetDirection;
 
-    private final Environment environment;
-    private PointLight pointLight;
-    private GameObjectManager gameObjectManager;
+    private transient final Environment environment;
+    private final transient PointLight pointLight;
+    private final transient GameObjectManager gameObjectManager;
 
-    private float[] flickerValues;
+    private final float[] flickerValues;
     private float flickerTime;
     private int flickerIndex = 0;
 
-    public BaseLight(Environment environment, GameObjectManager gameObjectManager, String lightId, float r, float g, float b, float i, LightType type, String parentId) {
+    public BaseLight(Environment environment, GameObjectManager gameObjectManager, String lightId, float r, float g, float b, float i, String parentId) {
         super(lightId);
         this.parentId = parentId;
-        this.r = r;
-        this.g = g;
-        this.b = b;
-        this.i = i;
-        this.calculatedIntensity = i;
-        this.type = type;
-        enabled = false;
-        flickerValues = new float[]{1f};
+        this.intensity = i;
+        flickerValues = getRandomFlicker();
         this.environment = environment;
         this.gameObjectManager = gameObjectManager;
+        pointLight = new PointLight();
+        pointLight.set(r,g,b,Vector3.Zero, i);
+        environment.add(pointLight);
+        flickerTime = Main.random.nextFloat();
+        flickerIndex = Main.random.nextInt(flickerValues.length);
     }
 
     public void destroy() {
@@ -56,6 +55,12 @@ public abstract class BaseLight extends GameObject{
         updateFlicker(delta);
     }
 
+    @Override
+    public void setPosition(Vector3 newPosition) {
+        pointLight.setPosition(newPosition.cpy());
+        this.position = newPosition.cpy();
+    }
+
     protected void updatePosition() {
         if (parent != null && pointLight != null && offsetDirection != null) {
             Vector3 worldPosition = parent.getPosition();
@@ -70,10 +75,12 @@ public abstract class BaseLight extends GameObject{
     protected void updateFlicker(float delta) {
         flickerTime+= delta;
         if (flickerTime > FLICKER_TICK_TIME) {
-            flickerTime -= FLICKER_TICK_TIME;
+            while (flickerTime > FLICKER_TICK_TIME) {
+                flickerTime -= FLICKER_TICK_TIME;
+            }
             flickerIndex++;
-            flickerTime %= flickerValues.length;
-            calculatedIntensity = i * flickerValues[flickerIndex];
+            flickerIndex %= flickerValues.length;
+            pointLight.intensity = intensity * flickerValues[flickerIndex];
         }
     }
 }
