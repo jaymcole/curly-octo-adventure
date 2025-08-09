@@ -219,9 +219,9 @@ public class GameWorld {
             // Render the map with bloom framebuffer
             mapRenderer.render(camera, environment, mapRenderer.getBloomFrameBuffer());
 
-            // Render all other players
-            if (players != null && gameObjectManager.localPlayerController != null) {
-                for (PlayerController player : players) {
+            // Render all other players from activePlayers list
+            if (gameObjectManager.activePlayers != null && gameObjectManager.localPlayerController != null) {
+                for (PlayerController player : gameObjectManager.activePlayers) {
                     if (!player.getPlayerId().equals(gameObjectManager.localPlayerController.getPlayerId())) {
                         player.render(modelBatch, environment, gameObjectManager.localPlayerController.getCamera());
                     }

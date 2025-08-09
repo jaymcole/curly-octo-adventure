@@ -189,11 +189,12 @@ public class ClientGameMode implements GameMode {
         // Player update listener
         gameClient.setPlayerUpdateListener(playerUpdate -> {
             Gdx.app.postRunnable(() -> {
-                // Log.info("ClientGameMode", "Received position update for player " + playerUpdate.playerId + ": " +
+                // Log.debug("ClientGameMode", "Received position update for player " + playerUpdate.playerId + ": " +
                 //     playerUpdate.x + ", " + playerUpdate.y + ", " + playerUpdate.z);
 
-                // Skip updates for the local player
-                if (playerUpdate.playerId.equals(gameWorld.getGameObjectManager().localPlayerController.getPlayerId())) {
+                // Skip updates for the local player (if local player is set up)
+                if (gameWorld.getGameObjectManager().localPlayerController != null && 
+                    playerUpdate.playerId.equals(gameWorld.getGameObjectManager().localPlayerController.getPlayerId())) {
                     return;
                 }
 
@@ -208,7 +209,7 @@ public class ClientGameMode implements GameMode {
 
                 // If player not found, create a new one
                 if (targetPlayer == null) {
-                    // Log.info("ClientGameMode", "Creating new player controller for player " + playerUpdate.playerId);
+                    Log.info("ClientGameMode", "Creating new player controller for player " + playerUpdate.playerId);
                     targetPlayer = PlayerUtilities.createPlayerController();
                     targetPlayer.setPlayerId(playerUpdate.playerId);
                     gameWorld.getGameObjectManager().activePlayers.add(targetPlayer);

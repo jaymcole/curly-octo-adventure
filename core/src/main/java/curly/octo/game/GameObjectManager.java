@@ -32,8 +32,16 @@ public class GameObjectManager {
             }
         }
 
+        // Update local player
         if (localPlayerController != null) {
             localPlayerController.update(delta);
+        }
+        
+        // Update all other players
+        for (PlayerController player : activePlayers) {
+            if (player != localPlayerController) {
+                player.update(delta);
+            }
         }
 
         removeObjectsAfterUpdate();
