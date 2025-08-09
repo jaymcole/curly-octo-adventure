@@ -46,4 +46,10 @@ public interface GameMode {
      * @return true if active
      */
     boolean isActive();
+
+    /**
+     * Get the GameWorld instance for this game mode
+     * @return the GameWorld instance
+     */
+    GameWorld getGameWorld();
 }

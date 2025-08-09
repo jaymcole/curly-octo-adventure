@@ -14,17 +14,15 @@ import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.gameobjects.GameObject;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
 
-import java.util.Random;
-import java.util.UUID;
-
 /**
  * Handles camera movement and input for 3D navigation.
  */
-public class PlayerController extends InputAdapter  {
+public class PlayerController extends InputAdapter {
 
     // TODO: Make this a percentage of the max player height
     private static final float playerHeight = 2.5f; // Camera offset from physics body center
@@ -48,7 +46,7 @@ public class PlayerController extends InputAdapter  {
     private static final float MAX_PITCH = 89f;
     private static final float MIN_PITCH = -89f;
 
-    private UUID playerId;
+    private String playerId;
     private transient GameMap gameMap;
 //    private transient PointLight playerLight;
 
@@ -66,7 +64,27 @@ public class PlayerController extends InputAdapter  {
         Gdx.app.postRunnable(this::initialize);
     }
 
-    public void setPlayerId(UUID playerId) {
+    /**
+     * Server-only constructor that skips graphics initialization.
+     * Used by GameServer to track player positions without rendering overhead.
+     */
+    public PlayerController(boolean serverOnly) {
+        // Initialize basic state
+        yaw = 0f;
+        pitch = 0f;
+        updateDirectionFromAngles();
+
+        if (serverOnly) {
+            // Skip graphics initialization - server only needs position tracking
+            initialized = false;
+            Log.info("PlayerController", "Created server-only PlayerController (no graphics)");
+        } else {
+            // Normal client initialization
+            Gdx.app.postRunnable(this::initialize);
+        }
+    }
+
+    public void setPlayerId(String playerId) {
         this.playerId = playerId;
     }
 
@@ -80,7 +98,7 @@ public class PlayerController extends InputAdapter  {
         }
     }
 
-    public UUID getPlayerId() {
+    public String getPlayerId() {
         return playerId;
     }
 

@@ -83,6 +83,23 @@ public class GameMap {
         initializePhysics();
     }
 
+    /**
+     * Server-only constructor that generates the map but skips physics initialization.
+     * Used for hosted servers that only need the map for network distribution.
+     */
+    public GameMap(int width, int height, int depth, long seed, boolean serverOnly) {
+        this.random = new Random(seed);
+        if (serverOnly) {
+            // Generate map tiles only, skip physics completely
+            generateDungeonServerOnly(width, height, depth);
+            Log.info("GameMap", "Created server-only map (no physics)");
+        } else {
+            // Normal client initialization
+            generateDungeon(width, height, depth);
+            initializePhysics();
+        }
+    }
+
     public void generateDungeon(int width, int height, int depth) {
         Log.info("GameMap.generateDungeon", "Generating tiles");
         MapGenerator generator = new PoolGenerator(random, 100, 10, 100);
@@ -97,6 +114,21 @@ public class GameMap {
         Log.info("GameMap.generateDungeon", "Generating triangle mesh for physics");
         generateTriangleMeshPhysics();
         Log.info("GameMap.generateDungeon", "Done generating triangle mesh physics");
+    }
+
+    /**
+     * Server-only map generation that creates tiles and hints but skips physics.
+     */
+    public void generateDungeonServerOnly(int width, int height, int depth) {
+        Log.info("GameMap.generateDungeonServerOnly", "Generating tiles (server-only)");
+        MapGenerator generator = new PoolGenerator(random, 100, 10, 100);
+
+        map = generator.generate();
+        Log.info("GameMap.generateDungeonServerOnly", "Done generating tiles");
+
+        Log.info("GameMap.generateDungeonServerOnly", "Loading hints");
+        cacheMapHints();
+        Log.info("GameMap.generateDungeonServerOnly", "Done loading hints (no physics generation)");
     }
 
     public void cacheMapHints() {

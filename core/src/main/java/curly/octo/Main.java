@@ -29,8 +29,9 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
     private boolean showLobby = true;
 
     // Game Components
-    private GameWorld gameWorld;
     private GameMode currentGameMode;
+    private ThreadedHostedGameMode hostedGameMode;
+    private ThreadedClientGameMode clientGameMode;
 
     public Main() {
     }
@@ -49,9 +50,20 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
     }
 
     private void startServerMode() {
-        gameWorld = new GameWorld(random);
-        currentGameMode = new ServerGameMode(gameWorld);
-        currentGameMode.initialize();
+        // Dispose previous game modes
+        disposePreviousGameModes();
+
+        hostedGameMode = new ThreadedHostedGameMode(random);
+        hostedGameMode.initialize();
+        
+        // In hosted mode, we get the client mode directly for rendering
+        // The HostedGameMode is already threaded, so we wrap for consistent interface
+        ClientGameMode rawClientMode = hostedGameMode.getClientGameMode();
+        if (rawClientMode != null) {
+            // Wrap in ThreadedClientGameMode for consistent interface (no separate thread needed)
+            clientGameMode = new ThreadedClientGameMode(rawClientMode);
+            currentGameMode = clientGameMode;
+        }
 
         lobbyUI.setStatus("Server started on port " + Network.TCP_PORT);
         lobbyUI.disableInputs();
@@ -59,9 +71,12 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
     }
 
     private void startClientMode(String host) {
-        gameWorld = new GameWorld(random);
-        currentGameMode = new ClientGameMode(gameWorld, host);
-        currentGameMode.initialize();
+        // Dispose previous game modes
+        disposePreviousGameModes();
+
+        clientGameMode = new ThreadedClientGameMode(host, random);
+        clientGameMode.initialize();
+        currentGameMode = clientGameMode;
 
         lobbyUI.setStatus("Connected to " + host);
         lobbyUI.disableInputs();
@@ -103,36 +118,35 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
-        // Update and render game mode if active
-        if (currentGameMode != null && currentGameMode.isActive()) {
-            try {
-                currentGameMode.update(deltaTime);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            currentGameMode.render(modelBatch, gameWorld.getEnvironment());
+        // Threaded game modes handle their own updates in separate threads
+        // No need to update them here - this prevents blocking the render thread
 
-            // Update debug info
-            if (GameObjectManager.playerController != null) {
-                Vector3 pos = GameObjectManager.playerController.getPosition();
+        // Render the client game mode (this handles rendering for both hosted and direct client)
+        if (clientGameMode != null && clientGameMode.isActive()) {
+            GameWorld clientGameWorld = clientGameMode.getGameWorld();
+            clientGameMode.render(modelBatch, clientGameWorld.getEnvironment());
+
+            // Update debug info - get local player from client game world
+            if (clientGameWorld.getGameObjectManager() != null && clientGameWorld.getGameObjectManager().localPlayerController != null) {
+                Vector3 pos = clientGameWorld.getGameObjectManager().localPlayerController.getPosition();
                 debugUI.setPlayerPosition(pos.x, pos.y, pos.z);
             }
 
             // Update light count info
-            if (gameWorld.getMapRenderer() != null) {
+            if (clientGameWorld.getMapRenderer() != null) {
                 debugUI.setLightCounts(
-                    gameWorld.getMapRenderer().getLastTotalLights(),
-                    gameWorld.getMapRenderer().getLastShadowLights()
+                    clientGameWorld.getMapRenderer().getLastTotalLights(),
+                    clientGameWorld.getMapRenderer().getLastShadowLights()
                 );
             }
 
             // Update physics debug info
-            debugUI.setPhysicsDebugEnabled(gameWorld.isPhysicsDebugEnabled());
-            debugUI.setPhysicsStrategy(gameWorld.getPhysicsStrategyInfo(), gameWorld.getPhysicsTriangleCount());
+            debugUI.setPhysicsDebugEnabled(clientGameWorld.isPhysicsDebugEnabled());
+            debugUI.setPhysicsStrategy(clientGameWorld.getPhysicsStrategyInfo(), clientGameWorld.getPhysicsTriangleCount());
 
             // Update rendering strategy info
-            debugUI.setRenderingStrategy(gameWorld.getRenderingStrategyInfo(),
-                gameWorld.getRenderingFacesBuilt(), gameWorld.getRenderingTilesProcessed());
+            debugUI.setRenderingStrategy(clientGameWorld.getRenderingStrategyInfo(),
+                clientGameWorld.getRenderingFacesBuilt(), clientGameWorld.getRenderingTilesProcessed());
         }
 
         // Update and render UI
@@ -156,34 +170,37 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         lobbyUI.resize(width, height);
         debugUI.resize(width, height);
 
-        if (currentGameMode != null) {
-            currentGameMode.resize(width, height);
+        if (hostedGameMode != null) {
+            hostedGameMode.resize(width, height);
         }
+
+        if (clientGameMode != null) {
+            clientGameMode.resize(width, height);
+        }
+    }
+
+    private void disposePreviousGameModes() {
+        if (hostedGameMode != null) {
+            Log.info("Main", "Disposing previous hosted game mode");
+            hostedGameMode.dispose();
+            hostedGameMode = null;
+        }
+
+        if (clientGameMode != null) {
+            Log.info("Main", "Disposing previous client game mode");
+            clientGameMode.dispose();
+            clientGameMode = null;
+        }
+
+        currentGameMode = null;
     }
 
     @Override
     public void dispose() {
         Log.info("Main", "Disposing resources...");
 
-        // Dispose game mode first (it handles its own resources)
-        if (currentGameMode != null) {
-            try {
-                currentGameMode.dispose();
-                Log.info("Main", "Game mode disposed");
-            } catch (Exception e) {
-                Log.error("Main", "Error disposing game mode: " + e.getMessage());
-            }
-        }
-
-        // Dispose game world (it handles map and renderer)
-        if (gameWorld != null) {
-            try {
-                gameWorld.dispose();
-                Log.info("Main", "Game world disposed");
-            } catch (Exception e) {
-                Log.error("Main", "Error disposing game world: " + e.getMessage());
-            }
-        }
+        // Dispose game modes (they handle their own game worlds)
+        disposePreviousGameModes();
 
         // Dispose UI components
         try {
@@ -220,25 +237,31 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
     // DebugUI.DebugListener implementation
     @Override
     public void onTogglePhysicsDebug() {
-        if (gameWorld != null) {
-            gameWorld.togglePhysicsDebug();
-            Log.info("Main", "Physics debug toggled: " + gameWorld.isPhysicsDebugEnabled());
+        // Debug controls operate on the client's world (where rendering happens)
+        if (clientGameMode != null && clientGameMode.getGameWorld() != null) {
+            GameWorld clientGameWorld = clientGameMode.getGameWorld();
+            clientGameWorld.togglePhysicsDebug();
+            Log.info("Main", "Physics debug toggled: " + clientGameWorld.isPhysicsDebugEnabled());
         }
     }
 
     @Override
     public void onTogglePhysicsStrategy() {
-        if (gameWorld != null) {
-            gameWorld.togglePhysicsStrategy();
-            Log.info("Main", "Physics strategy switched to: " + gameWorld.getPhysicsStrategyInfo());
+        // Debug controls operate on the client's world (where rendering happens)
+        if (clientGameMode != null && clientGameMode.getGameWorld() != null) {
+            GameWorld clientGameWorld = clientGameMode.getGameWorld();
+            clientGameWorld.togglePhysicsStrategy();
+            Log.info("Main", "Physics strategy switched to: " + clientGameWorld.getPhysicsStrategyInfo());
         }
     }
 
     @Override
     public void onToggleRenderingStrategy() {
-        if (gameWorld != null) {
-            gameWorld.toggleRenderingStrategy();
-            Log.info("Main", "Rendering strategy switched to: " + gameWorld.getRenderingStrategyInfo());
+        // Debug controls operate on the client's world (where rendering happens)
+        if (clientGameMode != null && clientGameMode.getGameWorld() != null) {
+            GameWorld clientGameWorld = clientGameMode.getGameWorld();
+            clientGameWorld.toggleRenderingStrategy();
+            Log.info("Main", "Rendering strategy switched to: " + clientGameWorld.getRenderingStrategyInfo());
         }
     }
 }

@@ -1,14 +1,12 @@
 package curly.octo.network.messages;
 
-import java.util.UUID;
-
 public class PlayerDisconnectUpdate {
-    public UUID playerId;
+    public String playerId;
 
     public PlayerDisconnectUpdate() {
     }
 
-    public PlayerDisconnectUpdate(UUID playerId) {
+    public PlayerDisconnectUpdate(String playerId) {
         this.playerId = playerId;
     }
 }

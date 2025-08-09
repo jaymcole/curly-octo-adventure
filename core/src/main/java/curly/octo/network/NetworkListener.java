@@ -77,7 +77,7 @@ public class NetworkListener implements Listener {
      */
     @Override
     public void received(Connection connection, Object object) {
-        Log.info("Network", "Received object of type: " + (object != null ? object.getClass().getSimpleName() : "null"));
+        // Log.info("Network", "Received object of type: " + (object != null ? object.getClass().getSimpleName() : "null"));
         if (object instanceof MapDataUpdate) {
             Log.info("Network", "Handling MapDataUpdate from " + connection.getRemoteAddressTCP().getAddress());
             MapDataUpdate update = (MapDataUpdate) object;

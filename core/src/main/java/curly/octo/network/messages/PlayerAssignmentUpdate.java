@@ -1,15 +1,13 @@
 package curly.octo.network.messages;
 
-import java.util.UUID;
-
 public class PlayerAssignmentUpdate {
-    public UUID playerId;
+    public String playerId;
 
     public PlayerAssignmentUpdate() {
         // Default constructor required for Kryo
     }
 
-    public PlayerAssignmentUpdate(UUID playerId) {
+    public PlayerAssignmentUpdate(String playerId) {
         this.playerId = playerId;
     }
 

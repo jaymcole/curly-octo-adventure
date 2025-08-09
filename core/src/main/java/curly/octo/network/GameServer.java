@@ -27,7 +27,7 @@ public class GameServer {
     private final GameMap map;
     private final List<PlayerController> players;
     private final GameWorld gameWorld;
-    private final Map<Integer, UUID> connectionToPlayerMap = new HashMap<>();
+    private final Map<Integer, String> connectionToPlayerMap = new HashMap<>();
     private final Set<Integer> readyClients = new HashSet<>(); // Track clients that have received map and assignment
 
     public GameServer(Random random, GameMap map, List<PlayerController> players, GameWorld gameWorld) {
@@ -46,7 +46,7 @@ public class GameServer {
             @Override
             public void connected(Connection connection) {
                 sendMapRefreshToUser(connection);
-                PlayerController newPlayer = PlayerUtilities.createPlayerController();
+                PlayerController newPlayer = PlayerUtilities.createServerPlayerController();
                 players.add(newPlayer);
 
                 connectionToPlayerMap.put(connection.getID(), newPlayer.getPlayerId());
@@ -83,20 +83,20 @@ public class GameServer {
                 if (object instanceof PlayerUpdate) {
                     // Received a player position update, broadcast to all other clients
                     PlayerUpdate update = (PlayerUpdate) object;
-                    Log.debug("Server", "Received position update for player " + update.playerId + ": " +
-                        update.x + ", " + update.y + ", " + update.z);
+                    // Log.debug("Server", "Received position update for player " + update.playerId + ": " +
+                    //     update.x + ", " + update.y + ", " + update.z);
 
                     // Update the player's position in our local list
                     for (PlayerController player : players) {
-                        if (player.getPlayerId() == update.playerId) {
+                        if (player.getPlayerId().equals(update.playerId)) {
                             player.setPlayerPosition(update.x, update.y, update.z, 0);
                             break;
                         }
                     }
 
-                    // Only broadcast to clients that are ready (have received map and assignment)
+                    // Only broadcast to OTHER clients (exclude the sender)
                     for (Connection conn : server.getConnections()) {
-                        if (readyClients.contains(conn.getID())) {
+                        if (readyClients.contains(conn.getID()) && conn.getID() != connection.getID()) {
                             conn.sendUDP(update);
                         }
                     }
@@ -109,11 +109,11 @@ public class GameServer {
                 readyClients.remove(connection.getID());
 
                 // Find and remove the disconnected player using the connection mapping
-                UUID playerId = connectionToPlayerMap.remove(connection.getID());
+                String playerId = connectionToPlayerMap.remove(connection.getID());
                 if (playerId != null) {
                     PlayerController disconnectedPlayer = null;
                     for (PlayerController player : players) {
-                        if (player.getPlayerId() == playerId) {
+                        if (player.getPlayerId().equals(playerId)) {
                             disconnectedPlayer = player;
                             break;
                         }
@@ -187,7 +187,7 @@ public class GameServer {
      * @param playerId The ID of the player whose position is being updated
      * @param position The new position of the player
      */
-    public void broadcastPlayerPosition(UUID playerId, Vector3 position) {
+    public void broadcastPlayerPosition(String playerId, Vector3 position) {
         if (server != null) {
             PlayerUpdate update = new PlayerUpdate(playerId, position);
             server.sendToAllUDP(update); // Using UDP for faster, less reliable but faster updates
@@ -225,11 +225,14 @@ public class GameServer {
     private PlayerRosterUpdate createPlayerRosterUpdate() {
         PlayerRosterUpdate update = new PlayerRosterUpdate();
         PlayerController[] playerRoster = new PlayerController[players.size()];
+        for (int i = 0; i < players.size(); i++) {
+            playerRoster[i] = players.get(i);
+        }
         update.players = playerRoster;
         return update;
     }
 
-    public void assignPlayer(Connection connection, UUID playerId)
+    public void assignPlayer(Connection connection, String playerId)
     {
         PlayerAssignmentUpdate assignmentUpdate = new PlayerAssignmentUpdate();
         assignmentUpdate.playerId = playerId;
@@ -240,7 +243,7 @@ public class GameServer {
         Log.info("GameServer", "Client " + connection.getID() + " marked as ready for position updates");
     }
 
-    public void broadcastPlayerDisconnect(UUID playerId) {
+    public void broadcastPlayerDisconnect(String playerId) {
         if (server != null) {
             PlayerDisconnectUpdate disconnectUpdate = new PlayerDisconnectUpdate(playerId);
             server.sendToAllTCP(disconnectUpdate);
