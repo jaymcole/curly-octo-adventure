@@ -7,6 +7,7 @@ import curly.octo.network.GameServer;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
  * Hosted game mode that runs both a server and connects as a client to localhost.
@@ -14,7 +15,7 @@ import java.util.ArrayList;
  */
 public class HostedGameMode implements GameMode {
 
-    private final GameWorld serverGameWorld;
+    private final HostGameWorld serverGameWorld;
     private final java.util.Random random;
     private GameServer gameServer;
     private ClientGameMode clientGameMode;
@@ -24,7 +25,7 @@ public class HostedGameMode implements GameMode {
     public HostedGameMode(java.util.Random random) {
         this.random = random;
         // Server GameWorld should not run physics or graphics - only handles map and network coordination
-        this.serverGameWorld = new GameWorld(random, true); // true = server-only
+        this.serverGameWorld = new HostGameWorld(random);
     }
 
     @Override
@@ -33,7 +34,7 @@ public class HostedGameMode implements GameMode {
             Log.info("HostedGameMode", "Initializing hosted mode");
 
             // Initialize map for server (no rendering components)
-            serverGameWorld.initializeMapServerOnly();
+            serverGameWorld.initializeHostMap();
 
             // Create and start server with its own player list (not shared with client)
             gameServer = new GameServer(
@@ -68,7 +69,7 @@ public class HostedGameMode implements GameMode {
     @Override
     public void update(float deltaTime) throws IOException {
         if (!serverStarted) return;
-        serverGameWorld.updateServerOnly(deltaTime);
+        serverGameWorld.update(deltaTime);
         if (!active && clientGameMode != null) {
             active = true;
             Log.info("HostedGameMode", "Hosted mode activated (server running)");

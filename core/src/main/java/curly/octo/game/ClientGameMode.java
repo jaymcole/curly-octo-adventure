@@ -20,7 +20,7 @@ import java.util.HashSet;
  */
 public class ClientGameMode implements GameMode {
 
-    private final GameWorld gameWorld;
+    private final ClientGameWorld gameWorld;
     private final String host;
     private GameClient gameClient;
     private boolean active = false;
@@ -33,7 +33,7 @@ public class ClientGameMode implements GameMode {
 
     public ClientGameMode(String host, java.util.Random random) {
         this.host = host;
-        this.gameWorld = new GameWorld(random);
+        this.gameWorld = new ClientGameWorld(random);
     }
 
     @Override

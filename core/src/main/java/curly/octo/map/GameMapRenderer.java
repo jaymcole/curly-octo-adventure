@@ -162,12 +162,14 @@ public class GameMapRenderer implements Disposable {
             return;
         }
 
-        // Generate shadow maps for the N most significant lights (brightest overall)
-        Array<PointLight> significantLights = getMostSignificantLights(pointLights, maxShadowCastingLights);
+        // Generate shadow maps for the N most significant lights (closest to player)
+        Array<PointLight> significantLights = getMostSignificantLights(pointLights, maxShadowCastingLights, camera.position);
 
         // Update light counts for debug UI
         lastTotalLights = pointLights.lights.size;
         lastShadowLights = significantLights.size;
+
+        Log.info("GameMapRenderer", "Rendering with " + lastTotalLights + " total lights, " + lastShadowLights + " casting shadows");
 
         if (significantLights.size > 0) {
 
@@ -293,23 +295,33 @@ public class GameMapRenderer implements Disposable {
         Log.info("GameMapRenderer", "Resized to " + width + "x" + height);
     }
 
-    private Array<PointLight> getMostSignificantLights(PointLightsAttribute pointLights, int maxLights) {
+    private Array<PointLight> getMostSignificantLights(PointLightsAttribute pointLights, int maxLights, Vector3 playerPosition) {
         Array<PointLight> result = new Array<>();
 
         if (pointLights == null || pointLights.lights.size == 0) {
             return result;
         }
 
-        // Create array of lights with significance scores (intensity-based)
+        // Create array of lights with significance scores (distance-based)
         Array<LightSignificance> lightScores = new Array<>();
         for (PointLight light : pointLights.lights) {
-            // Score based on light intensity (brighter lights are more significant)
-            float significance = light.intensity;
-            lightScores.add(new LightSignificance(light, significance));
+            // Score based on distance from player (closer lights are more significant)
+            // Use negative distance so closer lights have higher significance when sorted
+            float distance = playerPosition.dst(light.position);
+            float significance = -distance; // Negative so closer = higher significance
+            lightScores.add(new LightSignificance(light, significance, distance, light.intensity));
         }
 
-        // Sort by significance (highest first)
-        lightScores.sort((a, b) -> Float.compare(b.significance, a.significance));
+        // Sort by significance (highest first = closest first)
+        // In case of tie distance, use intensity as tiebreaker
+        lightScores.sort((a, b) -> {
+            int distanceComparison = Float.compare(b.significance, a.significance);
+            if (distanceComparison == 0) {
+                // Tie in distance, use intensity as tiebreaker (brighter first)
+                return Float.compare(b.intensity, a.intensity);
+            }
+            return distanceComparison;
+        });
 
         // Take the N most significant lights
         int numLights = Math.min(maxLights, lightScores.size);
@@ -317,19 +329,52 @@ public class GameMapRenderer implements Disposable {
             result.add(lightScores.get(i).light);
         }
 
-        Log.debug("GameMapRenderer", "Selected " + result.size + " most significant lights for shadow casting");
+        Log.info("GameMapRenderer", "Selected " + result.size + " closest lights for shadow casting out of " + lightScores.size + " total lights");
 
         return result;
     }
+
+//    private Array<PointLight> getMostSignificantLights(PointLightsAttribute pointLights, int maxLights) {
+//        Array<PointLight> result = new Array<>();
+//
+//        if (pointLights == null || pointLights.lights.size == 0) {
+//            return result;
+//        }
+//
+//        // Create array of lights with significance scores (intensity-based)
+//        Array<LightSignificance> lightScores = new Array<>();
+//        for (PointLight light : pointLights.lights) {
+//            // Score based on light intensity (brighter lights are more significant)
+//            float significance = light.intensity;
+//            lightScores.add(new LightSignificance(light, significance));
+//        }
+//
+//        // Sort by significance (highest first)
+//        lightScores.sort((a, b) -> Float.compare(b.significance, a.significance));
+//
+//        // Take the N most significant lights
+//        int numLights = Math.min(maxLights, lightScores.size);
+//        for (int i = 0; i < numLights; i++) {
+//            result.add(lightScores.get(i).light);
+//        }
+//
+//        Log.info("GameMapRenderer", "Selected " + result.size + " most significant lights for shadow casting out of " + lightScores.size + " total lights");
+//
+//        return result;
+//    }
 
     // Helper class for sorting lights by significance
     private static class LightSignificance {
         final PointLight light;
         final float significance;
+        final float distance;
+        final float intensity;
 
-        LightSignificance(PointLight light, float significance) {
+        LightSignificance(PointLight light, float significance, float distance, float intensity) {
             this.light = light;
             this.significance = significance;
+            this.distance = distance;
+            this.intensity = intensity;
         }
     }
 

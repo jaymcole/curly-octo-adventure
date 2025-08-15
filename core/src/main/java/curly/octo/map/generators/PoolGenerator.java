@@ -46,7 +46,7 @@ public class PoolGenerator extends MapGenerator{
         map[centerX + 1][centerY][centerZ + 1].AddHint(new SpawnPointHint());
         encloseIndoorSpace();
 
-        for(int i = 0; i < 3; i++) {
+        for(int i = 0; i < 50; i++) { // Increased from 3 to 10 for testing
 
             LightHint light = new LightHint();
             light.intensity = 2; // Increase intensity for visibility

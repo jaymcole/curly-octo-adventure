@@ -202,11 +202,15 @@ public class FlatRandomPathGenerator extends MapGenerator {
     private void addLights(ArrayList<Vector3> ceilingNeeded) {
         int numberOfLightsToAdd = 10; // Add more lights for testing
         for(int i = 0; i < numberOfLightsToAdd; i++) {
+            if (ceilingNeeded.isEmpty()) {
+                Log.warn("FlatRandomPathGenerator", "No ceiling tiles available for light " + i);
+                break;
+            }
 
-            Vector3 nextLightSpot = ceilingNeeded.get(random.nextInt(ceilingNeeded.size())-1);
-            MapTile tile = map[(int) nextLightSpot.x][(int) nextLightSpot.y + 2][(int) nextLightSpot.z];
+            Vector3 nextLightSpot = ceilingNeeded.get(random.nextInt(ceilingNeeded.size())); // Fixed: removed -1
+            MapTile tile = map[(int) nextLightSpot.x][(int) nextLightSpot.y + 1][(int) nextLightSpot.z];
             LightHint light = new LightHint();
-            light.intensity = 2; // Increase intensity for visibility
+            light.intensity = 1; // Increase intensity for visibility
 
             // Set different colors for variety
             switch(random.nextInt(3)) {

@@ -1,42 +1,33 @@
 package curly.octo.game;
 
-import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.g3d.Environment;
-import com.badlogic.gdx.graphics.g3d.ModelBatch;
-import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
-import com.badlogic.gdx.math.Vector3;
-import com.badlogic.gdx.utils.Array;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.GameMapRenderer;
-import curly.octo.map.MapTile;
-import curly.octo.map.enums.MapTileFillType;
 import curly.octo.player.PlayerController;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import static curly.octo.player.PlayerUtilities.createPlayerController;
-
 /**
- * Shared game world that contains the map, physics, and environment.
- * This is used by both server and client game modes.
+ * Base game world that contains shared components.
+ * Extended by HostGameWorld and ClientGameWorld for specific implementations.
  */
-public class GameWorld {
+public abstract class GameWorld {
 
-    private GameMap mapManager;
-    private GameMapRenderer mapRenderer;
-    private Environment environment;
-    private List<PlayerController> players;
-    private Random random;
-    private GameObjectManager gameObjectManager;
+    protected GameMap mapManager;
+    protected GameMapRenderer mapRenderer;
+    protected Environment environment;
+    protected List<PlayerController> players;
+    protected Random random;
+    protected GameObjectManager gameObjectManager;
 
     // Physics update timer
-    private float positionUpdateTimer = 0;
-    private static final float POSITION_UPDATE_INTERVAL = 1/60f; // 60 updates per second
-    private boolean disposed = false;
+    protected float positionUpdateTimer = 0;
+    protected static final float POSITION_UPDATE_INTERVAL = 1/60f; // 60 updates per second
+    protected boolean disposed = false;
 
     public GameWorld(Random random) {
         this.random = random;
@@ -73,25 +64,6 @@ public class GameWorld {
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.0f, .0f, .0f, 1f));
     }
 
-    /**
-     * Server-only map initialization that skips rendering components.
-     * Used by HostedGameMode to create a map for network distribution without graphics overhead.
-     */
-    public void initializeMapServerOnly() {
-        if (mapManager == null) {
-            // Same map generation as client but no rendering setup or physics
-            int size = 50;
-            int height = 10;
-
-            mapManager = new GameMap(size, height, size, System.currentTimeMillis(), true); // true = server-only
-            Log.info("GameWorld", "Created server-only map ("+size+"x"+height+"x"+size+" = " + (size*height*size) + " tiles) - no rendering, no physics");
-
-            // Server doesn't need renderer or environment lights
-            // mapRenderer = null (stays null)
-
-            Log.info("GameWorld", "Initialized server-only map");
-        }
-    }
 
     public void setMap(GameMap map) {
         this.mapManager = map;
@@ -102,118 +74,10 @@ public class GameWorld {
         Log.info("GameWorld", "Set map from network");
     }
 
-    public void setupLocalPlayer() {
-        if (gameObjectManager.localPlayerController == null) {
-            Log.info("GameWorld", "Creating local player controller");
-            gameObjectManager.localPlayerController = createPlayerController();
-            // Don't set localPlayerId here - it will be set by the server assignment
-            players.add(gameObjectManager.localPlayerController);
-            Log.info("GameWorld", "Local player controller created with ID: " + gameObjectManager.localPlayerController.getPlayerId() + " and added to players list");
-        }
 
-        if (mapManager != null) {
-            // Add player to physics world
-            float playerRadius = 1.0f;
-            float playerHeight = 5.0f;
-            float playerMass = 10.0f;
-            Vector3 playerStart = new Vector3(15, 25, 15);
-            if (!mapManager.spawnTiles.isEmpty()) {
-                MapTile spawnTile = mapManager.spawnTiles.get(0);
-                playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
-            }
+    public abstract void update(float deltaTime);
 
-            mapManager.addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
 
-            gameObjectManager.localPlayerController.setGameMap(mapManager);
-            gameObjectManager.localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z, 0);
-
-            Log.info("GameWorld", "Setup local player at position: " + playerStart);
-        }
-    }
-
-    public void update(float deltaTime) {
-        // Update physics
-        if (mapManager != null && gameObjectManager.localPlayerController != null) {
-            mapManager.stepPhysics(deltaTime);
-            Vector3 bulletPlayerPos = mapManager.getPlayerPosition();
-            gameObjectManager.localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z, deltaTime);
-        }
-
-        // Update local player
-        if (gameObjectManager.localPlayerController != null) {
-            gameObjectManager.update(deltaTime);
-        }
-
-        // Update position update timer
-        positionUpdateTimer += deltaTime;
-    }
-
-    /**
-     * Server-only update that skips physics simulation and rendering preparation.
-     * Used by HostedGameMode to avoid duplicate physics calculations.
-     */
-    public void updateServerOnly(float deltaTime) {
-        // Server only needs to update game objects for network synchronization
-        // Skip physics (client handles authoritative physics)
-        // Skip light flickering (purely visual)
-        // Skip player controller updates (client handles input/camera)
-
-        // Update server-side game objects if any
-        // Note: Currently minimal since we don't have many server-only objects yet
-
-        // Keep position update timer for network sync timing
-        positionUpdateTimer += deltaTime;
-    }
-
-    public void render(ModelBatch modelBatch, PerspectiveCamera camera) {
-        if (mapRenderer != null && camera != null) {
-            // Set post-processing effect based on local player's current tile
-            if (gameObjectManager.localPlayerController != null) {
-                mapRenderer.setPostProcessingEffect(gameObjectManager.localPlayerController.getCurrentTileFillType());
-            }
-
-            // Step 1: Render scene with bloom effects first
-            mapRenderer.beginBloomRender();
-
-            // Collect other players' ModelInstances for shadow casting
-            Array<ModelInstance> playerInstances = new Array<>();
-            if (gameObjectManager.activePlayers != null && gameObjectManager.localPlayerController != null) {
-                for (PlayerController player : gameObjectManager.activePlayers) {
-                    if (!player.getPlayerId().equals(gameObjectManager.localPlayerController.getPlayerId())) {
-                        // Get the player's ModelInstance for shadow casting
-                        ModelInstance playerModel = player.getModelInstance();
-                        if (playerModel != null) {
-                            // Update the model position to match player position
-                            Vector3 playerPos = player.getPosition();
-                            playerModel.transform.idt();
-                            playerModel.transform.setToTranslation(playerPos.x, playerPos.y + 2.5f, playerPos.z);
-                            playerInstances.add(playerModel);
-                        }
-                    }
-                }
-            }
-
-            // Render the map with other players included in shadow casting
-            mapRenderer.render(camera, environment, mapRenderer.getBloomFrameBuffer(), playerInstances);
-
-            // Render physics debug information if enabled
-            if (mapManager != null) {
-                mapManager.renderPhysicsDebug(camera);
-            }
-
-            // End bloom render (this renders bloom result to screen)
-            mapRenderer.endBloomRender();
-
-            // Step 2: Apply post-processing effects to the bloom result
-            // Only apply post-processing if we have an effect to apply
-            if (gameObjectManager.localPlayerController != null &&
-                gameObjectManager.localPlayerController.getCurrentTileFillType() != MapTileFillType.AIR) {
-
-                // Apply post-processing overlay to the current screen (with bloom)
-                mapRenderer.applyPostProcessingToScreen();
-            }
-        }
-    }
 
     public boolean shouldSendPositionUpdate() {
         if (positionUpdateTimer >= POSITION_UPDATE_INTERVAL) {
@@ -223,6 +87,18 @@ public class GameWorld {
         return false;
     }
 
+    protected void incrementPositionUpdateTimer(float deltaTime) {
+        positionUpdateTimer += deltaTime;
+    }
+
+    protected void setMapManager(GameMap mapManager) {
+        this.mapManager = mapManager;
+    }
+
+    protected List<PlayerController> getPlayers() {
+        return players;
+    }
+
     // Getters
     public GameMap getMapManager() { return mapManager; }
     public GameMapRenderer getMapRenderer() { return mapRenderer; }
@@ -230,17 +106,6 @@ public class GameWorld {
     public Random getRandom() { return random; }
     public GameObjectManager getGameObjectManager() { return gameObjectManager; }
 
-    /**
-     * Handle window resize for all rendering components.
-     */
-    public void resize(int width, int height) {
-        if (mapRenderer != null) {
-            mapRenderer.resize(width, height);
-        }
-        if (gameObjectManager.localPlayerController != null) {
-            gameObjectManager.localPlayerController.resize(width, height);
-        }
-    }
 
 
     // Physics debug methods
