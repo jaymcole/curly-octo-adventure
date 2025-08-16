@@ -5,6 +5,7 @@
       "WebFetch(domain:github.com)",
       "Bash(rm:*)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }
