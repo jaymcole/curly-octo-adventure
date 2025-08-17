@@ -6,8 +6,8 @@ import com.badlogic.gdx.utils.Disposable;
 import curly.octo.gameobjects.GameObject;
 import curly.octo.gameobjects.ModelAssetManager;
 import curly.octo.gameobjects.PhysicsProperties;
+import curly.octo.gameobjects.PlayerObject;
 import curly.octo.gameobjects.WorldObject;
-import curly.octo.player.PlayerController;
 import lights.BaseLight;
 
 import java.util.ArrayList;
@@ -15,8 +15,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 public class GameObjectManager implements Disposable {
-    public ArrayList<PlayerController> activePlayers = new ArrayList<>();
-    public PlayerController localPlayerController;
+    public ArrayList<PlayerObject> activePlayers = new ArrayList<>();
+    public PlayerObject localPlayer;
 
     private final HashMap<String, GameObject> idToGameObjectMap = new HashMap<>();
 
@@ -41,17 +41,7 @@ public class GameObjectManager implements Disposable {
             }
         }
 
-        // Update local player
-        if (localPlayerController != null) {
-            localPlayerController.update(delta);
-        }
-
-        // Update all other players
-        for (PlayerController player : activePlayers) {
-            if (player != localPlayerController) {
-                player.update(delta);
-            }
-        }
+        // Note: All PlayerObjects are automatically updated as GameObjects above
 
         updateRenderQueue();
         removeObjectsAfterUpdate();
@@ -70,19 +60,7 @@ public class GameObjectManager implements Disposable {
             }
         }
 
-        for (PlayerController player : activePlayers) {
-            ModelInstance playerInstance = player.getModelInstance();
-            if (playerInstance != null) {
-                renderQueue.add(playerInstance);
-            }
-        }
-
-        if (localPlayerController != null) {
-            ModelInstance localInstance = localPlayerController.getModelInstance();
-            if (localInstance != null) {
-                renderQueue.add(localInstance);
-            }
-        }
+        // Note: PlayerObjects are automatically rendered as WorldObjects above
     }
 
     private void removeObjectsAfterUpdate() {

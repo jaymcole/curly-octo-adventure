@@ -94,8 +94,8 @@ public class NetworkListener implements Listener {
             } else {
                 Log.error("Network", "Received null map in MapDataUpdate");
             }
-        } else if (object instanceof PlayerRosterUpdate) {
-            PlayerRosterUpdate update = (PlayerRosterUpdate) object;
+        } else if (object instanceof PlayerObjectRosterUpdate) {
+            PlayerObjectRosterUpdate update = (PlayerObjectRosterUpdate) object;
             Log.info("Network", "Received new player roster with " + update.players.length + " players");
             if (playerRosterListener != null) {
                 playerRosterListener.onPlayerRosterReceived(update);

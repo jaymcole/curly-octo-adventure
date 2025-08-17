@@ -3,7 +3,10 @@
     "allow": [
       "WebFetch(domain:libgdx.badlogicgames.com)",
       "WebFetch(domain:github.com)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(.gradlew lwjgl3:jar)",
+      "Bash(./gradlew:*)",
+      "Bash(gradlew.bat lwjgl3:jar:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

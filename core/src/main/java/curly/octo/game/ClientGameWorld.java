@@ -9,11 +9,9 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
-import curly.octo.player.PlayerController;
+import curly.octo.gameobjects.PlayerObject;
 
 import java.util.Random;
-
-import static curly.octo.player.PlayerUtilities.createPlayerController;
 
 /**
  * Client-specific game world that handles client-side rendering and physics.
@@ -33,11 +31,31 @@ public class ClientGameWorld extends GameWorld {
     }
 
     public void setupLocalPlayer() {
-        if (getGameObjectManager().localPlayerController == null) {
-            Log.info("ClientGameWorld", "Creating local player controller");
-            getGameObjectManager().localPlayerController = createPlayerController();
-            getPlayers().add(getGameObjectManager().localPlayerController);
-            Log.info("ClientGameWorld", "Local player controller created with ID: " + getGameObjectManager().localPlayerController.getPlayerId() + " and added to players list");
+        if (getGameObjectManager().localPlayer == null) {
+            Log.info("ClientGameWorld", "Creating local player object");
+            getGameObjectManager().localPlayer = new PlayerObject("localPlayer");
+            
+            // Ensure graphics are initialized for local player immediately
+            Log.info("ClientGameWorld", "Waiting for graphics initialization...");
+            long startTime = System.currentTimeMillis();
+            while (!getGameObjectManager().localPlayer.isGraphicsInitialized() && (System.currentTimeMillis() - startTime) < 5000) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            
+            if (getGameObjectManager().localPlayer.isGraphicsInitialized()) {
+                Log.info("ClientGameWorld", "Graphics initialized successfully");
+            } else {
+                Log.error("ClientGameWorld", "Graphics initialization timed out!");
+            }
+            
+            getGameObjectManager().add(getGameObjectManager().localPlayer);
+            getPlayers().add(getGameObjectManager().localPlayer);
+            Log.info("ClientGameWorld", "Local player object created with ID: " + getGameObjectManager().localPlayer.getPlayerId() + " and added to players list");
         }
 
         if (getMapManager() != null) {
@@ -48,13 +66,16 @@ public class ClientGameWorld extends GameWorld {
             Vector3 playerStart = new Vector3(15, 25, 15);
             if (!getMapManager().spawnTiles.isEmpty()) {
                 MapTile spawnTile = getMapManager().spawnTiles.get(0);
-                playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
+                // Spawn above the tile, not at the tile position
+                playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
             }
 
             getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
 
-            getGameObjectManager().localPlayerController.setGameMap(getMapManager());
-            getGameObjectManager().localPlayerController.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z, 0);
+            // Link the PlayerObject to the physics character controller
+            getGameObjectManager().localPlayer.setGameMap(getMapManager());
+            getGameObjectManager().localPlayer.setCharacterController(getMapManager().getPlayerController());
+            getGameObjectManager().localPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
 
             Log.info("ClientGameWorld", "Setup local player at position: " + playerStart);
         }
@@ -63,14 +84,14 @@ public class ClientGameWorld extends GameWorld {
     @Override
     public void update(float deltaTime) {
         // Update physics
-        if (getMapManager() != null && getGameObjectManager().localPlayerController != null) {
+        if (getMapManager() != null && getGameObjectManager().localPlayer != null) {
             getMapManager().stepPhysics(deltaTime);
             Vector3 bulletPlayerPos = getMapManager().getPlayerPosition();
-            getGameObjectManager().localPlayerController.setPlayerPosition(bulletPlayerPos.x, bulletPlayerPos.y, bulletPlayerPos.z, deltaTime);
+            getGameObjectManager().localPlayer.setPosition(bulletPlayerPos);
         }
 
         // Update local player
-        if (getGameObjectManager().localPlayerController != null) {
+        if (getGameObjectManager().localPlayer != null) {
             getGameObjectManager().update(deltaTime);
         }
 
@@ -81,8 +102,8 @@ public class ClientGameWorld extends GameWorld {
     public void render(ModelBatch modelBatch, PerspectiveCamera camera) {
         if (getMapRenderer() != null && camera != null) {
             // Set post-processing effect based on local player's current tile
-            if (getGameObjectManager().localPlayerController != null) {
-                getMapRenderer().setPostProcessingEffect(getGameObjectManager().localPlayerController.getCurrentTileFillType());
+            if (getGameObjectManager().localPlayer != null) {
+                getMapRenderer().setPostProcessingEffect(getGameObjectManager().localPlayer.getCurrentTileFillType());
             }
 
             // Step 1: Render scene with bloom effects first
@@ -90,9 +111,9 @@ public class ClientGameWorld extends GameWorld {
 
             // Collect other players' ModelInstances for shadow casting
             Array<ModelInstance> playerInstances = new Array<>();
-            if (getGameObjectManager().activePlayers != null && getGameObjectManager().localPlayerController != null) {
-                for (PlayerController player : getGameObjectManager().activePlayers) {
-                    if (!player.getPlayerId().equals(getGameObjectManager().localPlayerController.getPlayerId())) {
+            if (getGameObjectManager().activePlayers != null && getGameObjectManager().localPlayer != null) {
+                for (PlayerObject player : getGameObjectManager().activePlayers) {
+                    if (!player.getPlayerId().equals(getGameObjectManager().localPlayer.getPlayerId())) {
                         // Get the player's ModelInstance for shadow casting
                         ModelInstance playerModel = player.getModelInstance();
                         if (playerModel != null) {
@@ -119,8 +140,8 @@ public class ClientGameWorld extends GameWorld {
 
             // Step 2: Apply post-processing effects to the bloom result
             // Only apply post-processing if we have an effect to apply
-            if (getGameObjectManager().localPlayerController != null &&
-                getGameObjectManager().localPlayerController.getCurrentTileFillType() != MapTileFillType.AIR) {
+            if (getGameObjectManager().localPlayer != null &&
+                getGameObjectManager().localPlayer.getCurrentTileFillType() != MapTileFillType.AIR) {
 
                 // Apply post-processing overlay to the current screen (with bloom)
                 getMapRenderer().applyPostProcessingToScreen();
@@ -131,9 +152,6 @@ public class ClientGameWorld extends GameWorld {
     public void resize(int width, int height) {
         if (getMapRenderer() != null) {
             getMapRenderer().resize(width, height);
-        }
-        if (getGameObjectManager().localPlayerController != null) {
-            getGameObjectManager().localPlayerController.resize(width, height);
         }
     }
 }

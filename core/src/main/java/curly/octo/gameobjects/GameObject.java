@@ -6,9 +6,16 @@ import com.badlogic.gdx.math.Vector3;
 
 public abstract class GameObject {
 
-    public final String entityId;
+    public String entityId;
     protected Vector3 position;
     protected Quaternion rotation;
+
+    // No-arg constructor for Kryo serialization
+    protected GameObject() {
+        this.entityId = "unknown";
+        this.position = new Vector3();
+        this.rotation = new Quaternion();
+    }
 
     public GameObject(String id) {
         this.entityId = id;

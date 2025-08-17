@@ -1,10 +1,11 @@
 package curly.octo.gameobjects;
 
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import com.badlogic.gdx.utils.Disposable;
 
-public class WorldObject extends GameObject implements Disposable {
+public class WorldObject extends GameObject implements Disposable, Possessable {
 
     private ModelInstance modelInstance;
     private btRigidBody rigidBody;
@@ -12,6 +13,21 @@ public class WorldObject extends GameObject implements Disposable {
     private PhysicsProperties basePhysicsProperties;
     private float scaleFactor = 1.0f;
     private boolean disposed = false;
+    
+    // Possession state
+    private boolean possessed = false;
+    private float jumpCooldownTime = 0.0f;
+    private static final float JUMP_COOLDOWN_DURATION = 1.0f; // 1 second cooldown
+    private static final float JUMP_FORCE_MULTIPLIER = 10.0f;
+    private Vector3 tempVector = new Vector3();
+
+    // No-arg constructor for Kryo serialization
+    public WorldObject() {
+        super();
+        this.basePhysicsProperties = PhysicsProperties.DEFAULT;
+        this.scaleFactor = 1.0f;
+        this.tempVector = new Vector3();
+    }
 
     public WorldObject(String id) {
         super(id);
@@ -39,6 +55,14 @@ public class WorldObject extends GameObject implements Disposable {
     @Override
     public void update(float delta) {
         if (disposed) return;
+        
+        // Update jump cooldown
+        if (jumpCooldownTime > 0) {
+            jumpCooldownTime -= delta;
+            if (jumpCooldownTime < 0) {
+                jumpCooldownTime = 0;
+            }
+        }
         
         if (rigidBody != null && modelInstance != null) {
             rigidBody.getWorldTransform(modelInstance.transform);
@@ -145,5 +169,83 @@ public class WorldObject extends GameObject implements Disposable {
 
     public boolean isDisposed() {
         return disposed;
+    }
+    
+    // Possessable interface implementation
+    @Override
+    public boolean canBePossessed() {
+        return !disposed && rigidBody != null;
+    }
+    
+    @Override
+    public void onPossessionStart() {
+        possessed = true;
+    }
+    
+    @Override
+    public void onPossessionEnd() {
+        possessed = false;
+    }
+    
+    @Override
+    public void applyJumpForce(Vector3 direction, float strength) {
+        if (disposed || rigidBody == null || isOnCooldown()) {
+            return;
+        }
+        
+        // Apply upward tilt to the direction (30-degree upward angle)
+        tempVector.set(direction).nor();
+        tempVector.y += 0.5f; // Add upward component
+        tempVector.nor();
+        
+        // Scale force by object weight and provided strength
+        float forceScale = JUMP_FORCE_MULTIPLIER * strength * getWeight();
+        tempVector.scl(forceScale);
+        
+        // Apply impulse to rigid body
+        rigidBody.applyCentralImpulse(tempVector);
+        
+        // Start cooldown
+        jumpCooldownTime = JUMP_COOLDOWN_DURATION;
+    }
+    
+    @Override
+    public boolean isOnCooldown() {
+        return jumpCooldownTime > 0;
+    }
+    
+    @Override
+    public float getCooldownRemaining() {
+        return jumpCooldownTime;
+    }
+    
+    @Override
+    public Vector3 getCameraPosition() {
+        if (position == null) {
+            return new Vector3(0, 5, 5);
+        }
+        
+        // Position camera above and behind the object
+        tempVector.set(position);
+        tempVector.y += 3.0f * scaleFactor; // Height based on scale
+        tempVector.z += 5.0f * scaleFactor; // Distance based on scale
+        return tempVector.cpy();
+    }
+    
+    @Override
+    public Vector3 getCameraDirection() {
+        if (position == null) {
+            return new Vector3(0, -0.3f, -1).nor();
+        }
+        
+        // Look down slightly toward the object
+        tempVector.set(position);
+        tempVector.sub(getCameraPosition()).nor();
+        return tempVector.cpy();
+    }
+    
+    @Override
+    public boolean isPossessed() {
+        return possessed;
     }
 }

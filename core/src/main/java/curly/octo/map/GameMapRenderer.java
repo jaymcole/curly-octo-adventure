@@ -169,7 +169,6 @@ public class GameMapRenderer implements Disposable {
         lastTotalLights = pointLights.lights.size;
         lastShadowLights = significantLights.size;
 
-        Log.info("GameMapRenderer", "Rendering with " + lastTotalLights + " total lights, " + lastShadowLights + " casting shadows");
 
         if (significantLights.size > 0) {
 
@@ -328,8 +327,6 @@ public class GameMapRenderer implements Disposable {
         for (int i = 0; i < numLights; i++) {
             result.add(lightScores.get(i).light);
         }
-
-        Log.info("GameMapRenderer", "Selected " + result.size + " closest lights for shadow casting out of " + lightScores.size + " total lights");
 
         return result;
     }

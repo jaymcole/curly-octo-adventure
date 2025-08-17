@@ -5,7 +5,7 @@ import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.GameMapRenderer;
-import curly.octo.player.PlayerController;
+import curly.octo.gameobjects.PlayerObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +20,7 @@ public abstract class GameWorld {
     protected GameMap mapManager;
     protected GameMapRenderer mapRenderer;
     protected Environment environment;
-    protected List<PlayerController> players;
+    protected List<PlayerObject> players;
     protected Random random;
     protected GameObjectManager gameObjectManager;
 
@@ -95,7 +95,7 @@ public abstract class GameWorld {
         this.mapManager = mapManager;
     }
 
-    protected List<PlayerController> getPlayers() {
+    protected List<PlayerObject> getPlayers() {
         return players;
     }
 
@@ -212,7 +212,7 @@ public abstract class GameWorld {
         // Clear references
         players.clear();
         gameObjectManager.activePlayers.clear();
-        gameObjectManager.localPlayerController = null;
+        gameObjectManager.localPlayer = null;
 
         disposed = true;
         Log.info("GameWorld", "Game world disposed");

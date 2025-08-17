@@ -10,9 +10,9 @@ import curly.octo.map.GameMap;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerDisconnectUpdate;
-import curly.octo.network.messages.PlayerRosterUpdate;
+import curly.octo.network.messages.PlayerObjectRosterUpdate;
 import curly.octo.network.messages.PlayerUpdate;
-import curly.octo.player.PlayerController;
+import curly.octo.gameobjects.PlayerObject;
 import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
@@ -25,12 +25,12 @@ public class GameServer {
     private final Server server;
     private final NetworkListener networkListener;
     private final GameMap map;
-    private final List<PlayerController> players;
+    private final List<PlayerObject> players;
     private final GameWorld gameWorld;
     private final Map<Integer, String> connectionToPlayerMap = new HashMap<>();
     private final Set<Integer> readyClients = new HashSet<>(); // Track clients that have received map and assignment
 
-    public GameServer(Random random, GameMap map, List<PlayerController> players, GameWorld gameWorld) {
+    public GameServer(Random random, GameMap map, List<PlayerObject> players, GameWorld gameWorld) {
         this.map = map;
         this.players = players;
         this.gameWorld = gameWorld;
@@ -46,7 +46,7 @@ public class GameServer {
             @Override
             public void connected(Connection connection) {
                 sendMapRefreshToUser(connection);
-                PlayerController newPlayer = PlayerUtilities.createServerPlayerController();
+                PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
                 players.add(newPlayer);
 
                 connectionToPlayerMap.put(connection.getID(), newPlayer.getPlayerId());
@@ -87,9 +87,9 @@ public class GameServer {
                     //     update.x + ", " + update.y + ", " + update.z);
 
                     // Update the player's position in our local list
-                    for (PlayerController player : players) {
+                    for (PlayerObject player : players) {
                         if (player.getPlayerId().equals(update.playerId)) {
-                            player.setPlayerPosition(update.x, update.y, update.z, 0);
+                            player.setPosition(new Vector3(update.x, update.y, update.z));
                             break;
                         }
                     }
@@ -111,8 +111,8 @@ public class GameServer {
                 // Find and remove the disconnected player using the connection mapping
                 String playerId = connectionToPlayerMap.remove(connection.getID());
                 if (playerId != null) {
-                    PlayerController disconnectedPlayer = null;
-                    for (PlayerController player : players) {
+                    PlayerObject disconnectedPlayer = null;
+                    for (PlayerObject player : players) {
                         if (player.getPlayerId().equals(playerId)) {
                             disconnectedPlayer = player;
                             break;
@@ -197,7 +197,7 @@ public class GameServer {
     public void broadcastNewPlayerRoster() {
         if (server != null) {
             try {
-                PlayerRosterUpdate update = createPlayerRosterUpdate();
+                PlayerObjectRosterUpdate update = createPlayerRosterUpdate();
                 Log.info("GameServer", "Broadcasting player roster to all clients");
                 server.sendToAllTCP(update);
                 Log.info("GameServer", "Broadcast completed successfully");
@@ -211,7 +211,7 @@ public class GameServer {
     public void sendPlayerRosterToConnection(Connection connection) {
         if (server != null && connection != null) {
             try {
-                PlayerRosterUpdate update = createPlayerRosterUpdate();
+                PlayerObjectRosterUpdate update = createPlayerRosterUpdate();
                 Log.info("GameServer", "Sending player roster directly to connection " + connection.getID());
                 connection.sendTCP(update);
                 Log.info("GameServer", "Direct send completed successfully");
@@ -222,9 +222,9 @@ public class GameServer {
         }
     }
 
-    private PlayerRosterUpdate createPlayerRosterUpdate() {
-        PlayerRosterUpdate update = new PlayerRosterUpdate();
-        PlayerController[] playerRoster = new PlayerController[players.size()];
+    private PlayerObjectRosterUpdate createPlayerRosterUpdate() {
+        PlayerObjectRosterUpdate update = new PlayerObjectRosterUpdate();
+        PlayerObject[] playerRoster = new PlayerObject[players.size()];
         for (int i = 0; i < players.size(); i++) {
             playerRoster[i] = players.get(i);
         }

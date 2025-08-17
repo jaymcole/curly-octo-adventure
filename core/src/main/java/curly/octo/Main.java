@@ -125,9 +125,11 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             clientGameMode.render(modelBatch, clientGameWorld.getEnvironment());
 
             // Update debug info - get local player from client game world
-            if (clientGameWorld.getGameObjectManager() != null && clientGameWorld.getGameObjectManager().localPlayerController != null) {
-                Vector3 pos = clientGameWorld.getGameObjectManager().localPlayerController.getPosition();
-                debugUI.setPlayerPosition(pos.x, pos.y, pos.z);
+            if (clientGameWorld.getGameObjectManager() != null && clientGameWorld.getGameObjectManager().localPlayer != null) {
+                Vector3 pos = clientGameWorld.getGameObjectManager().localPlayer.getPosition();
+                if (pos != null) {
+                    debugUI.setPlayerPosition(pos.x, pos.y, pos.z);
+                }
             }
 
             // Update light count info

@@ -9,7 +9,9 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.map.MapTile;
 import curly.octo.network.GameClient;
 import curly.octo.network.messages.PlayerUpdate;
-import curly.octo.player.PlayerController;
+import curly.octo.gameobjects.PlayerObject;
+import curly.octo.input.InputController;
+import curly.octo.player.MinimalPlayerController;
 import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
@@ -27,6 +29,11 @@ public class ClientGameMode implements GameMode {
     private boolean mapReceived = false;
     private boolean playerAssigned = false;
 
+    // New input system (optional migration)
+    private InputController inputController;
+    private boolean useNewInputSystem = false; // Flag to enable new system
+    private PerspectiveCamera camera;
+
     // Network threading
     private Thread networkThread;
     private volatile boolean networkRunning = false;
@@ -34,6 +41,27 @@ public class ClientGameMode implements GameMode {
     public ClientGameMode(String host, java.util.Random random) {
         this.host = host;
         this.gameWorld = new ClientGameWorld(random);
+
+        // Initialize new input system for future migration
+        this.inputController = new MinimalPlayerController();
+    }
+
+    // Helper method to get local player position
+    private Vector3 getLocalPlayerPosition() {
+        GameObjectManager gom = gameWorld.getGameObjectManager();
+        if (gom.localPlayer != null) {
+            return gom.localPlayer.getPosition();
+        }
+        return null;
+    }
+
+    // Helper method to get local player ID
+    private String getLocalPlayerId() {
+        GameObjectManager gom = gameWorld.getGameObjectManager();
+        if (gom.localPlayer != null) {
+            return gom.localPlayer.getPlayerId();
+        }
+        return null;
     }
 
     @Override
@@ -142,15 +170,14 @@ public class ClientGameMode implements GameMode {
         gameClient.setPlayerRosterListener(roster -> {
             Gdx.app.postRunnable(() -> {
                 HashSet<String> currentPlayers = new HashSet<>();
-                for (PlayerController player : gameWorld.getGameObjectManager().activePlayers) {
+                for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
                     currentPlayers.add(player.getPlayerId());
                 }
 
-                for (PlayerController player : roster.players) {
+                for (PlayerObject player : roster.players) {
                     if (!currentPlayers.contains(player.getPlayerId())) {
-                        // Ensure other players don't have physics bodies
-                        player.setGameMap(null);
                         gameWorld.getGameObjectManager().activePlayers.add(player);
+                        gameWorld.getGameObjectManager().add(player);
                     } else {
                         Log.info("ClientGameMode", "Skipping player " + player.getPlayerId() + " - already in current players");
                     }
@@ -164,8 +191,8 @@ public class ClientGameMode implements GameMode {
                 Log.info("ClientGameMode", "Processing disconnect for player " + disconnectUpdate.playerId);
 
                 // Find and remove the disconnected player
-                PlayerController playerToRemove = null;
-                for (PlayerController player : gameWorld.getGameObjectManager().activePlayers) {
+                PlayerObject playerToRemove = null;
+                for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
                     if (player.getPlayerId().equals(disconnectUpdate.playerId)) {
                         playerToRemove = player;
                         break;
@@ -178,6 +205,7 @@ public class ClientGameMode implements GameMode {
 
                     // Remove player from list
                     gameWorld.getGameObjectManager().activePlayers.remove(playerToRemove);
+                    gameWorld.getGameObjectManager().remove(playerToRemove);
 
                     Log.info("ClientGameMode", "Removed disconnected player " + disconnectUpdate.playerId + " from client");
                 } else {
@@ -193,14 +221,14 @@ public class ClientGameMode implements GameMode {
                 //     playerUpdate.x + ", " + playerUpdate.y + ", " + playerUpdate.z);
 
                 // Skip updates for the local player (if local player is set up)
-                if (gameWorld.getGameObjectManager().localPlayerController != null &&
-                    playerUpdate.playerId.equals(gameWorld.getGameObjectManager().localPlayerController.getPlayerId())) {
+                String localId = getLocalPlayerId();
+                if (localId != null && playerUpdate.playerId.equals(localId)) {
                     return;
                 }
 
                 // Find the player in our list
-                PlayerController targetPlayer = null;
-                for (PlayerController player : gameWorld.getGameObjectManager().activePlayers) {
+                PlayerObject targetPlayer = null;
+                for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
                     if (player.getPlayerId().equals(playerUpdate.playerId)) {
                         targetPlayer = player;
                         break;
@@ -210,12 +238,12 @@ public class ClientGameMode implements GameMode {
                 // If player not found, create a new one
                 if (targetPlayer == null) {
                     Log.info("ClientGameMode", "Creating new player controller for player " + playerUpdate.playerId);
-                    targetPlayer = PlayerUtilities.createPlayerController();
-                    targetPlayer.setPlayerId(playerUpdate.playerId);
+                    targetPlayer = new PlayerObject(playerUpdate.playerId, true); // server-only mode
                     gameWorld.getGameObjectManager().activePlayers.add(targetPlayer);
+                    gameWorld.getGameObjectManager().add(targetPlayer);
                 }
 
-                targetPlayer.setPlayerPosition(playerUpdate.x, playerUpdate.y, playerUpdate.z, 0);
+                targetPlayer.setPosition(new Vector3(playerUpdate.x, playerUpdate.y, playerUpdate.z));
             });
         });
     }
@@ -226,13 +254,13 @@ public class ClientGameMode implements GameMode {
 
         // Debug: Print all active players
         for (int i = 0; i < gameWorld.getGameObjectManager().activePlayers.size(); i++) {
-            PlayerController p = gameWorld.getGameObjectManager().activePlayers.get(i);
+            PlayerObject p = gameWorld.getGameObjectManager().activePlayers.get(i);
             Log.info("ClientGameMode", "activePlayers[" + i + "] = " + (p != null ? p.getPlayerId() : "NULL"));
         }
 
         // First, check if a player with this ID already exists in activePlayers (from roster)
-        PlayerController existingPlayer = null;
-        for (PlayerController player : gameWorld.getGameObjectManager().activePlayers) {
+        PlayerObject existingPlayer = null;
+        for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
             if (player != null && player.getPlayerId() != null && player.getPlayerId().equals(localPlayerId)) {
                 existingPlayer = player;
                 break;
@@ -244,34 +272,13 @@ public class ClientGameMode implements GameMode {
         if (existingPlayer != null) {
             // Use the existing player from the roster as our local player
             Log.info("ClientGameMode", "Using existing player from roster as local player: " + localPlayerId);
-            gameWorld.getGameObjectManager().localPlayerController = existingPlayer;
+            gameWorld.getGameObjectManager().localPlayer = existingPlayer;
 
-            // CRITICAL: Initialize camera for existing player since roster players don't have cameras
-            Log.info("ClientGameMode", "Force-initializing camera for existing player");
-            try {
-                // Manually initialize camera since the initialize() method is private
-                PerspectiveCamera newCamera = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-                Vector3 playerPos = existingPlayer.getPosition();
-                newCamera.position.set(playerPos);
-                newCamera.position.y += 5.0f; // player height offset
-                newCamera.lookAt(playerPos.x, playerPos.y + 5.0f, playerPos.z - 1.0f); // look forward
-                newCamera.up.set(Vector3.Y);
-                newCamera.near = 0.1f;
-                newCamera.far = 300f;
-                newCamera.update();
+            // Set up input controller for existing player
+            Log.info("ClientGameMode", "Setting up input controller for existing player");
+            inputController.setPossessionTarget(existingPlayer);
 
-                // We need to use reflection to set the private camera field
-                java.lang.reflect.Field cameraField = PlayerController.class.getDeclaredField("camera");
-                cameraField.setAccessible(true);
-                cameraField.set(existingPlayer, newCamera);
-
-                Log.info("ClientGameMode", "Successfully created camera for existing player via reflection");
-            } catch (Exception e) {
-                Log.error("ClientGameMode", "Failed to initialize camera for existing player: " + e.getMessage());
-                e.printStackTrace();
-            }
-
-            // Set up physics and input for the existing player
+            // Set up physics for the existing player
             if (gameWorld.getMapManager() != null) {
                 existingPlayer.setGameMap(gameWorld.getMapManager());
 
@@ -282,47 +289,52 @@ public class ClientGameMode implements GameMode {
                 Vector3 playerStart = new Vector3(15, 25, 15);
                 if (!gameWorld.getMapManager().spawnTiles.isEmpty()) {
                     MapTile spawnTile = gameWorld.getMapManager().spawnTiles.get(0);
-                    playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
+                    // Spawn above the tile, not at the tile position
+                    playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
                 }
 
                 gameWorld.getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
-                existingPlayer.setPlayerPosition(playerStart.x, playerStart.y, playerStart.z, 0);
+                
+                // Link the PlayerObject to the physics character controller
+                existingPlayer.setCharacterController(gameWorld.getMapManager().getPlayerController());
+                existingPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
                 Log.info("ClientGameMode", "Setup existing player at position: " + playerStart);
-
-                // Verify camera is now available
-                if (existingPlayer.getCamera() != null) {
-                    Log.info("ClientGameMode", "Camera successfully initialized for existing player");
-                } else {
-                    Log.error("ClientGameMode", "Camera is still NULL after initialization attempt");
-                }
             }
-            Gdx.input.setInputProcessor(existingPlayer);
+            if (inputController instanceof com.badlogic.gdx.InputProcessor) {
+                Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
+            }
         } else {
             // Create the local player if it doesn't exist
-            if (gameWorld.getGameObjectManager().localPlayerController == null) {
-                Log.info("ClientGameMode", "Creating local player controller");
+            if (gameWorld.getGameObjectManager().localPlayer == null) {
+                Log.info("ClientGameMode", "Creating local player object");
                 gameWorld.setupLocalPlayer();
             }
 
             // Set the player ID
-            PlayerController localPlayer = gameWorld.getGameObjectManager().localPlayerController;
+            PlayerObject localPlayer = gameWorld.getGameObjectManager().localPlayer;
             if (localPlayer != null) {
                 localPlayer.setPlayerId(localPlayerId);
                 // Also set the localPlayerId in GameWorld
                 if (gameWorld.getMapManager() != null) {
                     localPlayer.setGameMap(gameWorld.getMapManager());
                 }
-                Gdx.input.setInputProcessor(localPlayer);
+                inputController.setPossessionTarget(localPlayer);
+                if (inputController instanceof com.badlogic.gdx.InputProcessor) {
+                Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
+            }
             } else {
                 // Try to create it again
                 gameWorld.setupLocalPlayer();
-                localPlayer = gameWorld.getGameObjectManager().localPlayerController;
+                localPlayer = gameWorld.getGameObjectManager().localPlayer;
                 if (localPlayer != null) {
                     localPlayer.setPlayerId(localPlayerId);
                     if (gameWorld.getMapManager() != null) {
                         localPlayer.setGameMap(gameWorld.getMapManager());
                     }
-                    Gdx.input.setInputProcessor(localPlayer);
+                    inputController.setPossessionTarget(localPlayer);
+                if (inputController instanceof com.badlogic.gdx.InputProcessor) {
+                Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
+            }
                     Log.info("ClientGameMode", "Successfully created and set local player ID to: " + localPlayerId);
                 } else {
                     Log.error("ClientGameMode", "Still failed to create local player controller after retry");
@@ -333,20 +345,31 @@ public class ClientGameMode implements GameMode {
 
     private void checkReady() {
         Log.info("ClientGameMode", "checkReady() - mapReceived: " + mapReceived + ", playerAssigned: " + playerAssigned + ", active: " + active);
+        System.out.println("checkReady() - mapReceived: " + mapReceived + ", playerAssigned: " + playerAssigned + ", active: " + active);
 
         if (mapReceived && playerAssigned && !active) {
             Log.info("ClientGameMode", "All conditions met, activating client mode...");
+            System.out.println("All conditions met, activating client mode...");
             // Switch to 3D view
             Gdx.app.postRunnable(() -> {
                 try {
                     Thread.sleep(1000);
                     active = true;
+                    System.out.println("ClientGameMode activated! active=" + active);
 
-                    if (gameWorld.getGameObjectManager().localPlayerController != null) {
-                        Gdx.input.setInputProcessor(gameWorld.getGameObjectManager().localPlayerController);
+                    if (gameWorld.getGameObjectManager().localPlayer != null) {
+                        inputController.setPossessionTarget(gameWorld.getGameObjectManager().localPlayer);
+                        if (inputController instanceof com.badlogic.gdx.InputProcessor) {
+                            Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
+                            System.out.println("Set InputProcessor to: " + inputController.getClass().getSimpleName());
+                        } else {
+                            System.out.println("ERROR: inputController is not an InputProcessor: " + inputController.getClass().getSimpleName());
+                        }
                         Log.info("ClientGameMode", "Client mode activated successfully");
+                        System.out.println("Client mode activated successfully with local player: " + gameWorld.getGameObjectManager().localPlayer.getPlayerId());
                     } else {
-                        Log.error("ClientGameMode", "Local player controller is null, cannot activate");
+                        Log.error("ClientGameMode", "Local player object is null, cannot activate");
+                        System.out.println("ERROR: Local player object is null, cannot activate");
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -362,9 +385,16 @@ public class ClientGameMode implements GameMode {
         // Network updates are now handled in separate thread
         // This method only handles game world updates on main thread
 
-        if (!active) return;
+        if (!active) {
+            return;
+        }
 
-        // Update game world (input processing, physics, player movement)
+        // Handle input for local player
+        if (inputController != null && gameWorld.getGameObjectManager().localPlayer != null && camera != null) {
+            inputController.handleInput(deltaTime, gameWorld.getGameObjectManager().localPlayer, camera);
+        }
+
+        // Update game world (physics, player movement)
         gameWorld.update(deltaTime);
     }
 
@@ -378,21 +408,22 @@ public class ClientGameMode implements GameMode {
             return;
         }
 
-        PlayerController localPlayer = gameWorld.getGameObjectManager().localPlayerController;
+        PlayerObject localPlayer = gameWorld.getGameObjectManager().localPlayer;
         if (localPlayer != null) {
             // Log.info("ClientGameMode", "Rendering with local player: " + localPlayer.getPlayerId());
-            PerspectiveCamera camera = localPlayer.getCamera();
-            if (camera != null) {
-                // Vector3 pos = camera.position;
-                // Vector3 dir = camera.direction;
-                // Log.info("ClientGameMode", "Camera position: (" + pos.x + ", " + pos.y + ", " + pos.z + ")");
-                // Log.info("ClientGameMode", "Camera direction: (" + dir.x + ", " + dir.y + ", " + dir.z + ")");
-                gameWorld.render(modelBatch, camera);
-            } else {
-                Log.error("ClientGameMode", "Local player camera is NULL!");
+            // Create camera for rendering if not exists
+            if (camera == null) {
+                camera = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+                camera.near = 0.1f;
+                camera.far = 300f;
             }
+
+            // Update camera from input controller
+            inputController.updateCamera(camera, Gdx.graphics.getDeltaTime());
+
+            gameWorld.render(modelBatch, camera);
         } else {
-            Log.warn("ClientGameMode", "Active but no local player controller for rendering");
+            Log.warn("ClientGameMode", "Active but no local player object for rendering");
         }
     }
 
@@ -457,13 +488,15 @@ public class ClientGameMode implements GameMode {
     }
 
     private void sendPositionUpdate() {
-        if (gameClient != null && gameWorld.getGameObjectManager().localPlayerController != null) {
-            PlayerUpdate update = new PlayerUpdate(
-                gameWorld.getGameObjectManager().localPlayerController.getPlayerId(),
-                gameWorld.getGameObjectManager().localPlayerController.getPosition()
-            );
-            gameClient.sendUDP(update);
-            // Log.debug("ClientGameMode", "Sent position update: " + update.x + ", " + update.y + ", " + update.z);
+        if (gameClient != null) {
+            String playerId = getLocalPlayerId();
+            Vector3 position = getLocalPlayerPosition();
+
+            if (playerId != null && position != null) {
+                PlayerUpdate update = new PlayerUpdate(playerId, position);
+                gameClient.sendUDP(update);
+                // Log.debug("ClientGameMode", "Sent position update: " + update.x + ", " + update.y + ", " + update.z);
+            }
         }
     }
 
