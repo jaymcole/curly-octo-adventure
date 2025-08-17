@@ -415,14 +415,16 @@ public class ClientGameMode implements GameMode {
 
     @Override
     public void dispose() {
+        long startTime = System.currentTimeMillis();
         Log.info("ClientGameMode", "Disposing client game mode...");
 
         // Stop network thread
+        long networkStart = System.currentTimeMillis();
         networkRunning = false;
         if (networkThread != null && networkThread.isAlive()) {
             try {
                 networkThread.interrupt();
-                networkThread.join(3000); // Wait up to 3 seconds
+                networkThread.join(1000); // Wait up to 1 second (reduced from 3)
                 if (networkThread.isAlive()) {
                     Log.warn("ClientGameMode", "Network thread did not stop within timeout");
                 }
@@ -431,18 +433,39 @@ public class ClientGameMode implements GameMode {
                 Log.warn("ClientGameMode", "Interrupted while waiting for network thread to stop");
             }
         }
+        long networkEnd = System.currentTimeMillis();
+        Log.info("ClientGameMode", "Network thread stopped in " + (networkEnd - networkStart) + "ms");
 
-        // Disconnect from server
+        // Disconnect from server with timeout
+        long disconnectStart = System.currentTimeMillis();
         if (gameClient != null) {
             try {
-                gameClient.disconnect();
-                Log.info("ClientGameMode", "Disconnected from server");
+                // Use a timeout for disconnection to prevent hanging
+                Thread disconnectThread = new Thread(() -> {
+                    try {
+                        gameClient.disconnect();
+                        Log.info("ClientGameMode", "Disconnected from server");
+                    } catch (Exception e) {
+                        Log.error("ClientGameMode", "Error disconnecting from server: " + e.getMessage());
+                    }
+                }, "DisconnectThread");
+                
+                disconnectThread.start();
+                disconnectThread.join(500); // Wait max 500ms for disconnect
+                
+                if (disconnectThread.isAlive()) {
+                    Log.warn("ClientGameMode", "Disconnect thread timeout, proceeding anyway");
+                    disconnectThread.interrupt();
+                }
             } catch (Exception e) {
-                Log.error("ClientGameMode", "Error disconnecting from server: " + e.getMessage());
+                Log.error("ClientGameMode", "Error during timed disconnect: " + e.getMessage());
             }
         }
+        long disconnectEnd = System.currentTimeMillis();
+        Log.info("ClientGameMode", "Server disconnect took " + (disconnectEnd - disconnectStart) + "ms");
 
         // Dispose our own gameWorld
+        long gameWorldStart = System.currentTimeMillis();
         if (gameWorld != null) {
             try {
                 gameWorld.dispose();
@@ -451,9 +474,12 @@ public class ClientGameMode implements GameMode {
                 Log.error("ClientGameMode", "Error disposing game world: " + e.getMessage());
             }
         }
+        long gameWorldEnd = System.currentTimeMillis();
+        Log.info("ClientGameMode", "Game world disposal took " + (gameWorldEnd - gameWorldStart) + "ms");
 
         active = false;
-        Log.info("ClientGameMode", "Client game mode disposed");
+        long totalTime = System.currentTimeMillis() - startTime;
+        Log.info("ClientGameMode", "Client game mode disposed in " + totalTime + "ms");
     }
 
     @Override

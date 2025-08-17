@@ -125,16 +125,18 @@ public class ThreadedHostedGameMode implements GameMode {
     
     @Override
     public void dispose() {
+        long startTime = System.currentTimeMillis();
         Log.info("ThreadedHostedGameMode", "Disposing threaded hosted game mode...");
         
         // Signal the server thread to stop
+        long threadStopStart = System.currentTimeMillis();
         running.set(false);
         
         // Wait for the server thread to finish
         if (serverThread != null && serverThread.isAlive()) {
             try {
                 serverThread.interrupt();
-                serverThread.join(5000); // Wait up to 5 seconds
+                serverThread.join(1000); // Wait up to 1 second (reduced from 5)
                 if (serverThread.isAlive()) {
                     Log.warn("ThreadedHostedGameMode", "Server thread did not stop within timeout");
                 }
@@ -143,11 +145,17 @@ public class ThreadedHostedGameMode implements GameMode {
                 Log.warn("ThreadedHostedGameMode", "Interrupted while waiting for server thread to stop");
             }
         }
+        long threadStopEnd = System.currentTimeMillis();
+        Log.info("ThreadedHostedGameMode", "Server thread stopped in " + (threadStopEnd - threadStopStart) + "ms");
         
         // Dispose the underlying hosted game mode
+        long hostedModeStart = System.currentTimeMillis();
         hostedGameMode.dispose();
+        long hostedModeEnd = System.currentTimeMillis();
+        Log.info("ThreadedHostedGameMode", "Hosted game mode disposed in " + (hostedModeEnd - hostedModeStart) + "ms");
         
-        Log.info("ThreadedHostedGameMode", "Threaded hosted game mode disposed");
+        long totalTime = System.currentTimeMillis() - startTime;
+        Log.info("ThreadedHostedGameMode", "Threaded hosted game mode disposed in " + totalTime + "ms");
     }
     
     @Override

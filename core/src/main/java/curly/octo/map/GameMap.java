@@ -386,6 +386,15 @@ public class GameMap {
     }
 
     public void dispose() {
+        long startTime = System.currentTimeMillis();
+        Log.info("GameMap", "Starting physics disposal...");
+        
+        // Early exit if physics was never initialized
+        if (!physicsInitialized) {
+            Log.info("GameMap", "Physics was never initialized, skipping disposal");
+            return;
+        }
+        
         if (debugDrawer != null) {
             debugDrawer.dispose();
             debugDrawer = null;
@@ -444,6 +453,12 @@ public class GameMap {
         if (collisionConfig != null) {
             collisionConfig.dispose();
         }
+        
+        // Mark physics as uninitialized to prevent double disposal
+        physicsInitialized = false;
+        
+        long totalTime = System.currentTimeMillis() - startTime;
+        Log.info("GameMap", "Physics disposal completed in " + totalTime + "ms");
     }
 
     public void logPerformanceMetrics() {

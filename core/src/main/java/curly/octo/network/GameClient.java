@@ -140,8 +140,25 @@ public class GameClient {
      */
     public void disconnect() {
         if (client != null) {
-            client.stop();
-            Log.info("Client", "Disconnected from server");
+            try {
+                // Close connection immediately without waiting for graceful shutdown
+                client.close();
+                Log.info("Client", "Disconnected from server (immediate)");
+            } catch (Exception e) {
+                Log.warn("Client", "Exception during immediate disconnect: " + e.getMessage());
+            }
+            
+            // Then stop the client in a separate thread to avoid blocking
+            Thread stopThread = new Thread(() -> {
+                try {
+                    client.stop();
+                    Log.info("Client", "Client stopped");
+                } catch (Exception e) {
+                    Log.warn("Client", "Exception during client stop: " + e.getMessage());
+                }
+            }, "ClientStopThread");
+            stopThread.setDaemon(true); // Don't keep JVM alive
+            stopThread.start();
         }
     }
 

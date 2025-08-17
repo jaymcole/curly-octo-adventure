@@ -181,24 +181,34 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
 
     private void disposePreviousGameModes() {
         if (hostedGameMode != null) {
+            long hostedStart = System.currentTimeMillis();
             Log.info("Main", "Disposing previous hosted game mode");
             hostedGameMode.dispose();
             hostedGameMode = null;
+            long hostedEnd = System.currentTimeMillis();
+            Log.info("Main", "Hosted game mode disposed in " + (hostedEnd - hostedStart) + "ms");
         }
 
         if (clientGameMode != null) {
+            long clientStart = System.currentTimeMillis();
             Log.info("Main", "Disposing previous client game mode");
             clientGameMode.dispose();
             clientGameMode = null;
+            long clientEnd = System.currentTimeMillis();
+            Log.info("Main", "Client game mode disposed in " + (clientEnd - clientStart) + "ms");
         }
     }
 
     @Override
     public void dispose() {
+        long startTime = System.currentTimeMillis();
         Log.info("Main", "Disposing resources...");
 
         // Dispose game modes (they handle their own game worlds)
+        long gameModeStart = System.currentTimeMillis();
         disposePreviousGameModes();
+        long gameModeEnd = System.currentTimeMillis();
+        Log.info("Main", "Game modes disposed in " + (gameModeEnd - gameModeStart) + "ms");
 
         // Dispose UI components
         try {
@@ -229,7 +239,8 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             Log.error("Main", "Error disposing model batch: " + e.getMessage());
         }
 
-        Log.info("Main", "All resources disposed");
+        long totalTime = System.currentTimeMillis() - startTime;
+        Log.info("Main", "All resources disposed in " + totalTime + "ms");
     }
 
     // DebugUI.DebugListener implementation
