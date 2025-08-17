@@ -270,40 +270,19 @@ public class ClientGameMode implements GameMode {
         Log.info("ClientGameMode", "Found existing player: " + (existingPlayer != null ? "YES" : "NO"));
 
         if (existingPlayer != null) {
-            // Use the existing player from the roster as our local player
-            Log.info("ClientGameMode", "Using existing player from roster as local player: " + localPlayerId);
-            gameWorld.getGameObjectManager().localPlayer = existingPlayer;
-
-            // Set up input controller for existing player
-            Log.info("ClientGameMode", "Setting up input controller for existing player");
-            inputController.setPossessionTarget(existingPlayer);
-
-            // Set up physics for the existing player
-            if (gameWorld.getMapManager() != null) {
-                existingPlayer.setGameMap(gameWorld.getMapManager());
-
-                // Add player to physics world
-                float playerRadius = 1.0f;
-                float playerHeight = 5.0f;
-                float playerMass = 10.0f;
-                Vector3 playerStart = new Vector3(15, 25, 15);
-                if (!gameWorld.getMapManager().spawnTiles.isEmpty()) {
-                    MapTile spawnTile = gameWorld.getMapManager().spawnTiles.get(0);
-                    // Spawn above the tile, not at the tile position
-                    playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
-                }
-
-                gameWorld.getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
-                
-                // Link the PlayerObject to the physics character controller
-                existingPlayer.setCharacterController(gameWorld.getMapManager().getPlayerController());
-                existingPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
-                Log.info("ClientGameMode", "Setup existing player at position: " + playerStart);
-            }
-            if (inputController instanceof com.badlogic.gdx.InputProcessor) {
-                Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
-            }
-        } else {
+            // Found existing player from roster, but create a fresh local player instead
+            // The existing player is for network tracking, not local control
+            Log.info("ClientGameMode", "Found existing player from roster, but creating fresh local player for control");
+            Log.info("ClientGameMode", "Existing player graphics initialized: " + existingPlayer.isGraphicsInitialized());
+            Log.info("ClientGameMode", "Existing player current position: " + existingPlayer.getPosition());
+            
+            // Remove the existing network player from active players since we'll replace it
+            gameWorld.getGameObjectManager().activePlayers.remove(existingPlayer);
+            gameWorld.getGameObjectManager().remove(existingPlayer);
+        }
+        
+        // Always create a fresh local player for proper initialization
+        {
             // Create the local player if it doesn't exist
             if (gameWorld.getGameObjectManager().localPlayer == null) {
                 Log.info("ClientGameMode", "Creating local player object");

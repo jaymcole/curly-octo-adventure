@@ -364,7 +364,6 @@ public class GameMap {
         dynamicsWorld.addAction(playerController);
         playerGhostObject.setUserPointer(0L);
 
-        Log.info("GameMap", "Added player CHARACTER CONTROLLER at position: " + x + ", " + y + ", " + z);
     }
 
     public btKinematicCharacterController getPlayerController() {

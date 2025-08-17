@@ -19,6 +19,8 @@ public abstract class GameObject {
 
     public GameObject(String id) {
         this.entityId = id;
+        this.position = new Vector3();
+        this.rotation = new Quaternion();
     }
 
     public abstract void update(float delta);
@@ -28,10 +30,16 @@ public abstract class GameObject {
     }
 
     public Vector3 getPosition() {
+        if (position == null) {
+            position = new Vector3();
+        }
         return position.cpy();
     }
 
     public Quaternion getRotation() {
+        if (rotation == null) {
+            rotation = new Quaternion();
+        }
         return rotation.cpy();
     }
 

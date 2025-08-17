@@ -35,23 +35,8 @@ public class ClientGameWorld extends GameWorld {
             Log.info("ClientGameWorld", "Creating local player object");
             getGameObjectManager().localPlayer = new PlayerObject("localPlayer");
             
-            // Ensure graphics are initialized for local player immediately
-            Log.info("ClientGameWorld", "Waiting for graphics initialization...");
-            long startTime = System.currentTimeMillis();
-            while (!getGameObjectManager().localPlayer.isGraphicsInitialized() && (System.currentTimeMillis() - startTime) < 5000) {
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-            
-            if (getGameObjectManager().localPlayer.isGraphicsInitialized()) {
-                Log.info("ClientGameWorld", "Graphics initialized successfully");
-            } else {
-                Log.error("ClientGameWorld", "Graphics initialization timed out!");
-            }
+            // Graphics initialization happens asynchronously on OpenGL thread
+            Log.info("ClientGameWorld", "Graphics initialization scheduled for local player");
             
             getGameObjectManager().add(getGameObjectManager().localPlayer);
             getPlayers().add(getGameObjectManager().localPlayer);
@@ -59,25 +44,33 @@ public class ClientGameWorld extends GameWorld {
         }
 
         if (getMapManager() != null) {
-            // Add player to physics world
-            float playerRadius = 1.0f;
-            float playerHeight = 5.0f;
-            float playerMass = 10.0f;
-            Vector3 playerStart = new Vector3(15, 25, 15);
-            if (!getMapManager().spawnTiles.isEmpty()) {
-                MapTile spawnTile = getMapManager().spawnTiles.get(0);
-                // Spawn above the tile, not at the tile position
-                playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
-            }
+            // Check if player physics is already set up
+            if (getMapManager().getPlayerController() == null) {
+                // Add player to physics world only if not already added
+                float playerRadius = 1.0f;
+                float playerHeight = 5.0f;
+                float playerMass = 10.0f;
+                Vector3 playerStart = new Vector3(15, 25, 15);
+                if (!getMapManager().spawnTiles.isEmpty()) {
+                    MapTile spawnTile = getMapManager().spawnTiles.get(0);
+                    // Spawn above the tile, not at the tile position
+                    playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+                }
 
-            getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
+                getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
+            }
 
             // Link the PlayerObject to the physics character controller
             getGameObjectManager().localPlayer.setGameMap(getMapManager());
             getGameObjectManager().localPlayer.setCharacterController(getMapManager().getPlayerController());
+            
+            // Set spawn position
+            Vector3 playerStart = new Vector3(15, 25, 15);
+            if (!getMapManager().spawnTiles.isEmpty()) {
+                MapTile spawnTile = getMapManager().spawnTiles.get(0);
+                playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+            }
             getGameObjectManager().localPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
-
-            Log.info("ClientGameWorld", "Setup local player at position: " + playerStart);
         }
     }
 
