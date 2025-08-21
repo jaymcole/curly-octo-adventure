@@ -67,6 +67,15 @@ public abstract class GameWorld {
 
     public void setMap(GameMap map) {
         this.mapManager = map;
+        
+        // Initialize physics for client-received maps (server-only maps don't have physics)
+        if (!map.isPhysicsInitialized()) {
+            Log.info("GameWorld", "Initializing physics for received map");
+            map.initializePhysics();
+            // Also generate triangle mesh physics that was skipped in server-only generation
+            map.regeneratePhysics();
+        }
+        
         if (mapRenderer == null) {
             mapRenderer = new GameMapRenderer(gameObjectManager);
         }

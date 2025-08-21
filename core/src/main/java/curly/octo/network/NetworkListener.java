@@ -82,10 +82,6 @@ public class NetworkListener implements Listener {
             Log.info("Network", "Handling MapDataUpdate from " + connection.getRemoteAddressTCP().getAddress());
             MapDataUpdate update = (MapDataUpdate) object;
             if (update.map != null) {
-                Log.info("Network", "Received map with size: " +
-                    update.map.getWidth() + "x" +
-                    update.map.getHeight() + "x" +
-                    update.map.getDepth());
                 if (mapReceivedListener != null) {
                     mapReceivedListener.onMapReceived(update.toVoxelMap());
                 } else {

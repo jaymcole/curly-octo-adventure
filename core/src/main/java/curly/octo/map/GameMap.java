@@ -11,15 +11,17 @@ import com.badlogic.gdx.physics.bullet.collision.*;
 import com.badlogic.gdx.physics.bullet.dynamics.*;
 import com.badlogic.gdx.physics.bullet.linearmath.btDefaultMotionState;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.map.enums.MapTileFillType;
+import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.generators.BasicMap;
 import curly.octo.map.generators.MapGenerator;
-import curly.octo.map.generators.PoolGenerator;
 import curly.octo.map.hints.MapHint;
-import curly.octo.map.hints.SpawnPointHint;
 import curly.octo.map.physics.AllTilesPhysicsBodyBuilder;
 import curly.octo.map.physics.BFSPhysicsBodyBuilder;
 import curly.octo.map.physics.PhysicsBodyBuilder;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 
@@ -27,17 +29,14 @@ import java.util.Random;
  * Handles the generation and management of a voxel-based dungeon map.
  */
 public class GameMap {
+
+    private HashMap<Long, MapTile> map;
+    private HashMap<Class, HashMap<Long, ArrayList<MapHint>>> hints;
+
     // Collision groups
     public static final int GROUND_GROUP = 1 << 0;
     public static final int PLAYER_GROUP = 1 << 1;
-    private MapTile[][][] map;
     private transient Random random;
-
-    public int getWidth() { return map.length; }
-    public int getHeight() { return map[0].length; }
-    public int getDepth() { return map[0][0].length; }
-
-    public transient ArrayList<MapTile> spawnTiles;
 
     private transient boolean physicsInitialized;
     private transient btDefaultCollisionConfiguration collisionConfig;
@@ -53,7 +52,7 @@ public class GameMap {
     private transient btRigidBody playerRigidBody;
 
     // Debug rendering
-    private transient boolean debugRenderingEnabled = false;
+    private transient boolean debugRenderingEnabled = true;
 
     // Triangle mesh physics optimization
     private transient btTriangleMesh triangleMesh;
@@ -68,18 +67,21 @@ public class GameMap {
         ALL_TILES,      // Build physics for all occupied tiles (original approach)
         BFS_BOUNDARY    // Build physics only for boundary tiles reachable from spawn points
     }
-    private transient PhysicsStrategy physicsStrategy = PhysicsStrategy.BFS_BOUNDARY;
+    private transient PhysicsStrategy physicsStrategy = PhysicsStrategy.ALL_TILES;
 
 
     // Default constructor required for Kryo
     public GameMap() {
-        // Initialize with minimum size, will be replaced by deserialization
-        this(1, 1, 1, 0);
+        // Initialize HashMaps for Kryo deserialization
+        map = new HashMap<>();
+        hints = new HashMap<>();
     }
 
-    public GameMap(int width, int height, int depth, long seed) {
+    public GameMap(long seed) {
+        map = new HashMap<>();
+        hints = new HashMap<>();
         this.random = new Random(seed);
-        generateDungeon(width, height, depth);
+        generateDungeon();
         initializePhysics();
     }
 
@@ -87,29 +89,27 @@ public class GameMap {
      * Server-only constructor that generates the map but skips physics initialization.
      * Used for hosted servers that only need the map for network distribution.
      */
-    public GameMap(int width, int height, int depth, long seed, boolean serverOnly) {
+    public GameMap(long seed, boolean serverOnly) {
+        map = new HashMap<>();
+        hints = new HashMap<>();
         this.random = new Random(seed);
         if (serverOnly) {
             // Generate map tiles only, skip physics completely
-            generateDungeonServerOnly(width, height, depth);
+            generateDungeonServerOnly();
             Log.info("GameMap", "Created server-only map (no physics)");
         } else {
             // Normal client initialization
-            generateDungeon(width, height, depth);
+            generateDungeon();
             initializePhysics();
         }
     }
 
-    public void generateDungeon(int width, int height, int depth) {
+    public void generateDungeon() {
         Log.info("GameMap.generateDungeon", "Generating tiles");
-        MapGenerator generator = new PoolGenerator(random, 100, 10, 100);
+        MapGenerator generator = new BasicMap(random, this);
+        generator.generate();
 
-        map = generator.generate();
         Log.info("GameMap.generateDungeon", "Done generating tiles");
-
-        Log.info("GameMap.generateDungeon", "Loading hints");
-        cacheMapHints();
-        Log.info("GameMap.generateDungeon", "Done loading hints");
 
         Log.info("GameMap.generateDungeon", "Generating triangle mesh for physics");
         generateTriangleMeshPhysics();
@@ -119,56 +119,62 @@ public class GameMap {
     /**
      * Server-only map generation that creates tiles and hints but skips physics.
      */
-    public void generateDungeonServerOnly(int width, int height, int depth) {
+    public void generateDungeonServerOnly() {
         Log.info("GameMap.generateDungeonServerOnly", "Generating tiles (server-only)");
-        MapGenerator generator = new PoolGenerator(random, 100, 10, 100);
-
-        map = generator.generate();
-        Log.info("GameMap.generateDungeonServerOnly", "Done generating tiles");
-
-        Log.info("GameMap.generateDungeonServerOnly", "Loading hints");
-        cacheMapHints();
-        Log.info("GameMap.generateDungeonServerOnly", "Done loading hints (no physics generation)");
+        MapGenerator generator = new BasicMap(random, this);
+        generator.generate();
     }
 
-    public void cacheMapHints() {
-        spawnTiles = new ArrayList<>();
-
-        for(int x  = 0; x < getWidth(); x++) {
-            for (int y = 0; y < getHeight(); y++) {
-                for(int z = 0; z < getDepth(); z++) {
-                    MapTile tile = map[x][y][z];
-                    for (MapHint hint : tile.getHints()) {
-                        if (hint instanceof SpawnPointHint) {
-                            spawnTiles.add(tile);
-                        }
-                    }
-                }
-            }
+    public MapTile touchTile(int x, int y, int z) {
+        if (getTile(x, y, z) == null) {
+            MapTile newBasicTile = new MapTile();
+            newBasicTile.geometryType = MapTileGeometryType.EMPTY;
+            newBasicTile.fillType = MapTileFillType.AIR;
+            // Set world coordinates based on tile index and tile size
+            newBasicTile.x = x * MapTile.TILE_SIZE;
+            newBasicTile.y = y * MapTile.TILE_SIZE;
+            newBasicTile.z = z * MapTile.TILE_SIZE;
+            map.put(constructKeyFromIndexCoordinates(x, y, z), newBasicTile);
+            return newBasicTile;
         }
+        return getTile(x, y, z);
     }
 
     public MapTile getTileFromWorldCoordinates(float worldX, float worldY, float worldZ) {
         int xIndex = (int)(worldX / MapTile.TILE_SIZE);
         int yIndex = (int)(worldY / MapTile.TILE_SIZE);
         int zIndex = (int)(worldZ / MapTile.TILE_SIZE);
-
-        if (xIndex < 0 || xIndex >= getWidth()) {
-          return null;
-        } else if (yIndex < 0 || yIndex >= getHeight()) {
-            return null;
-        } else if (zIndex < 0 || zIndex >= getDepth()) {
-            return null;
-        }
-        return map[xIndex][yIndex][zIndex];
+        return getTile(xIndex, yIndex, zIndex);
     }
 
     public MapTile getTile(int x, int y, int z) {
-        return map[x][y][z];
+        return getTile(constructKeyFromIndexCoordinates(x,y,z));
+    }
+
+    public MapTile getTile(Long tileKey) {
+        return map.getOrDefault(tileKey, null);
+    }
+
+    public ArrayList<MapTile> getAllTiles () {
+        return new ArrayList<>(map.values());
+    }
+
+    public Long constructKeyFromIndexCoordinates(int x, int y, int z) {
+        return (((long)x & 0x1FFFFF) << 42) | (((long)y & 0x1FFFFF) << 21) | ((long)z & 0x1FFFFF);
+    }
+
+    public ArrayList<MapHint> getAllHintsOfType(Class hintType) {
+        ArrayList<MapHint> allHints = new ArrayList<>();
+        if (hints.containsKey(hintType)) {
+            for(ArrayList<MapHint> hintsOnTile : hints.get(hintType).values()) {
+                allHints.addAll(hintsOnTile);
+            }
+        }
+        return allHints;
     }
 
     // Physics initialization
-    private void initializePhysics() {
+    public void initializePhysics() {
         if (physicsInitialized) return;
 
         Bullet.init();
@@ -221,21 +227,36 @@ public class GameMap {
         triangleMesh = builder.buildTriangleMesh();
         totalTriangleCount = builder.getTotalTriangleCount();
 
-        // Create the collision shape from the triangle mesh
-        terrainShape = new btBvhTriangleMeshShape(triangleMesh, true);
+        // Only create physics bodies if we have triangles
+        if (totalTriangleCount > 0) {
+            // Create the collision shape from the triangle mesh
+            terrainShape = new btBvhTriangleMeshShape(triangleMesh, true);
 
-        // Create the rigid body
-        Matrix4 transform = new Matrix4().idt();
-        btDefaultMotionState motionState = new btDefaultMotionState(transform);
-        btRigidBody.btRigidBodyConstructionInfo info =
-            new btRigidBody.btRigidBodyConstructionInfo(0, motionState, terrainShape, Vector3.Zero);
-        terrainBody = new btRigidBody(info);
-        terrainBody.setCollisionFlags(terrainBody.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_STATIC_OBJECT);
+            // Create the rigid body
+            Matrix4 transform = new Matrix4().idt();
+            btDefaultMotionState motionState = new btDefaultMotionState(transform);
+            btRigidBody.btRigidBodyConstructionInfo info =
+                new btRigidBody.btRigidBodyConstructionInfo(0, motionState, terrainShape, Vector3.Zero);
+            terrainBody = new btRigidBody(info);
+            terrainBody.setCollisionFlags(terrainBody.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_STATIC_OBJECT);
 
-        dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, PLAYER_GROUP);
-        info.dispose();
+            dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, PLAYER_GROUP);
+            info.dispose();
 
-        Log.info("GameMap", "Generated triangle mesh with " + totalTriangleCount + " triangles using " + builder.getStrategyDescription());
+            Log.info("GameMap", "Generated triangle mesh with " + totalTriangleCount + " triangles using " + builder.getStrategyDescription());
+        } else {
+            Log.warn("GameMap", "No triangles generated - skipping physics body creation. " + builder.getStrategyDescription());
+        }
+    }
+
+    public void registerHint(MapHint hint) {
+        if (!hints.containsKey(hint.getClass())) {
+            hints.put(hint.getClass(), new HashMap<>());
+        }
+        if (!hints.get(hint.getClass()).containsKey(hint.tileLookupKey)) {
+            hints.get(hint.getClass()).put(hint.tileLookupKey, new ArrayList<>());
+        }
+        hints.get(hint.getClass()).get(hint.tileLookupKey).add(hint);
     }
 
     /**
@@ -259,6 +280,14 @@ public class GameMap {
      */
     public void regeneratePhysics() {
         generateTriangleMeshPhysics();
+    }
+
+    /**
+     * Check if physics has been initialized for this map.
+     * @return True if physics is initialized, false otherwise
+     */
+    public boolean isPhysicsInitialized() {
+        return physicsInitialized;
     }
 
     /**
@@ -388,13 +417,13 @@ public class GameMap {
     public void dispose() {
         long startTime = System.currentTimeMillis();
         Log.info("GameMap", "Starting physics disposal...");
-        
+
         // Early exit if physics was never initialized
         if (!physicsInitialized) {
             Log.info("GameMap", "Physics was never initialized, skipping disposal");
             return;
         }
-        
+
         if (debugDrawer != null) {
             debugDrawer.dispose();
             debugDrawer = null;
@@ -453,10 +482,10 @@ public class GameMap {
         if (collisionConfig != null) {
             collisionConfig.dispose();
         }
-        
+
         // Mark physics as uninitialized to prevent double disposal
         physicsInitialized = false;
-        
+
         long totalTime = System.currentTimeMillis() - startTime;
         Log.info("GameMap", "Physics disposal completed in " + totalTime + "ms");
     }

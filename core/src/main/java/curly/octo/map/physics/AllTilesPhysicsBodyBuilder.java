@@ -2,6 +2,7 @@ package curly.octo.map.physics;
 
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.collision.btTriangleMesh;
+import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.CardinalDirection;
@@ -12,36 +13,39 @@ import curly.octo.map.enums.MapTileGeometryType;
  * This is the original/current approach - simple but potentially wasteful for buried voxels.
  */
 public class AllTilesPhysicsBodyBuilder extends PhysicsBodyBuilder {
-    
+
     public AllTilesPhysicsBodyBuilder(GameMap gameMap) {
         super(gameMap);
     }
-    
+
     @Override
     public btTriangleMesh buildTriangleMesh() {
         btTriangleMesh triangleMesh = new btTriangleMesh();
         totalTriangleCount = 0;
-        
-        // Generate triangles for all non-empty tiles
-        for (int x = 0; x < gameMap.getWidth(); x++) {
-            for (int y = 0; y < gameMap.getHeight(); y++) {
-                for (int z = 0; z < gameMap.getDepth(); z++) {
-                    MapTile tile = gameMap.getTile(x, y, z);
-                    if (tile.geometryType != MapTileGeometryType.EMPTY) {
-                        addTileTriangles(triangleMesh, tile);
-                    }
-                }
+
+        int totalTiles = 0;
+        int solidTiles = 0;
+
+        for(MapTile tile : gameMap.getAllTiles()) {
+            totalTiles++;
+            if (tile.geometryType != MapTileGeometryType.EMPTY) {
+                solidTiles++;
+                addTileTriangles(triangleMesh, tile);
             }
         }
-        
+
+        Log.info("AllTilesPhysicsBodyBuilder",
+            String.format("Processed %d total tiles, %d solid tiles, built %d triangles",
+                totalTiles, solidTiles, totalTriangleCount));
+
         return triangleMesh;
     }
-    
+
     @Override
     public String getStrategyDescription() {
         return "All Tiles Strategy - builds collision for every occupied tile";
     }
-    
+
     private void addTileTriangles(btTriangleMesh triangleMesh, MapTile tile) {
         float x = tile.x;
         float y = tile.y;
@@ -136,7 +140,7 @@ public class AllTilesPhysicsBodyBuilder extends PhysicsBodyBuilder {
 
         totalTriangleCount += 12;
     }
-    
+
     private void addSlantTriangles(btTriangleMesh triangleMesh, float x, float y, float z, float size, CardinalDirection direction, boolean isHalf) {
         float topY = isHalf ? y + size/2f : y + size;
 

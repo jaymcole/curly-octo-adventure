@@ -7,6 +7,7 @@ import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.CardinalDirection;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.hints.MapHint;
 
 import java.util.*;
 
@@ -40,8 +41,13 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
                 reachableTiles.size(), boundaryTiles.size()));
 
         // Step 3: Only create physics triangles for boundary tiles
-        for (MapTile tile : boundaryTiles) {
-            addBoundaryTileTriangles(triangleMesh, tile);
+        if (boundaryTiles.isEmpty()) {
+            Log.warn("BFSPhysicsBodyBuilder", "No boundary tiles found - creating empty triangle mesh");
+            // Still return the empty triangle mesh - Bullet can handle empty meshes if we don't add any triangles
+        } else {
+            for (MapTile tile : boundaryTiles) {
+                addBoundaryTileTriangles(triangleMesh, tile);
+            }
         }
 
         return triangleMesh;
@@ -59,29 +65,19 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
         // Start BFS from all spawn points
         Queue<MapTile> queue = new ArrayDeque<>();
 
-        if (gameMap.spawnTiles != null && !gameMap.spawnTiles.isEmpty()) {
-            for (MapTile spawnTile : gameMap.spawnTiles) {
-                if (spawnTile.geometryType == MapTileGeometryType.EMPTY && !reachableTiles.contains(spawnTile)) {
+        // Get spawn tiles from hints
+        ArrayList<MapHint> spawnHints = gameMap.getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
+        
+        if (!spawnHints.isEmpty()) {
+            for (MapHint hint : spawnHints) {
+                MapTile spawnTile = gameMap.getTile(hint.tileLookupKey);
+                if (spawnTile != null && spawnTile.geometryType == MapTileGeometryType.EMPTY && !reachableTiles.contains(spawnTile)) {
                     queue.offer(spawnTile);
                     reachableTiles.add(spawnTile);
                 }
             }
         } else {
-            // Fallback: find first empty tile as starting point
             Log.warn("BFSPhysicsBodyBuilder", "No spawn tiles found, using first empty tile as start");
-            boolean foundStart = false;
-            for (int x = 0; x < gameMap.getWidth() && !foundStart; x++) {
-                for (int y = 0; y < gameMap.getHeight() && !foundStart; y++) {
-                    for (int z = 0; z < gameMap.getDepth() && !foundStart; z++) {
-                        MapTile tile = gameMap.getTile(x, y, z);
-                        if (tile.geometryType == MapTileGeometryType.EMPTY) {
-                            queue.offer(tile);
-                            reachableTiles.add(tile);
-                            foundStart = true;
-                        }
-                    }
-                }
-            }
         }
 
         // BFS to find all connected empty tiles
@@ -98,19 +94,14 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
                 int ny = (int)(current.y / MapTile.TILE_SIZE) + dy[i];
                 int nz = (int)(current.z / MapTile.TILE_SIZE) + dz[i];
 
-                // Check bounds
-                if (nx >= 0 && nx < gameMap.getWidth() &&
-                    ny >= 0 && ny < gameMap.getHeight() &&
-                    nz >= 0 && nz < gameMap.getDepth()) {
+                MapTile neighbor = gameMap.getTile(nx, ny, nz);
 
-                    MapTile neighbor = gameMap.getTile(nx, ny, nz);
-
-                    // If neighbor is empty and not yet visited, add to reachable set
-                    if (neighbor.geometryType == MapTileGeometryType.EMPTY && !reachableTiles.contains(neighbor)) {
-                        reachableTiles.add(neighbor);
-                        queue.offer(neighbor);
-                    }
+                // If neighbor exists, is empty and not yet visited, add to reachable set
+                if (neighbor != null && neighbor.geometryType == MapTileGeometryType.EMPTY && !reachableTiles.contains(neighbor)) {
+                    reachableTiles.add(neighbor);
+                    queue.offer(neighbor);
                 }
+
             }
         }
     }
@@ -134,34 +125,19 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
                 int ny = tileY + dy[i];
                 int nz = tileZ + dz[i];
 
-                // Check bounds
-                if (nx >= 0 && nx < gameMap.getWidth() &&
-                    ny >= 0 && ny < gameMap.getHeight() &&
-                    nz >= 0 && nz < gameMap.getDepth()) {
+                MapTile neighbor = gameMap.getTile(nx, ny, nz);
 
-                    MapTile neighbor = gameMap.getTile(nx, ny, nz);
-
-                    // If neighbor is solid (not empty), it's a boundary tile
-                    if (neighbor.geometryType != MapTileGeometryType.EMPTY) {
-                        boundaryTiles.add(neighbor);
-                    }
+                // If neighbor exists and is solid (not empty), it's a boundary tile
+                if (neighbor != null && neighbor.geometryType != MapTileGeometryType.EMPTY) {
+                    boundaryTiles.add(neighbor);
                 }
+
             }
         }
     }
 
     private int getTotalOccupiedTiles() {
-        int count = 0;
-        for (int x = 0; x < gameMap.getWidth(); x++) {
-            for (int y = 0; y < gameMap.getHeight(); y++) {
-                for (int z = 0; z < gameMap.getDepth(); z++) {
-                    if (gameMap.getTile(x, y, z).geometryType != MapTileGeometryType.EMPTY) {
-                        count++;
-                    }
-                }
-            }
-        }
-        return count;
+        return gameMap.getAllTiles().size();
     }
 
     private void addBoundaryTileTriangles(btTriangleMesh triangleMesh, MapTile tile) {
@@ -212,13 +188,6 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
     }
 
     private boolean isAdjacentToReachableSpace(int x, int y, int z) {
-        // Check if coordinates are within bounds
-        if (x < 0 || x >= gameMap.getWidth() ||
-            y < 0 || y >= gameMap.getHeight() ||
-            z < 0 || z >= gameMap.getDepth()) {
-            return false; // Outside map bounds
-        }
-
         MapTile tile = gameMap.getTile(x, y, z);
         return reachableTiles.contains(tile);
     }

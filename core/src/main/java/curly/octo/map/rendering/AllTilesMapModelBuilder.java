@@ -32,105 +32,66 @@ public class AllTilesMapModelBuilder extends MapModelBuilder {
         totalFacesBuilt = 0;
         totalTilesProcessed = 0;
         
-        // Use chunk-based rendering to avoid vertex limits
-        final int RENDER_CHUNK_SIZE = 16; // 16x16x16 chunks to stay under vertex limits
-        
+        // Create single mesh parts for all geometry (no chunking needed for simple maps)
+        modelBuilder.node();
+        MeshPartBuilder stoneBuilder = modelBuilder.part("stone", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, stoneMaterial);
+
+        modelBuilder.node();
+        MeshPartBuilder dirtBuilder = modelBuilder.part("dirt", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, dirtMaterial);
+
+        modelBuilder.node();
+        MeshPartBuilder grassBuilder = modelBuilder.part("grass", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, grassMaterial);
+
+        modelBuilder.node();
+        MeshPartBuilder spawnBuilder = modelBuilder.part("spawn", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, spawnMaterial);
+
+        modelBuilder.node();
+        MeshPartBuilder wallBuilder = modelBuilder.part("wall", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, wallMaterial);
+
         int renderedTiles = 0;
-        int chunkCount = 0;
 
-        // Calculate number of chunks needed
-        int chunksX = (int) Math.ceil((double) gameMap.getWidth() / RENDER_CHUNK_SIZE);
-        int chunksY = (int) Math.ceil((double) gameMap.getHeight() / RENDER_CHUNK_SIZE);
-        int chunksZ = (int) Math.ceil((double) gameMap.getDepth() / RENDER_CHUNK_SIZE);
+        // Iterate over all tiles in the map
+        for (MapTile tile : gameMap.getAllTiles()) {
+            totalTilesProcessed++;
 
-        // Create chunks for rendering
-        for (int chunkX = 0; chunkX < chunksX; chunkX++) {
-            for (int chunkY = 0; chunkY < chunksY; chunkY++) {
-                for (int chunkZ = 0; chunkZ < chunksZ; chunkZ++) {
+            // Add spawn markers
+            if (tile.isSpawnTile()) {
+                Matrix4 spawnPosition = new Matrix4().translate(new Vector3(tile.x, tile.y, tile.z));
+                SphereShapeBuilder.build(spawnBuilder, spawnPosition, 2, 2, 2, 10, 10);
+                totalFacesBuilt += 200; // Approximate faces for sphere
+            }
 
-                    // Create mesh parts for this chunk
-                    String chunkId = chunkX + "_" + chunkY + "_" + chunkZ;
-
-                    modelBuilder.node();
-                    MeshPartBuilder stoneBuilder = modelBuilder.part("stone-" + chunkId, GL20.GL_TRIANGLES,
-                        VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, stoneMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder dirtBuilder = modelBuilder.part("dirt-" + chunkId, GL20.GL_TRIANGLES,
-                        VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, dirtMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder grassBuilder = modelBuilder.part("grass-" + chunkId, GL20.GL_TRIANGLES,
-                        VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, grassMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder spawnBuilder = modelBuilder.part("spawn-" + chunkId, GL20.GL_TRIANGLES,
-                        VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, spawnMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder wallBuilder = modelBuilder.part("wall-" + chunkId, GL20.GL_TRIANGLES,
-                        VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, wallMaterial);
-
-                    int chunkTiles = 0;
-
-                    // Calculate chunk bounds
-                    int startX = chunkX * RENDER_CHUNK_SIZE;
-                    int endX = Math.min(startX + RENDER_CHUNK_SIZE, gameMap.getWidth());
-                    int startY = chunkY * RENDER_CHUNK_SIZE;
-                    int endY = Math.min(startY + RENDER_CHUNK_SIZE, gameMap.getHeight());
-                    int startZ = chunkZ * RENDER_CHUNK_SIZE;
-                    int endZ = Math.min(startZ + RENDER_CHUNK_SIZE, gameMap.getDepth());
-
-                    // Build geometry for this chunk
-                    for (int x = startX; x < endX; x++) {
-                        for (int y = startY; y < endY; y++) {
-                            for (int z = startZ; z < endZ; z++) {
-                                MapTile tile = gameMap.getTile(x, y, z);
-                                totalTilesProcessed++;
-
-                                // Add spawn markers
-                                if (tile.isSpawnTile()) {
-                                    Matrix4 spawnPosition = new Matrix4().translate(new Vector3(tile.x, tile.y, tile.z));
-                                    SphereShapeBuilder.build(spawnBuilder, spawnPosition, 2, 2, 2, 10, 10);
-                                    totalFacesBuilt += 200; // Approximate faces for sphere
-                                }
-
-                                // Add solid geometry for all non-empty tiles
-                                if (tile.geometryType != MapTileGeometryType.EMPTY) {
-                                    MeshPartBuilder builder;
-                                    switch (tile.material) {
-                                        case DIRT:
-                                            builder = dirtBuilder;
-                                            break;
-                                        case GRASS:
-                                            builder = grassBuilder;
-                                            break;
-                                        case WALL:
-                                            builder = wallBuilder;
-                                            break;
-                                        case STONE:
-                                        default:
-                                            builder = stoneBuilder;
-                                            break;
-                                    }
-
-                                    buildTileGeometry(builder, tile);
-                                    renderedTiles++;
-                                    chunkTiles++;
-                                    totalFacesBuilt += 12; // 6 faces * 2 triangles per face
-                                }
-                            }
-                        }
-                    }
-
-                    if (chunkTiles > 0) {
-                        chunkCount++;
-                    }
+            // Add solid geometry for all non-empty tiles
+            if (tile.geometryType != MapTileGeometryType.EMPTY) {
+                MeshPartBuilder builder;
+                switch (tile.material) {
+                    case DIRT:
+                        builder = dirtBuilder;
+                        break;
+                    case GRASS:
+                        builder = grassBuilder;
+                        break;
+                    case WALL:
+                        builder = wallBuilder;
+                        break;
+                    case STONE:
+                    default:
+                        builder = stoneBuilder;
+                        break;
                 }
+
+                buildTileGeometry(builder, tile);
+                renderedTiles++;
+                totalFacesBuilt += 12; // 6 faces * 2 triangles per face
             }
         }
 
-        Log.info("AllTilesMapModelBuilder", "Built " + renderedTiles + "/" + totalTilesProcessed + " tiles across " + chunkCount + " render chunks");
+        Log.info("AllTilesMapModelBuilder", "Built " + renderedTiles + "/" + totalTilesProcessed + " tiles");
     }
     
     @Override
@@ -159,13 +120,9 @@ public class AllTilesMapModelBuilder extends MapModelBuilder {
     
     private long getEmptyTileCount() {
         long emptyCount = 0;
-        for (int x = 0; x < gameMap.getWidth(); x++) {
-            for (int y = 0; y < gameMap.getHeight(); y++) {
-                for (int z = 0; z < gameMap.getDepth(); z++) {
-                    if (gameMap.getTile(x, y, z).geometryType == MapTileGeometryType.EMPTY) {
-                        emptyCount++;
-                    }
-                }
+        for (MapTile tile : gameMap.getAllTiles()) {
+            if (tile.geometryType == MapTileGeometryType.EMPTY) {
+                emptyCount++;
             }
         }
         return emptyCount;

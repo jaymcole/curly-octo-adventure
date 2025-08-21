@@ -50,6 +50,9 @@ public class Network {
         kryo.register(float[].class);
         kryo.register(boolean[].class);
         kryo.register(long.class);
+        kryo.register(Long.class);
+        kryo.register(String.class);
+        kryo.register(Class.class);
 
         // Register LibGDX math classes
         kryo.register(com.badlogic.gdx.math.Vector3.class);
@@ -61,6 +64,7 @@ public class Network {
         kryo.register(MapTileMaterial.class);
         kryo.register(CardinalDirection.class);
         kryo.register(ArrayList.class);
+        kryo.register(java.util.HashMap.class);
         kryo.register(MapHint.class);
         kryo.register(MapTile.class);
         kryo.register(MapTile[].class);

@@ -9,7 +9,10 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
+import curly.octo.map.hints.MapHint;
 import curly.octo.gameobjects.PlayerObject;
+
+import java.util.ArrayList;
 
 import java.util.Random;
 
@@ -51,10 +54,13 @@ public class ClientGameWorld extends GameWorld {
                 float playerHeight = 5.0f;
                 float playerMass = 10.0f;
                 Vector3 playerStart = new Vector3(15, 25, 15);
-                if (!getMapManager().spawnTiles.isEmpty()) {
-                    MapTile spawnTile = getMapManager().spawnTiles.get(0);
-                    // Spawn above the tile, not at the tile position
-                    playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+                ArrayList<MapHint> spawnHints = getMapManager().getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
+                if (!spawnHints.isEmpty()) {
+                    MapTile spawnTile = getMapManager().getTile(spawnHints.get(0).tileLookupKey);
+                    if (spawnTile != null) {
+                        // Spawn above the tile, not at the tile position
+                        playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+                    }
                 }
 
                 getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
@@ -66,9 +72,12 @@ public class ClientGameWorld extends GameWorld {
             
             // Set spawn position
             Vector3 playerStart = new Vector3(15, 25, 15);
-            if (!getMapManager().spawnTiles.isEmpty()) {
-                MapTile spawnTile = getMapManager().spawnTiles.get(0);
-                playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+            ArrayList<MapHint> spawnHints = getMapManager().getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
+            if (!spawnHints.isEmpty()) {
+                MapTile spawnTile = getMapManager().getTile(spawnHints.get(0).tileLookupKey);
+                if (spawnTile != null) {
+                    playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+                }
             }
             getGameObjectManager().localPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
         }

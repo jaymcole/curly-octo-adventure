@@ -8,4 +8,13 @@ public class LightHint extends MapHint{
     public float color_r;
     public float color_g;
     public float color_b;
+
+    // Default constructor for Kryo
+    public LightHint() {
+        super();
+    }
+
+    public LightHint(Long tileLookupKey) {
+        super(tileLookupKey);
+    }
 }

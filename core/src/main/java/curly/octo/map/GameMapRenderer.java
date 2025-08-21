@@ -446,7 +446,6 @@ public class GameMapRenderer implements Disposable {
 
 
     public void updateMap(GameMap map, Environment environment) {
-        Log.info("GameMapRenderer", "Starting optimized map update for " + map.getWidth() + "x" + map.getHeight() + "x" + map.getDepth() + " map");
         long startTime = System.currentTimeMillis();
 
         // Clear previous model and lights
@@ -573,25 +572,14 @@ public class GameMapRenderer implements Disposable {
 
     private void extractLightsFromMap(GameMap map, Environment environment) {
         int lightCount = 0;
-
-        for (int x = 0; x < map.getWidth(); x++) {
-            for (int y = 0; y < map.getHeight(); y++) {
-                for (int z = 0; z < map.getDepth(); z++) {
-                    MapTile tile = map.getTile(x, y, z);
-                    // Check if this tile has any LightHints
-                    for (MapHint hint : tile.getHints()) {
-                        if (hint instanceof LightHint) {
-                            LightHint lightHint = (LightHint) hint;
-                            BaseLight light = new BaseLight(environment, objectManager, lightHint.entityId, lightHint.color_r, lightHint.color_g, lightHint.color_b, lightHint.intensity, null);
-                            light.setPosition(new Vector3(tile.x + MapTile.TILE_SIZE / 2f, tile.y + MapTile.TILE_SIZE / 2f, tile.z + MapTile.TILE_SIZE / 2f));
-                            objectManager.add(light);
-                            lightCount++;
-                        }
-                    }
-                }
-            }
+        for (MapHint hint : map.getAllHintsOfType(LightHint.class)) {
+            LightHint lightHint = (LightHint) hint;
+            BaseLight light = new BaseLight(environment, objectManager, lightHint.entityId, lightHint.color_r, lightHint.color_g, lightHint.color_b, lightHint.intensity, null);
+            MapTile tile = map.getTile(hint.tileLookupKey);
+            light.setPosition(new Vector3(tile.x + MapTile.TILE_SIZE / 2f, tile.y + MapTile.TILE_SIZE / 2f, tile.z + MapTile.TILE_SIZE / 2f));
+            objectManager.add(light);
+            lightCount++;
         }
-
         Log.info("GameMapRenderer", "Extracted " + lightCount + " lights from map LightHints");
     }
 

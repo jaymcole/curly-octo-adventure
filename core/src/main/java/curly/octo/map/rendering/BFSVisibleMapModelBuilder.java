@@ -15,6 +15,7 @@ import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.enums.MapTileFillType;
+import curly.octo.map.hints.MapHint;
 
 import java.util.*;
 
@@ -64,16 +65,16 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
         
         int waterSurfaceCount = 0;
         
-        // Find all water surfaces and build them
-        for (int x = 0; x < gameMap.getWidth(); x++) {
-            for (int y = 0; y < gameMap.getHeight(); y++) {
-                for (int z = 0; z < gameMap.getDepth(); z++) {
-                    MapTile tile = gameMap.getTile(x, y, z);
-                    
-                    if (tile.fillType == MapTileFillType.WATER && isTopMostWaterTile(x, y, z)) {
-                        buildWaterSurface(waterBuilder, tile);
-                        waterSurfaceCount++;
-                    }
+        // Find all water surfaces and build them by iterating over actual tiles
+        for (MapTile tile : gameMap.getAllTiles()) {
+            if (tile.fillType == MapTileFillType.WATER) {
+                int x = (int)(tile.x / MapTile.TILE_SIZE);
+                int y = (int)(tile.y / MapTile.TILE_SIZE);
+                int z = (int)(tile.z / MapTile.TILE_SIZE);
+                
+                if (isTopMostWaterTile(x, y, z)) {
+                    buildWaterSurface(waterBuilder, tile);
+                    waterSurfaceCount++;
                 }
             }
         }
@@ -90,16 +91,16 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
         
         int lavaSurfaceCount = 0;
         
-        // Find all lava surfaces and build them (same height as water - half tile)
-        for (int x = 0; x < gameMap.getWidth(); x++) {
-            for (int y = 0; y < gameMap.getHeight(); y++) {
-                for (int z = 0; z < gameMap.getDepth(); z++) {
-                    MapTile tile = gameMap.getTile(x, y, z);
-                    
-                    if (tile.fillType == MapTileFillType.LAVA && isTopMostFillTile(x, y, z, MapTileFillType.LAVA)) {
-                        buildLavaSurface(lavaBuilder, tile);
-                        lavaSurfaceCount++;
-                    }
+        // Find all lava surfaces and build them by iterating over actual tiles
+        for (MapTile tile : gameMap.getAllTiles()) {
+            if (tile.fillType == MapTileFillType.LAVA) {
+                int x = (int)(tile.x / MapTile.TILE_SIZE);
+                int y = (int)(tile.y / MapTile.TILE_SIZE);
+                int z = (int)(tile.z / MapTile.TILE_SIZE);
+                
+                if (isTopMostFillTile(x, y, z, MapTileFillType.LAVA)) {
+                    buildLavaSurface(lavaBuilder, tile);
+                    lavaSurfaceCount++;
                 }
             }
         }
@@ -116,16 +117,16 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
         
         int fogSurfaceCount = 0;
         
-        // Find all fog surfaces and build them (quarter tile height)
-        for (int x = 0; x < gameMap.getWidth(); x++) {
-            for (int y = 0; y < gameMap.getHeight(); y++) {
-                for (int z = 0; z < gameMap.getDepth(); z++) {
-                    MapTile tile = gameMap.getTile(x, y, z);
-                    
-                    if (tile.fillType == MapTileFillType.FOG && isTopMostFillTile(x, y, z, MapTileFillType.FOG)) {
-                        buildFogSurface(fogBuilder, tile);
-                        fogSurfaceCount++;
-                    }
+        // Find all fog surfaces and build them by iterating over actual tiles
+        for (MapTile tile : gameMap.getAllTiles()) {
+            if (tile.fillType == MapTileFillType.FOG) {
+                int x = (int)(tile.x / MapTile.TILE_SIZE);
+                int y = (int)(tile.y / MapTile.TILE_SIZE);
+                int z = (int)(tile.z / MapTile.TILE_SIZE);
+                
+                if (isTopMostFillTile(x, y, z, MapTileFillType.FOG)) {
+                    buildFogSurface(fogBuilder, tile);
+                    fogSurfaceCount++;
                 }
             }
         }
@@ -145,9 +146,13 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
         // Start BFS from all spawn points
         Queue<MapTile> queue = new ArrayDeque<>();
         
-        if (gameMap.spawnTiles != null && !gameMap.spawnTiles.isEmpty()) {
-            for (MapTile spawnTile : gameMap.spawnTiles) {
-                if (spawnTile.geometryType == MapTileGeometryType.EMPTY && !reachableTiles.contains(spawnTile)) {
+        // Get spawn tiles from hints
+        ArrayList<MapHint> spawnHints = gameMap.getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
+        
+        if (!spawnHints.isEmpty()) {
+            for (MapHint hint : spawnHints) {
+                MapTile spawnTile = gameMap.getTile(hint.tileLookupKey);
+                if (spawnTile != null && spawnTile.geometryType == MapTileGeometryType.EMPTY && !reachableTiles.contains(spawnTile)) {
                     queue.offer(spawnTile);
                     reachableTiles.add(spawnTile);
                 }
@@ -155,17 +160,11 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
         } else {
             // Fallback: find first empty tile as starting point
             Log.warn("BFSVisibleMapModelBuilder", "No spawn tiles found, using first empty tile as start");
-            boolean foundStart = false;
-            for (int x = 0; x < gameMap.getWidth() && !foundStart; x++) {
-                for (int y = 0; y < gameMap.getHeight() && !foundStart; y++) {
-                    for (int z = 0; z < gameMap.getDepth() && !foundStart; z++) {
-                        MapTile tile = gameMap.getTile(x, y, z);
-                        if (tile.geometryType == MapTileGeometryType.EMPTY) {
-                            queue.offer(tile);
-                            reachableTiles.add(tile);
-                            foundStart = true;
-                        }
-                    }
+            for (MapTile tile : gameMap.getAllTiles()) {
+                if (tile.geometryType == MapTileGeometryType.EMPTY) {
+                    queue.offer(tile);
+                    reachableTiles.add(tile);
+                    break;
                 }
             }
         }
@@ -184,18 +183,12 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
                 int ny = (int)(current.y / MapTile.TILE_SIZE) + dy[i];
                 int nz = (int)(current.z / MapTile.TILE_SIZE) + dz[i];
                 
-                // Check bounds
-                if (nx >= 0 && nx < gameMap.getWidth() && 
-                    ny >= 0 && ny < gameMap.getHeight() && 
-                    nz >= 0 && nz < gameMap.getDepth()) {
-                    
-                    MapTile neighbor = gameMap.getTile(nx, ny, nz);
-                    
-                    // If neighbor is empty and not yet visited, add to reachable set
-                    if (neighbor.geometryType == MapTileGeometryType.EMPTY && !reachableTiles.contains(neighbor)) {
-                        reachableTiles.add(neighbor);
-                        queue.offer(neighbor);
-                    }
+                MapTile neighbor = gameMap.getTile(nx, ny, nz);
+                
+                // If neighbor exists, is empty and not yet visited, add to reachable set
+                if (neighbor != null && neighbor.geometryType == MapTileGeometryType.EMPTY && !reachableTiles.contains(neighbor)) {
+                    reachableTiles.add(neighbor);
+                    queue.offer(neighbor);
                 }
             }
         }
@@ -221,27 +214,21 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
                 int ny = tileY + dy[i];
                 int nz = tileZ + dz[i];
                 
-                // Check bounds
-                if (nx >= 0 && nx < gameMap.getWidth() && 
-                    ny >= 0 && ny < gameMap.getHeight() && 
-                    nz >= 0 && nz < gameMap.getDepth()) {
+                MapTile neighbor = gameMap.getTile(nx, ny, nz);
+                
+                // If neighbor exists and is solid (not empty), it's visible and we need to mark which face is visible
+                if (neighbor != null && neighbor.geometryType != MapTileGeometryType.EMPTY) {
+                    visibleTiles.add(neighbor);
                     
-                    MapTile neighbor = gameMap.getTile(nx, ny, nz);
+                    // Mark which face of this solid tile is visible
+                    boolean[] faces = visibleFaces.getOrDefault(neighbor, new boolean[6]);
                     
-                    // If neighbor is solid (not empty), it's visible and we need to mark which face is visible
-                    if (neighbor.geometryType != MapTileGeometryType.EMPTY) {
-                        visibleTiles.add(neighbor);
-                        
-                        // Mark which face of this solid tile is visible
-                        boolean[] faces = visibleFaces.getOrDefault(neighbor, new boolean[6]);
-                        
-                        // Face indices: -X=0, +X=1, -Y=2, +Y=3, -Z=4, +Z=5
-                        // The face that's visible is opposite to the direction we came from
-                        int visibleFaceIndex = getOppositeFaceIndex(i);
-                        faces[visibleFaceIndex] = true;
-                        
-                        visibleFaces.put(neighbor, faces);
-                    }
+                    // Face indices: -X=0, +X=1, -Y=2, +Y=3, -Z=4, +Z=5
+                    // The face that's visible is opposite to the direction we came from
+                    int visibleFaceIndex = getOppositeFaceIndex(i);
+                    faces[visibleFaceIndex] = true;
+                    
+                    visibleFaces.put(neighbor, faces);
                 }
             }
         }
@@ -265,142 +252,102 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
                                     Material grassMaterial, Material spawnMaterial, Material wallMaterial,
                                     Material waterMaterial) {
         
-        // Use chunk-based rendering to avoid vertex limits
-        final int RENDER_CHUNK_SIZE = 16;
-        
+        // Create single mesh parts for all geometry (no chunking needed for simple maps)
+        modelBuilder.node();
+        MeshPartBuilder stoneBuilder = modelBuilder.part("stone", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, stoneMaterial);
+
+        modelBuilder.node();
+        MeshPartBuilder dirtBuilder = modelBuilder.part("dirt", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, dirtMaterial);
+
+        modelBuilder.node();
+        MeshPartBuilder grassBuilder = modelBuilder.part("grass", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, grassMaterial);
+
+        modelBuilder.node();
+        MeshPartBuilder spawnBuilder = modelBuilder.part("spawn", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, spawnMaterial);
+
+        modelBuilder.node();
+        MeshPartBuilder wallBuilder = modelBuilder.part("wall", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, wallMaterial);
+
+        MeshPartBuilder waterBuilder = null;
+        if (waterMaterial != null) {
+            modelBuilder.node();
+            waterBuilder = modelBuilder.part("water", GL20.GL_TRIANGLES,
+                VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, waterMaterial);
+        }
+
         int renderedTiles = 0;
-        int chunkCount = 0;
 
-        // Calculate number of chunks needed
-        int chunksX = (int) Math.ceil((double) gameMap.getWidth() / RENDER_CHUNK_SIZE);
-        int chunksY = (int) Math.ceil((double) gameMap.getHeight() / RENDER_CHUNK_SIZE);
-        int chunksZ = (int) Math.ceil((double) gameMap.getDepth() / RENDER_CHUNK_SIZE);
+        // Iterate over all tiles in the map
+        for (MapTile tile : gameMap.getAllTiles()) {
+            totalTilesProcessed++;
 
-        // Create chunks for rendering
-        for (int chunkX = 0; chunkX < chunksX; chunkX++) {
-            for (int chunkY = 0; chunkY < chunksY; chunkY++) {
-                for (int chunkZ = 0; chunkZ < chunksZ; chunkZ++) {
+            // Add spawn markers (always visible)
+            if (tile.isSpawnTile()) {
+                Matrix4 spawnPosition = new Matrix4().translate(new Vector3(tile.x, tile.y, tile.z));
+                SphereShapeBuilder.build(spawnBuilder, spawnPosition, 2, 2, 2, 10, 10);
+                totalFacesBuilt += 200; // Approximate faces for sphere
+            }
 
-                    // Create mesh parts for this chunk
-                    String chunkId = chunkX + "_" + chunkY + "_" + chunkZ;
+            // Only add geometry for visible tiles
+            if (visibleTiles.contains(tile)) {
+                MeshPartBuilder builder;
+                switch (tile.material) {
+                    case DIRT:
+                        builder = dirtBuilder;
+                        break;
+                    case GRASS:
+                        builder = grassBuilder;
+                        break;
+                    case WALL:
+                        builder = wallBuilder;
+                        break;
+                    case STONE:
+                    default:
+                        builder = stoneBuilder;
+                        break;
+                }
 
-                    modelBuilder.node();
-                    MeshPartBuilder stoneBuilder = modelBuilder.part("stone-" + chunkId, GL20.GL_TRIANGLES,
-                        VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, stoneMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder dirtBuilder = modelBuilder.part("dirt-" + chunkId, GL20.GL_TRIANGLES,
-                        VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, dirtMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder grassBuilder = modelBuilder.part("grass-" + chunkId, GL20.GL_TRIANGLES,
-                        VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, grassMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder spawnBuilder = modelBuilder.part("spawn-" + chunkId, GL20.GL_TRIANGLES,
-                        VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, spawnMaterial);
-
-                    modelBuilder.node();
-                    MeshPartBuilder wallBuilder = modelBuilder.part("wall-" + chunkId, GL20.GL_TRIANGLES,
-                        VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, wallMaterial);
-
-                    MeshPartBuilder waterBuilder = null;
-                    if (waterMaterial != null) {
-                        modelBuilder.node();
-                        waterBuilder = modelBuilder.part("water-" + chunkId, GL20.GL_TRIANGLES,
-                            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates, waterMaterial);
+                buildTileGeometry(builder, tile);
+                
+                // Count only the visible faces for this tile
+                boolean[] faces = visibleFaces.get(tile);
+                int visibleFaceCount = 0;
+                if (faces != null) {
+                    for (boolean face : faces) {
+                        if (face) visibleFaceCount++;
                     }
-
-                    int chunkTiles = 0;
-
-                    // Calculate chunk bounds
-                    int startX = chunkX * RENDER_CHUNK_SIZE;
-                    int endX = Math.min(startX + RENDER_CHUNK_SIZE, gameMap.getWidth());
-                    int startY = chunkY * RENDER_CHUNK_SIZE;
-                    int endY = Math.min(startY + RENDER_CHUNK_SIZE, gameMap.getHeight());
-                    int startZ = chunkZ * RENDER_CHUNK_SIZE;
-                    int endZ = Math.min(startZ + RENDER_CHUNK_SIZE, gameMap.getDepth());
-
-                    // Build geometry for this chunk - only for visible tiles
-                    for (int x = startX; x < endX; x++) {
-                        for (int y = startY; y < endY; y++) {
-                            for (int z = startZ; z < endZ; z++) {
-                                MapTile tile = gameMap.getTile(x, y, z);
-                                totalTilesProcessed++;
-
-                                // Add spawn markers (always visible)
-                                if (tile.isSpawnTile()) {
-                                    Matrix4 spawnPosition = new Matrix4().translate(new Vector3(tile.x, tile.y, tile.z));
-                                    SphereShapeBuilder.build(spawnBuilder, spawnPosition, 2, 2, 2, 10, 10);
-                                    totalFacesBuilt += 200; // Approximate faces for sphere
-                                }
-
-                                // Only add geometry for visible tiles
-                                if (visibleTiles.contains(tile)) {
-                                    MeshPartBuilder builder;
-                                    switch (tile.material) {
-                                        case DIRT:
-                                            builder = dirtBuilder;
-                                            break;
-                                        case GRASS:
-                                            builder = grassBuilder;
-                                            break;
-                                        case WALL:
-                                            builder = wallBuilder;
-                                            break;
-                                        case STONE:
-                                        default:
-                                            builder = stoneBuilder;
-                                            break;
-                                    }
-
-                                    // For now, build full tile geometry but count visible faces
-                                    // TODO: Could be optimized further to only build visible faces
-                                    buildTileGeometry(builder, tile);
-                                    
-                                    // Count only the visible faces for this tile
-                                    boolean[] faces = visibleFaces.get(tile);
-                                    int visibleFaceCount = 0;
-                                    if (faces != null) {
-                                        for (boolean face : faces) {
-                                            if (face) visibleFaceCount++;
-                                        }
-                                    }
-                                    totalFacesBuilt += visibleFaceCount * 2; // 2 triangles per face
-                                    
-                                    renderedTiles++;
-                                    chunkTiles++;
-                                }
-                                
-                                // Check for water surfaces (only if waterMaterial is provided)
-                                if (waterMaterial != null && tile.fillType == MapTileFillType.WATER && isTopMostWaterTile(x, y, z)) {
-                                    buildWaterSurface(waterBuilder, tile);
-                                    totalFacesBuilt += 2; // 2 triangles for water surface quad
-                                    chunkTiles++;
-                                }
-                            }
-                        }
-                    }
-
-                    if (chunkTiles > 0) {
-                        chunkCount++;
-                    }
+                }
+                totalFacesBuilt += visibleFaceCount * 2; // 2 triangles per face
+                
+                renderedTiles++;
+            }
+            
+            // Check for water surfaces (only if waterMaterial is provided)
+            if (waterMaterial != null && tile.fillType == MapTileFillType.WATER) {
+                int x = (int)(tile.x / MapTile.TILE_SIZE);
+                int y = (int)(tile.y / MapTile.TILE_SIZE);
+                int z = (int)(tile.z / MapTile.TILE_SIZE);
+                
+                if (isTopMostWaterTile(x, y, z)) {
+                    buildWaterSurface(waterBuilder, tile);
+                    totalFacesBuilt += 2; // 2 triangles for water surface quad
                 }
             }
         }
 
-        Log.info("BFSVisibleMapModelBuilder", "Built " + renderedTiles + "/" + totalTilesProcessed + " tiles across " + chunkCount + " render chunks");
+        Log.info("BFSVisibleMapModelBuilder", "Built " + renderedTiles + "/" + totalTilesProcessed + " visible tiles");
     }
     
     private int getTotalOccupiedTiles() {
         int count = 0;
-        for (int x = 0; x < gameMap.getWidth(); x++) {
-            for (int y = 0; y < gameMap.getHeight(); y++) {
-                for (int z = 0; z < gameMap.getDepth(); z++) {
-                    if (gameMap.getTile(x, y, z).geometryType != MapTileGeometryType.EMPTY) {
-                        count++;
-                    }
-                }
+        for (MapTile tile : gameMap.getAllTiles()) {
+            if (tile.geometryType != MapTileGeometryType.EMPTY) {
+                count++;
             }
         }
         return count;
@@ -579,13 +526,9 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
      * This determines if we should render a surface for this fill type.
      */
     private boolean isTopMostFillTile(int x, int y, int z, MapTileFillType fillType) {
-        // Check if the tile above is not the same fill type (or is outside bounds)
-        if (y + 1 >= gameMap.getHeight()) {
-            return true; // Top of map, definitely topmost
-        }
-        
+        // Check if the tile above is not the same fill type (or doesn't exist)
         MapTile tileAbove = gameMap.getTile(x, y + 1, z);
-        return tileAbove.fillType != fillType;
+        return tileAbove == null || tileAbove.fillType != fillType;
     }
     
     /**
