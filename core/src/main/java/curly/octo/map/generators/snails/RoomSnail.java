@@ -59,9 +59,12 @@ public class RoomSnail extends BaseSnail {
                 }
             }
         }
-        map.registerHint(new SpawnPointHint(map.constructKeyFromIndexCoordinates((int)floorCenter.x,(int)floorCenter.y - 1,(int)floorCenter.z)));
+
+        // Light is handled by the main generator
+
         System.out.println("RoomSnail: Created " + width + "x" + height + "x" + depth +
                           " room at " + floorCenter + " (" + tilesCreated + " tiles)");
+
         roomCreated = true;
         complete = true;
         return SnailResult.COMPLETE;

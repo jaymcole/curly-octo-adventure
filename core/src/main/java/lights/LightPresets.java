@@ -13,7 +13,7 @@ public class LightPresets {
     public static final float[][] ALL_FLICKERS = {
         LIGHT_FLICKER_PULSE,
         LIGHT_FLICKER_1,
-//        LIGHT_FLICKER_2
+        LIGHT_FLICKER_2
     };
 
     public static float[] getRandomFlicker() {
@@ -22,12 +22,11 @@ public class LightPresets {
 
     public static LightHint createDefaultLightHint() {
         LightHint lightHint = new LightHint();
-        lightHint.color_r = 1;
+        lightHint.color_r = 0.1f;
         lightHint.color_b = 0;
         lightHint.color_g = 0;
-        lightHint.intensity = 10;
+        lightHint.intensity = 0.1f;
         lightHint.flicker = LIGHT_FLICKER_1;
         return lightHint;
-
     }
 }
