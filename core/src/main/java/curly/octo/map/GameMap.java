@@ -125,6 +125,10 @@ public class GameMap {
         generator.generate();
     }
 
+    public MapTile touchTile(Vector3 coordinate) {
+        return touchTile((int)coordinate.x, (int)coordinate.y, (int)coordinate.z);
+    }
+
     public MapTile touchTile(int x, int y, int z) {
         if (getTile(x, y, z) == null) {
             MapTile newBasicTile = new MapTile();

@@ -1,5 +1,7 @@
 package curly.octo.map.enums;
 
+import com.badlogic.gdx.math.Vector3;
+
 public enum Direction {
     NORTH,
     EAST,
@@ -41,6 +43,29 @@ public enum Direction {
                 next = SOUTH;
         }
         return next;
+    }
+
+    public static void advanceVector(Direction direction, Vector3 coordinate) {
+        switch (direction) {
+            case NORTH:
+                coordinate.x++;
+                break;
+            case EAST:
+                coordinate.z++;
+                break;
+            case WEST:
+                coordinate.z--;
+                break;
+            case SOUTH:
+                coordinate.x--;
+                break;
+            case UP:
+                coordinate.y++;
+                break;
+            case DOWN:
+                coordinate.y--;
+                break;
+        }
     }
 
 }
