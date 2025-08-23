@@ -5,7 +5,7 @@ import com.badlogic.gdx.physics.bullet.collision.btTriangleMesh;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
-import curly.octo.map.enums.CardinalDirection;
+import curly.octo.map.enums.Direction;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.hints.MapHint;
 
@@ -67,7 +67,7 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
 
         // Get spawn tiles from hints
         ArrayList<MapHint> spawnHints = gameMap.getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
-        
+
         if (!spawnHints.isEmpty()) {
             for (MapHint hint : spawnHints) {
                 MapTile spawnTile = gameMap.getTile(hint.tileLookupKey);
@@ -261,13 +261,13 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
         }
     }
 
-    private void addSlantTrianglesSelective(btTriangleMesh triangleMesh, float x, float y, float z, float size, CardinalDirection direction, boolean isHalf, boolean[] exposedFaces) {
+    private void addSlantTrianglesSelective(btTriangleMesh triangleMesh, float x, float y, float z, float size, Direction direction, boolean isHalf, boolean[] exposedFaces) {
         if (hasAnyExposedFace(exposedFaces)) {
             addSlantTriangles(triangleMesh, x, y, z, size, direction, isHalf);
         }
     }
 
-    private void addTallHalfSlantTrianglesSelective(btTriangleMesh triangleMesh, float x, float y, float z, float size, CardinalDirection direction, boolean[] exposedFaces) {
+    private void addTallHalfSlantTrianglesSelective(btTriangleMesh triangleMesh, float x, float y, float z, float size, Direction direction, boolean[] exposedFaces) {
         if (hasAnyExposedFace(exposedFaces)) {
             addTallHalfSlantTriangles(triangleMesh, x, y, z, size, direction);
         }
@@ -309,13 +309,13 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
         totalTriangleCount += 12;
     }
 
-    private void addSlantTriangles(btTriangleMesh triangleMesh, float x, float y, float z, float size, CardinalDirection direction, boolean isHalf) {
+    private void addSlantTriangles(btTriangleMesh triangleMesh, float x, float y, float z, float size, Direction direction, boolean isHalf) {
         // Simplified implementation - reuse the logic from AllTilesPhysicsBodyBuilder
         // For full implementation, would need to copy the slant triangle generation methods
         totalTriangleCount += 8; // Approximate
     }
 
-    private void addTallHalfSlantTriangles(btTriangleMesh triangleMesh, float x, float y, float z, float size, CardinalDirection direction) {
+    private void addTallHalfSlantTriangles(btTriangleMesh triangleMesh, float x, float y, float z, float size, Direction direction) {
         // Simplified implementation
         totalTriangleCount += 8;
     }

@@ -1,4 +1,4 @@
-package curly.octo.player;
+package curly.octo.input;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -7,7 +7,6 @@ import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.math.Vector3;
 import curly.octo.gameobjects.PlayerObject;
 import curly.octo.gameobjects.Possessable;
-import curly.octo.input.InputController;
 
 /**
  * Minimal input controller that handles keyboard/mouse input and applies it to possessable objects.
@@ -23,7 +22,7 @@ public class MinimalPlayerController extends InputAdapter implements InputContro
     private float mouseSensitivity = 0.1f;
     private boolean mouseCaptured = false;
     private int lastX, lastY;
-    
+
     // Jump control
     private boolean spaceWasPressed = false;
 

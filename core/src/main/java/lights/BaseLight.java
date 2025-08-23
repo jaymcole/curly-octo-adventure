@@ -27,11 +27,16 @@ public class BaseLight extends GameObject{
     private float flickerTime;
     private int flickerIndex = 0;
 
-    public BaseLight(Environment environment, GameObjectManager gameObjectManager, String lightId, float r, float g, float b, float i, String parentId) {
+    public BaseLight(Environment environment, GameObjectManager gameObjectManager, String lightId, float r, float g, float b, float i, String parentId, float[] flicker) {
         super(lightId);
         this.parentId = parentId;
         this.intensity = i;
-        flickerValues = getRandomFlicker();
+
+        if (flicker == null) {
+            flickerValues = getRandomFlicker();
+        } else {
+            this.flickerValues = flicker;
+        }
         this.environment = environment;
         this.gameObjectManager = gameObjectManager;
         pointLight = new PointLight();

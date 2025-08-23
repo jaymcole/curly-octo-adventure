@@ -8,6 +8,7 @@ public class LightHint extends MapHint{
     public float color_r;
     public float color_g;
     public float color_b;
+    public float[] flicker;
 
     // Default constructor for Kryo
     public LightHint() {

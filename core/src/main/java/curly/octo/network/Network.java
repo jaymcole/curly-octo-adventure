@@ -5,7 +5,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
 import curly.octo.map.MapTile;
-import curly.octo.map.enums.CardinalDirection;
+import curly.octo.map.enums.Direction;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.enums.MapTileMaterial;
 import curly.octo.map.hints.LightHint;
@@ -62,7 +62,7 @@ public class Network {
         kryo.register(MapTileFillType.class);
         kryo.register(MapTileGeometryType.class);
         kryo.register(MapTileMaterial.class);
-        kryo.register(CardinalDirection.class);
+        kryo.register(Direction.class);
         kryo.register(ArrayList.class);
         kryo.register(java.util.HashMap.class);
         kryo.register(MapHint.class);

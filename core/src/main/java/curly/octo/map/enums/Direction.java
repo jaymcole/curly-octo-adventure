@@ -1,13 +1,15 @@
 package curly.octo.map.enums;
 
-public enum CardinalDirection {
+public enum Direction {
     NORTH,
     EAST,
     WEST,
-    SOUTH;
+    SOUTH,
+    UP,
+    DOWN;
 
-    public static CardinalDirection rotateClockwise(CardinalDirection direction) {
-        CardinalDirection next = NORTH;
+    public static Direction rotateClockwise(Direction direction) {
+        Direction next = NORTH;
         switch(direction) {
             case NORTH:
                 next = EAST;
@@ -23,8 +25,8 @@ public enum CardinalDirection {
         return next;
     }
 
-    public static CardinalDirection rotateCounterClockwise(CardinalDirection direction) {
-        CardinalDirection next = NORTH;
+    public static Direction rotateCounterClockwise(Direction direction) {
+        Direction next = NORTH;
         switch(direction) {
             case NORTH:
                 next = WEST;

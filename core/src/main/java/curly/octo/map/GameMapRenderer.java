@@ -574,7 +574,7 @@ public class GameMapRenderer implements Disposable {
         int lightCount = 0;
         for (MapHint hint : map.getAllHintsOfType(LightHint.class)) {
             LightHint lightHint = (LightHint) hint;
-            BaseLight light = new BaseLight(environment, objectManager, lightHint.entityId, lightHint.color_r, lightHint.color_g, lightHint.color_b, lightHint.intensity, null);
+            BaseLight light = new BaseLight(environment, objectManager, lightHint.entityId, lightHint.color_r, lightHint.color_g, lightHint.color_b, lightHint.intensity, null, lightHint.flicker);
             MapTile tile = map.getTile(hint.tileLookupKey);
             light.setPosition(new Vector3(tile.x + MapTile.TILE_SIZE / 2f, tile.y + MapTile.TILE_SIZE / 2f, tile.z + MapTile.TILE_SIZE / 2f));
             objectManager.add(light);

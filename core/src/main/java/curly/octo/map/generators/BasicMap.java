@@ -5,8 +5,11 @@ import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.SpawnPointHint;
+import lights.BaseLight;
 
 import java.util.Random;
+
+import static lights.LightPresets.LIGHT_FLICKER_1;
 
 public class BasicMap extends MapGenerator{
     public BasicMap(Random random, GameMap map) {
@@ -45,6 +48,7 @@ public class BasicMap extends MapGenerator{
         light.color_b = 0;
         light.color_g = 0;
         light.intensity = 10;
+        light.flicker = LIGHT_FLICKER_1;
         map.registerHint(light);
 
         closeMap();

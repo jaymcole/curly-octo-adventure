@@ -5,7 +5,7 @@ import com.badlogic.gdx.physics.bullet.collision.btTriangleMesh;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
-import curly.octo.map.enums.CardinalDirection;
+import curly.octo.map.enums.Direction;
 import curly.octo.map.enums.MapTileGeometryType;
 
 /**
@@ -141,7 +141,7 @@ public class AllTilesPhysicsBodyBuilder extends PhysicsBodyBuilder {
         totalTriangleCount += 12;
     }
 
-    private void addSlantTriangles(btTriangleMesh triangleMesh, float x, float y, float z, float size, CardinalDirection direction, boolean isHalf) {
+    private void addSlantTriangles(btTriangleMesh triangleMesh, float x, float y, float z, float size, Direction direction, boolean isHalf) {
         float topY = isHalf ? y + size/2f : y + size;
 
         // Base vertices
@@ -187,7 +187,7 @@ public class AllTilesPhysicsBodyBuilder extends PhysicsBodyBuilder {
         totalTriangleCount += 8; // Approximate
     }
 
-    private void addTallHalfSlantTriangles(btTriangleMesh triangleMesh, float x, float y, float z, float size, CardinalDirection direction) {
+    private void addTallHalfSlantTriangles(btTriangleMesh triangleMesh, float x, float y, float z, float size, Direction direction) {
         // Similar to slant but with full height base
         Vector3 v000 = new Vector3(x, y, z);
         Vector3 v001 = new Vector3(x, y, z + size);

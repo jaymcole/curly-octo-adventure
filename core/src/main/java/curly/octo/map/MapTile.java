@@ -1,6 +1,6 @@
 package curly.octo.map;
 
-import curly.octo.map.enums.CardinalDirection;
+import curly.octo.map.enums.Direction;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.enums.MapTileMaterial;
@@ -14,7 +14,7 @@ public class MapTile {
     public float x,y,z;
     public MapTileFillType fillType;
     public MapTileGeometryType geometryType;
-    public CardinalDirection direction;
+    public Direction direction;
     public MapTileMaterial material;
 
 
@@ -25,7 +25,7 @@ public class MapTile {
         hints = new ArrayList<>();
         fillType = MapTileFillType.AIR;
         geometryType = MapTileGeometryType.EMPTY;
-        direction = CardinalDirection.NORTH;
+        direction = Direction.NORTH;
         material = MapTileMaterial.STONE;
         isSpawn = false;
     }

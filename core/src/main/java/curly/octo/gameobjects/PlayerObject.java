@@ -30,7 +30,7 @@ public class PlayerObject extends WorldObject {
     private MapTile currentTile = null;
     private Vector3 velocity = new Vector3();
     private Vector3 tempVector = new Vector3();
-    
+
     // Physics constants (matching old PlayerController behavior)
     private static final float GRAVITY = -50f;
     private static final float JUMP_FORCE = 15f;
@@ -96,16 +96,16 @@ public class PlayerObject extends WorldObject {
             // Apply horizontal movement via character controller
             tempVector.set(velocity.x, 0, velocity.z).scl(delta);
             characterController.setWalkDirection(tempVector);
-            
+
             // Check if we can jump (character controller handles ground detection)
             onGround = characterController.canJump();
-            
+
             // Apply jump if requested and on ground
             if (velocity.y > 0 && onGround) {
                 characterController.jump(tempVector.set(0, velocity.y, 0));
                 velocity.y = 0; // Reset jump velocity after applying
             }
-            
+
             // Sync position from physics
             if (getPosition() != null) {
                 getPosition().set(characterController.getGhostObject().getWorldTransform().getTranslation(tempVector));
@@ -123,7 +123,7 @@ public class PlayerObject extends WorldObject {
             }
         }
     }
-    
+
 
     // Player-specific movement (smooth, not jump-based)
     public void setVelocity(Vector3 velocity) {

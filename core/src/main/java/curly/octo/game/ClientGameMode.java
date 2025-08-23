@@ -6,13 +6,11 @@ import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.map.MapTile;
 import curly.octo.network.GameClient;
 import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.gameobjects.PlayerObject;
 import curly.octo.input.InputController;
-import curly.octo.player.MinimalPlayerController;
-import curly.octo.player.PlayerUtilities;
+import curly.octo.input.MinimalPlayerController;
 
 import java.io.IOException;
 import java.util.HashSet;
