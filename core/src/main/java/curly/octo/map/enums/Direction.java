@@ -36,6 +36,8 @@ public enum Direction {
                 next = WEST;
                 break;
             case WEST:
+                next = NORTH;
+                break;
         }
         return next;
     }
@@ -54,6 +56,7 @@ public enum Direction {
                 break;
             case WEST:
                 next = SOUTH;
+                break;
         }
         return next;
     }
@@ -61,16 +64,16 @@ public enum Direction {
     public static void advanceVector(Direction direction, Vector3 coordinate) {
         switch (direction) {
             case NORTH:
-                coordinate.x++;
-                break;
-            case EAST:
                 coordinate.z++;
                 break;
+            case EAST:
+                coordinate.x++;
+                break;
             case WEST:
-                coordinate.z--;
+                coordinate.x--;
                 break;
             case SOUTH:
-                coordinate.x--;
+                coordinate.z--;
                 break;
             case UP:
                 coordinate.y++;

@@ -28,7 +28,7 @@ public class SnailMapGenerator extends MapGenerator {
 
     // Map generation parameters
     private static final int MIN_MAP_SIZE = 200; // Minimum tiles before considering completion
-    private static final int MAX_MAP_SIZE = 800; // Maximum tiles to prevent infinite generation
+    private static final int MAX_MAP_SIZE = 8000; // Maximum tiles to prevent infinite generation
     private static final float OPTIONAL_NODE_PROBABILITY = 0.4f; // Chance to use optional nodes
 
     public SnailMapGenerator(Random random, GameMap gameMap) {
@@ -41,7 +41,7 @@ public class SnailMapGenerator extends MapGenerator {
         Vector3 startPos = new Vector3(0, 0, 0);  // Y=0 is floor level for snails
 
         // Create initial spawn room
-        RoomSnail startRoom = new RoomSnail(map, startPos, Direction.NORTH, random, 7, 7);
+        RoomSnail startRoom = new RoomSnail(map, startPos, Direction.NORTH, random, 7, 25, 7);
         executeSnailWithNodes(startRoom);
 
         // Generate expansion-based dungeon
@@ -51,7 +51,7 @@ public class SnailMapGenerator extends MapGenerator {
         addSpawnPoint(startPos);
 
         // Add a light at spawn point (above player head)
-        addLight(new Vector3(startPos.x, startPos.y + 3, startPos.z));
+        addLight(new Vector3(startPos.x, startPos.y+ 1, startPos.z));
 
         // Close the map by creating walls around all open spaces
         int tilesBeforeClose = map.getAllTiles().size();
@@ -77,7 +77,7 @@ public class SnailMapGenerator extends MapGenerator {
 
     private void generateExpansionBasedMap() {
         int iterations = 0;
-        int maxIterations = 50; // Safety limit
+        int maxIterations = 1000;
 
         while ((hasNecessaryNodes() || shouldAddMoreOptionalNodes()) && iterations < maxIterations) {
             // Process all necessary nodes first
@@ -198,9 +198,7 @@ public class SnailMapGenerator extends MapGenerator {
         Direction dir = node.getDirection();
 
         if (choice < 0.3f) {
-            // Corridor
-            int length = random.nextInt(4, 12);
-            return new ForwardSnail(map, pos, dir, random, length);
+            return new ForwardSnail(map, pos, dir, random, random.nextInt(1, 5));
         } else if (choice < 0.6f) {
             // L-shaped corridor
             int length1 = random.nextInt(3, 8);
@@ -213,7 +211,7 @@ public class SnailMapGenerator extends MapGenerator {
             // Room
             int width = random.nextInt(4, 8);
             int depth = random.nextInt(4, 8);
-            return new RoomSnail(map, pos, dir, random, width, depth);
+            return new RoomSnail(map, pos, dir, random, width, 2, depth);
         } else {
             // T-intersection (TODO: implement TIntersectionSnail)
             int length = random.nextInt(4, 8);

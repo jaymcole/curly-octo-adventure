@@ -20,10 +20,6 @@ public class RoomSnail extends BaseSnail {
     private final int depth;
     private boolean roomCreated = false;
 
-    public RoomSnail(GameMap map, Vector3 coordinate, Direction direction, Random random, int width, int height) {
-        this(map, coordinate, direction, random, width, height, 3); // Default to 3 tiles high for player space
-    }
-
     public RoomSnail(GameMap map, Vector3 coordinate, Direction direction, Random random, int width, int height, int depth) {
         super(map, coordinate, direction, random);
         this.width = Math.max(1, width);
@@ -64,7 +60,7 @@ public class RoomSnail extends BaseSnail {
         ExpansionNode[] expansionNodes = createRoomExpansionNodes(floorCenter);
 
         System.out.println("RoomSnail: Created " + width + "x" + height + "x" + depth +
-                          " room at " + floorCenter + " (" + tilesCreated + " tiles, " + 
+                          " room at " + floorCenter + " (" + tilesCreated + " tiles, " +
                           expansionNodes.length + " expansion nodes)");
 
         roomCreated = true;
@@ -74,27 +70,27 @@ public class RoomSnail extends BaseSnail {
 
     private ExpansionNode[] createRoomExpansionNodes(Vector3 center) {
         java.util.List<ExpansionNode> nodes = new java.util.ArrayList<>();
-        
+
         int halfWidth = width / 2;
         int halfDepth = depth / 2;
-        
-        // Add expansion nodes on each wall of the room (at floor level + 1 for walking height)
+
+        // Add expansion nodes on each wall of the room (at floor level Y=0 for consistent building)
         // North wall
-        Vector3 northPos = new Vector3(center.x, center.y + 1, center.z + halfDepth + 1);
+        Vector3 northPos = new Vector3(center.x, center.y, center.z + halfDepth + 1);
         nodes.add(new ExpansionNode(northPos, Direction.NORTH, ExpansionNode.Priority.OPTIONAL, "RoomSnail"));
-        
-        // South wall  
-        Vector3 southPos = new Vector3(center.x, center.y + 1, center.z - halfDepth - 1);
+
+        // South wall
+        Vector3 southPos = new Vector3(center.x, center.y, center.z - halfDepth - 1);
         nodes.add(new ExpansionNode(southPos, Direction.SOUTH, ExpansionNode.Priority.OPTIONAL, "RoomSnail"));
-        
+
         // East wall
-        Vector3 eastPos = new Vector3(center.x + halfWidth + 1, center.y + 1, center.z);
+        Vector3 eastPos = new Vector3(center.x + halfWidth + 1, center.y, center.z);
         nodes.add(new ExpansionNode(eastPos, Direction.EAST, ExpansionNode.Priority.OPTIONAL, "RoomSnail"));
-        
+
         // West wall
-        Vector3 westPos = new Vector3(center.x - halfWidth - 1, center.y + 1, center.z);
+        Vector3 westPos = new Vector3(center.x - halfWidth - 1, center.y, center.z);
         nodes.add(new ExpansionNode(westPos, Direction.WEST, ExpansionNode.Priority.OPTIONAL, "RoomSnail"));
-        
+
         return nodes.toArray(new ExpansionNode[0]);
     }
 
