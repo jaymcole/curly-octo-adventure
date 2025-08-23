@@ -60,14 +60,42 @@ public class RoomSnail extends BaseSnail {
             }
         }
 
-        // Light is handled by the main generator
+        // Create expansion nodes on room walls
+        ExpansionNode[] expansionNodes = createRoomExpansionNodes(floorCenter);
 
         System.out.println("RoomSnail: Created " + width + "x" + height + "x" + depth +
-                          " room at " + floorCenter + " (" + tilesCreated + " tiles)");
+                          " room at " + floorCenter + " (" + tilesCreated + " tiles, " + 
+                          expansionNodes.length + " expansion nodes)");
 
         roomCreated = true;
         complete = true;
-        return SnailResult.COMPLETE;
+        return SnailResult.withExpansionNodes(true, expansionNodes);
+    }
+
+    private ExpansionNode[] createRoomExpansionNodes(Vector3 center) {
+        java.util.List<ExpansionNode> nodes = new java.util.ArrayList<>();
+        
+        int halfWidth = width / 2;
+        int halfDepth = depth / 2;
+        
+        // Add expansion nodes on each wall of the room (at floor level + 1 for walking height)
+        // North wall
+        Vector3 northPos = new Vector3(center.x, center.y + 1, center.z + halfDepth + 1);
+        nodes.add(new ExpansionNode(northPos, Direction.NORTH, ExpansionNode.Priority.OPTIONAL, "RoomSnail"));
+        
+        // South wall  
+        Vector3 southPos = new Vector3(center.x, center.y + 1, center.z - halfDepth - 1);
+        nodes.add(new ExpansionNode(southPos, Direction.SOUTH, ExpansionNode.Priority.OPTIONAL, "RoomSnail"));
+        
+        // East wall
+        Vector3 eastPos = new Vector3(center.x + halfWidth + 1, center.y + 1, center.z);
+        nodes.add(new ExpansionNode(eastPos, Direction.EAST, ExpansionNode.Priority.OPTIONAL, "RoomSnail"));
+        
+        // West wall
+        Vector3 westPos = new Vector3(center.x - halfWidth - 1, center.y + 1, center.z);
+        nodes.add(new ExpansionNode(westPos, Direction.WEST, ExpansionNode.Priority.OPTIONAL, "RoomSnail"));
+        
+        return nodes.toArray(new ExpansionNode[0]);
     }
 
     @Override

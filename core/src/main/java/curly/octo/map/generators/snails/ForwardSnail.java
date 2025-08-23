@@ -37,7 +37,14 @@ public class ForwardSnail extends BaseSnail {
         
         if (remainingDistance <= 0) {
             complete = true;
-            return SnailResult.COMPLETE;
+            // Create expansion node at the end of the corridor (NECESSARY to avoid dead ends)
+            ExpansionNode endNode = new ExpansionNode(
+                coordinate.cpy(), 
+                direction, 
+                ExpansionNode.Priority.NECESSARY, 
+                "ForwardSnail"
+            );
+            return SnailResult.withExpansionNodes(true, endNode);
         }
         
         return SnailResult.CONTINUE;

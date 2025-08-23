@@ -18,8 +18,18 @@ import java.util.Random;
 /**
  * A map generator that uses the "snails" system to create interesting dungeon layouts.
  * Snails are simple agents that move around and mark tiles as part of the map.
+ * Uses expansion nodes to create complex, interconnected dungeon structures.
  */
 public class SnailMapGenerator extends MapGenerator {
+
+    // Expansion node management
+    private final List<ExpansionNode> necessaryNodes = new ArrayList<>();
+    private final List<ExpansionNode> optionalNodes = new ArrayList<>();
+
+    // Map generation parameters
+    private static final int MIN_MAP_SIZE = 200; // Minimum tiles before considering completion
+    private static final int MAX_MAP_SIZE = 800; // Maximum tiles to prevent infinite generation
+    private static final float OPTIONAL_NODE_PROBABILITY = 0.4f; // Chance to use optional nodes
 
     public SnailMapGenerator(Random random, GameMap gameMap) {
         super(random, gameMap);
@@ -27,18 +37,16 @@ public class SnailMapGenerator extends MapGenerator {
 
     @Override
     public void generate() {
-        // Start with a simple branching dungeon pattern - spawn at ground floor level
+        // Start with a spawn room - spawn at ground floor level
         Vector3 startPos = new Vector3(0, 0, 0);  // Y=0 is floor level for snails
-        Direction startDir = Direction.NORTH;
 
-        // Create the initial snail with a complex behavior
-        BaseSnail initialSnail = createMainPath(startPos, startDir);
+        // Create initial spawn room
+        RoomSnail startRoom = new RoomSnail(map, startPos, Direction.NORTH, random, 7, 7);
+        executeSnailWithNodes(startRoom);
 
-        // Execute all snails until completion
-        executeSnails(initialSnail);
+        // Generate expansion-based dungeon
+        generateExpansionBasedMap();
 
-        RoomSnail startRoom = new RoomSnail(map, startPos, Direction.NORTH, random, 5, 5);
-        executeSnails(startRoom);
         // Add spawn point at origin
         addSpawnPoint(startPos);
 
@@ -67,20 +75,17 @@ public class SnailMapGenerator extends MapGenerator {
         System.out.println("SnailMapGenerator: Final count - " + emptyTiles + " EMPTY, " + fullTiles + " FULL");
     }
 
-    private BaseSnail createMainPath(Vector3 startPos, Direction startDir) {
-        // Start with a simpler pattern for debugging
-        return new ForwardSnail(map, startPos, startDir, random, 8)
-            .then(new TurnSnail(map, startPos, startDir, random, Turn.CLOCKWISE))
-            .then(new ForwardSnail(map, startPos, startDir, random, 5))
-            .then(new RoomSnail(map, startPos, startDir, random, 6, 6))
-            .then(new TurnSnail(map, startPos, startDir, random, Turn.CLOCKWISE))
-            .then(new ForwardSnail(map, startPos, startDir, random, 4))
-            .spawn(
-                new TurnSnail(map, startPos, startDir, random, Turn.COUNTERCLOCKWISE)
-                    .then(new ForwardSnail(map, startPos, startDir, random, 6)),
-                new TurnSnail(map, startPos, startDir, random, Turn.CLOCKWISE)
-                    .then(new ForwardSnail(map, startPos, startDir, random, 6))
-            );
+    private void generateExpansionBasedMap() {
+        int iterations = 0;
+        int maxIterations = 50; // Safety limit
+
+        while ((hasNecessaryNodes() || shouldAddMoreOptionalNodes()) && iterations < maxIterations) {
+            // Process all necessary nodes first
+            processNecessaryNodes();
+            // Then process some optional nodes if map isn't large enough
+            processOptionalNodes();
+            iterations++;
+        }
     }
 
     private void executeSnails(BaseSnail initialSnail) {
@@ -117,6 +122,112 @@ public class SnailMapGenerator extends MapGenerator {
 
         System.out.println("SnailMapGenerator: Executed " + steps + " steps with " +
                           (steps >= maxSteps ? "MAX STEPS REACHED" : "completion"));
+    }
+
+    private void executeSnailWithNodes(BaseSnail snail) {
+        List<BaseSnail> activeSnails = new ArrayList<>();
+        activeSnails.add(snail);
+
+        int maxSteps = 1000;
+        int steps = 0;
+
+        while (!activeSnails.isEmpty() && steps < maxSteps) {
+            List<BaseSnail> nextGeneration = new ArrayList<>();
+
+            for (BaseSnail activeSnail : activeSnails) {
+                if (!activeSnail.isDone()) {
+                    SnailResult result = activeSnail.execute();
+
+                    if (!result.isComplete()) {
+                        nextGeneration.add(activeSnail);
+                    }
+
+                    // Add spawned snails
+                    nextGeneration.addAll(result.getSpawnedSnails());
+
+                    // Collect expansion nodes
+                    for (ExpansionNode node : result.getExpansionNodes()) {
+                        if (node.getPriority() == ExpansionNode.Priority.NECESSARY) {
+                            necessaryNodes.add(node);
+                        } else {
+                            optionalNodes.add(node);
+                        }
+                    }
+                }
+            }
+
+            activeSnails = nextGeneration;
+            steps++;
+        }
+    }
+
+    private void processNecessaryNodes() {
+        List<ExpansionNode> nodesToProcess = new ArrayList<>(necessaryNodes);
+        necessaryNodes.clear();
+
+        for (ExpansionNode node : nodesToProcess) {
+            if (!node.isConsumed()) {
+                BaseSnail snail = createRandomSnailForNode(node);
+                if (snail != null) {
+                    executeSnailWithNodes(snail);
+                    node.consume();
+                }
+            }
+        }
+    }
+
+    private void processOptionalNodes() {
+        List<ExpansionNode> nodesToProcess = new ArrayList<>(optionalNodes);
+        optionalNodes.clear();
+
+        for (ExpansionNode node : nodesToProcess) {
+            if (!node.isConsumed() && random.nextFloat() < OPTIONAL_NODE_PROBABILITY) {
+                BaseSnail snail = createRandomSnailForNode(node);
+                if (snail != null) {
+                    executeSnailWithNodes(snail);
+                    node.consume();
+                }
+            }
+        }
+    }
+
+    private BaseSnail createRandomSnailForNode(ExpansionNode node) {
+        // Create various types of snails based on random selection
+        float choice = random.nextFloat();
+        Vector3 pos = node.getPosition();
+        Direction dir = node.getDirection();
+
+        if (choice < 0.3f) {
+            // Corridor
+            int length = random.nextInt(4, 12);
+            return new ForwardSnail(map, pos, dir, random, length);
+        } else if (choice < 0.6f) {
+            // L-shaped corridor
+            int length1 = random.nextInt(3, 8);
+            int length2 = random.nextInt(3, 8);
+            Turn turn = random.nextBoolean() ? Turn.CLOCKWISE : Turn.COUNTERCLOCKWISE;
+            return new ForwardSnail(map, pos, dir, random, length1)
+                    .then(new TurnSnail(map, pos, dir, random, turn))
+                    .then(new ForwardSnail(map, pos, dir, random, length2));
+        } else if (choice < 0.8f) {
+            // Room
+            int width = random.nextInt(4, 8);
+            int depth = random.nextInt(4, 8);
+            return new RoomSnail(map, pos, dir, random, width, depth);
+        } else {
+            // T-intersection (TODO: implement TIntersectionSnail)
+            int length = random.nextInt(4, 8);
+            return new ForwardSnail(map, pos, dir, random, length);
+        }
+    }
+
+    private boolean hasNecessaryNodes() {
+        return !necessaryNodes.isEmpty();
+    }
+
+    private boolean shouldAddMoreOptionalNodes() {
+        int currentTiles = map.getAllTiles().size();
+        return !optionalNodes.isEmpty() && currentTiles < MAX_MAP_SIZE;
     }
 
     private void addSpawnPoint(Vector3 startPos) {
