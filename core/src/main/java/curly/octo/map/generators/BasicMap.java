@@ -3,13 +3,9 @@ package curly.octo.map.generators;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileGeometryType;
-import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.SpawnPointHint;
-import lights.BaseLight;
-
+import lights.LightPresets;
 import java.util.Random;
-
-import static lights.LightPresets.LIGHT_FLICKER_1;
 
 public class BasicMap extends MapGenerator{
     public BasicMap(Random random, GameMap map) {
@@ -43,13 +39,7 @@ public class BasicMap extends MapGenerator{
         map.registerHint(new SpawnPointHint((map.constructKeyFromIndexCoordinates(roomSize/2,1,roomSize/2))));
 
         map.touchTile(roomSize/2, 4, roomSize/2);
-        LightHint light = new LightHint((map.constructKeyFromIndexCoordinates(roomSize/2,4,roomSize/2)));
-        light.color_r = 1;
-        light.color_b = 0;
-        light.color_g = 0;
-        light.intensity = 10;
-        light.flicker = LIGHT_FLICKER_1;
-        map.registerHint(light);
+        map.registerHint(LightPresets.createDefaultLightHint());
 
         closeMap();
     }

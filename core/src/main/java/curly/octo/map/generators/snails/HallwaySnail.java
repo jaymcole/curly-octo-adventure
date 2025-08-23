@@ -16,8 +16,10 @@ public class HallwaySnail extends BaseSnail{
     }
 
     @Override
-    public void act() {
-
+    protected SnailResult doStep() {
+        // TODO: Implement hallway behavior
+        complete = true;
+        return SnailResult.COMPLETE;
     }
 
     @Override

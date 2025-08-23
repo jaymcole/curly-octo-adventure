@@ -15,6 +15,7 @@ import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.generators.BasicMap;
 import curly.octo.map.generators.MapGenerator;
+import curly.octo.map.generators.SnailMapGenerator;
 import curly.octo.map.hints.MapHint;
 import curly.octo.map.physics.AllTilesPhysicsBodyBuilder;
 import curly.octo.map.physics.BFSPhysicsBodyBuilder;
@@ -106,8 +107,10 @@ public class GameMap {
 
     public void generateDungeon() {
         Log.info("GameMap.generateDungeon", "Generating tiles");
-        MapGenerator generator = new BasicMap(random, this);
+
+        SnailMapGenerator generator = new SnailMapGenerator(random, this);
         generator.generate();
+
 
         Log.info("GameMap.generateDungeon", "Done generating tiles");
 
@@ -121,7 +124,8 @@ public class GameMap {
      */
     public void generateDungeonServerOnly() {
         Log.info("GameMap.generateDungeonServerOnly", "Generating tiles (server-only)");
-        MapGenerator generator = new BasicMap(random, this);
+
+        SnailMapGenerator generator = new SnailMapGenerator(random, this);
         generator.generate();
     }
 

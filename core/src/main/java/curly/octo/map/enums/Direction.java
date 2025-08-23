@@ -1,6 +1,7 @@
 package curly.octo.map.enums;
 
 import com.badlogic.gdx.math.Vector3;
+import com.esotericsoftware.minlog.Log;
 
 public enum Direction {
     NORTH,
@@ -9,6 +10,18 @@ public enum Direction {
     SOUTH,
     UP,
     DOWN;
+
+    public static Direction rotate(Direction direction, Turn turnDirection) {
+        switch (turnDirection) {
+            case CLOCKWISE:
+                return rotateClockwise(direction);
+            case COUNTERCLOCKWISE:
+                return rotateCounterClockwise(direction);
+            default:
+                Log.error("Bro, you forgot to implement a turn direction in Direction.java");
+                return direction;
+        }
+    }
 
     public static Direction rotateClockwise(Direction direction) {
         Direction next = NORTH;

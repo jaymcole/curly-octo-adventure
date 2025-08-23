@@ -23,16 +23,57 @@ public abstract class BaseSnail {
         this.random = random;
     }
 
-    public abstract void act();
+    /**
+     * Execute one step of this snail's behavior.
+     * @return SnailResult indicating completion status and any spawned snails
+     */
+    public SnailResult execute() {
+        if (complete) {
+            return SnailResult.COMPLETE;
+        }
+        
+        return doStep();
+    }
 
+    /**
+     * Implement the specific behavior for this snail type.
+     * @return SnailResult with completion and spawn information
+     */
+    protected abstract SnailResult doStep();
+
+    /**
+     * Create a copy of this snail at the current position.
+     */
     public abstract BaseSnail createCopy();
 
     public boolean isDone() {
         return complete;
     }
 
-    protected void markTileAsPartOfMap(BaseSnail snail) {
-        this.map.touchTile(snail.coordinate);
+    protected void markTileAsPartOfMap() {
+        this.map.touchTile(this.coordinate);
+    }
+    
+    protected void markTileAsPartOfMap(Vector3 coordinate) {
+        this.map.touchTile(coordinate);
+    }
+
+    // Getters for snail state
+    public Vector3 getCoordinate() {
+        return coordinate.cpy();
+    }
+    
+    public Direction getDirection() {
+        return direction;
+    }
+    
+    // Fluent API for chaining
+    public SequentialSnail then(BaseSnail nextSnail) {
+        return new SequentialSnail(map, coordinate.cpy(), direction, random, this, nextSnail);
+    }
+    
+    public ParallelSnail spawn(BaseSnail... snails) {
+        return new ParallelSnail(map, coordinate.cpy(), direction, random, this, snails);
     }
 
 }

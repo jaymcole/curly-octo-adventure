@@ -1,6 +1,7 @@
 package lights;
 
 import curly.octo.Main;
+import curly.octo.map.hints.LightHint;
 
 public class LightPresets {
 
@@ -17,5 +18,16 @@ public class LightPresets {
 
     public static float[] getRandomFlicker() {
         return ALL_FLICKERS[Main.random.nextInt(ALL_FLICKERS.length)];
+    }
+
+    public static LightHint createDefaultLightHint() {
+        LightHint lightHint = new LightHint();
+        lightHint.color_r = 1;
+        lightHint.color_b = 0;
+        lightHint.color_g = 0;
+        lightHint.intensity = 10;
+        lightHint.flicker = LIGHT_FLICKER_1;
+        return lightHint;
+
     }
 }
