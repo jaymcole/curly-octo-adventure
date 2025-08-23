@@ -30,10 +30,11 @@ public class PlayerObject extends WorldObject {
     private MapTile currentTile = null;
     private Vector3 velocity = new Vector3();
     private Vector3 tempVector = new Vector3();
+    private boolean possessed = false;
 
     // Physics constants (matching old PlayerController behavior)
     private static final float GRAVITY = -50f;
-    private static final float JUMP_FORCE = 15f;
+    private static final float JUMP_FORCE = 25f;
     private boolean onGround = false;
 
     // Camera angles for smooth movement
@@ -125,36 +126,65 @@ public class PlayerObject extends WorldObject {
     }
 
 
-    // Player-specific movement (smooth, not jump-based)
+    // Implementation of Possessable movement interface
+    @Override
+    public void move(Vector3 direction) {
+        // Set horizontal velocity based on movement direction
+        this.velocity.x = direction.x * PLAYER_SPEED;
+        this.velocity.z = direction.z * PLAYER_SPEED;
+    }
+
+    @Override
+    public void jump() {
+        // Set jump velocity - will be applied in update() if on ground
+        this.velocity.y = JUMP_FORCE;
+    }
+
+    @Override
+    public void stopMovement() {
+        // Stop horizontal movement
+        this.velocity.x = 0;
+        this.velocity.z = 0;
+    }
+
+    @Override
+    public void rotateLook(float deltaYaw, float deltaPitch) {
+        addYaw(deltaYaw);
+        addPitch(deltaPitch);
+    }
+
+    // Legacy methods for backward compatibility
     public void setVelocity(Vector3 velocity) {
-        // Only set horizontal velocity, preserve vertical velocity for gravity/jumping
-        this.velocity.x = velocity.x * PLAYER_SPEED;
-        this.velocity.z = velocity.z * PLAYER_SPEED;
+        move(velocity);
     }
 
     public void addVelocity(Vector3 velocity) {
         if (velocity.y > 0) {
-            // Set jump velocity - will be applied in update() if on ground
-            this.velocity.y = JUMP_FORCE;
+            jump();
+        } else if (velocity.len2() > 0) {
+            move(velocity);
         }
-        // Don't add horizontal velocity for jumping
     }
 
     public Vector3 getVelocity() {
         return velocity.cpy();
     }
 
-    // Override Possessable methods for player-specific behavior
     @Override
-    public void applyJumpForce(Vector3 direction, float strength) {
-        // Players use smooth movement, not jump forces
-        // But we can add the direction to velocity for responsive movement
-        addVelocity(tempVector.set(direction).scl(strength * 0.1f));
+    public void onPossessionStart() {
+        possessed = true;
+        Log.info("PlayerObject", "Player " + playerId + " possessed");
     }
 
     @Override
-    public boolean isOnCooldown() {
-        return false; // Players don't have movement cooldown
+    public void onPossessionEnd() {
+        possessed = false;
+        Log.info("PlayerObject", "Player " + playerId + " possession ended");
+    }
+
+    @Override
+    public boolean isPossessed() {
+        return possessed;
     }
 
     @Override

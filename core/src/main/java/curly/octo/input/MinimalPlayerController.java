@@ -47,17 +47,8 @@ public class MinimalPlayerController extends InputAdapter implements InputContro
                 int deltaX = Gdx.input.getX() - lastX;
                 int deltaY = Gdx.input.getY() - lastY;
 
-                // Apply mouse movement based on target type
-                if (target instanceof PlayerObject) {
-                    PlayerObject player = (PlayerObject) target;
-                    player.addYaw(-deltaX * mouseSensitivity);
-                    player.addPitch(deltaY * mouseSensitivity);
-                } else {
-                    // For non-player objects, rotate camera directly
-                    camera.direction.rotate(camera.up, -deltaX * mouseSensitivity);
-                    tempDirection.set(camera.direction).crs(camera.up).nor();
-                    camera.direction.rotate(tempDirection, deltaY * mouseSensitivity);
-                }
+                // Let the target handle its own look rotation
+                target.rotateLook(-deltaX * mouseSensitivity, deltaY * mouseSensitivity);
 
                 lastX = Gdx.input.getX();
                 lastY = Gdx.input.getY();
@@ -95,38 +86,18 @@ public class MinimalPlayerController extends InputAdapter implements InputContro
             tempDirection.add(right);
         }
 
-        // Apply movement based on target type
+        // Apply movement - let the target decide how to handle it
         if (tempDirection.len2() > 0) {
             tempDirection.nor();
-
-            if (target instanceof PlayerObject) {
-                // Players get smooth velocity-based movement
-                PlayerObject player = (PlayerObject) target;
-                player.setVelocity(tempDirection);
-            } else {
-                // Other objects get jump-based movement
-                if (!target.isOnCooldown()) {
-                    target.applyJumpForce(tempDirection, 1.0f);
-                }
-            }
-        } else if (target instanceof PlayerObject) {
-            // Stop player movement when no keys pressed
-            ((PlayerObject) target).setVelocity(Vector3.Zero);
+            target.move(tempDirection);
+        } else {
+            target.stopMovement();
         }
 
         // Jump/space - only trigger on key press, not hold
         boolean spaceIsPressed = Gdx.input.isKeyPressed(Input.Keys.SPACE);
         if (spaceIsPressed && !spaceWasPressed) {
-            if (target instanceof PlayerObject) {
-                // Players could have jump logic here
-                PlayerObject player = (PlayerObject) target;
-                player.addVelocity(new Vector3(0, 1, 0));
-            } else {
-                // Objects jump upward
-                if (!target.isOnCooldown()) {
-                    target.applyJumpForce(new Vector3(0, 1, 0), 1.0f);
-                }
-            }
+            target.jump();
         }
         spaceWasPressed = spaceIsPressed;
     }
