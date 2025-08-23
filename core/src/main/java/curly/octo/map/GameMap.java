@@ -67,7 +67,7 @@ public class GameMap {
         ALL_TILES,      // Build physics for all occupied tiles (original approach)
         BFS_BOUNDARY    // Build physics only for boundary tiles reachable from spawn points
     }
-    private transient PhysicsStrategy physicsStrategy = PhysicsStrategy.ALL_TILES;
+    private transient PhysicsStrategy physicsStrategy = PhysicsStrategy.BFS_BOUNDARY;
 
 
     // Default constructor required for Kryo

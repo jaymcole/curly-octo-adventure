@@ -26,7 +26,7 @@ public class BasicMap extends MapGenerator{
                 }
             }
         }
-        
+
         // Create solid floor at Y=0
         for(int x = 0; x < roomSize; x++) {
             for(int z = 0; z < roomSize; z++) {
@@ -44,7 +44,7 @@ public class BasicMap extends MapGenerator{
         light.color_r = 1;
         light.color_b = 0;
         light.color_g = 0;
-        light.intensity = 1;
+        light.intensity = 10;
         map.registerHint(light);
 
         closeMap();
