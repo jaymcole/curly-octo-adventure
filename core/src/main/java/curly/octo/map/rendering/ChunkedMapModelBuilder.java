@@ -235,6 +235,21 @@ public class ChunkedMapModelBuilder extends MapModelBuilder {
             for (MapTile tile : chunkTiles.values()) {
                 if (tile.geometryType != MapTileGeometryType.EMPTY) {
                     boolean[] visibleFaces = calculateTileVisibleFaces(tile, reachableEmptyTiles);
+
+                    // Check if this tile has any visible faces
+                    boolean hasVisibleFace = false;
+                    for (boolean face : visibleFaces) {
+                        if (face) {
+                            hasVisibleFace = true;
+                            break;
+                        }
+                    }
+
+                    // Fallback: if no faces are visible but this tile is adjacent to reachable space,
+                    // make at least one face visible to prevent gaps
+                    if (!hasVisibleFace && isTileAdjacentToReachableSpace(tile, reachableEmptyTiles)) {
+                        visibleFaces = calculateBasicVisibleFaces(tile); // Use basic culling as fallback
+                    }
                     faceInfo.setVisibleFaces(tile, visibleFaces);
                 }
             }
@@ -352,6 +367,53 @@ public class ChunkedMapModelBuilder extends MapModelBuilder {
             }
         }
         return false;
+    }
+
+    /**
+     * Check if a tile is adjacent to any reachable empty space (used for gap prevention).
+     */
+    private boolean isTileAdjacentToReachableSpace(MapTile tile, Set<MapTile> reachableEmptyTiles) {
+        Vector3 tileCoords = getTileCoordinates(tile);
+
+        int[] dx = {-1, 1, 0, 0, 0, 0};
+        int[] dy = {0, 0, -1, 1, 0, 0};
+        int[] dz = {0, 0, 0, 0, -1, 1};
+
+        for (int i = 0; i < 6; i++) {
+            int neighborX = (int)tileCoords.x + dx[i];
+            int neighborY = (int)tileCoords.y + dy[i];
+            int neighborZ = (int)tileCoords.z + dz[i];
+
+            MapTile neighbor = gameMap.getTile(neighborX, neighborY, neighborZ);
+            if (neighbor != null && reachableEmptyTiles.contains(neighbor)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Calculate basic visible faces (exposed to any empty space) as a fallback.
+     */
+    private boolean[] calculateBasicVisibleFaces(MapTile tile) {
+        boolean[] visibleFaces = new boolean[6];
+        Vector3 tileCoords = getTileCoordinates(tile);
+
+        int[] dx = {-1, 1, 0, 0, 0, 0};
+        int[] dy = {0, 0, -1, 1, 0, 0};
+        int[] dz = {0, 0, 0, 0, -1, 1};
+
+        for (int i = 0; i < 6; i++) {
+            int neighborX = (int)tileCoords.x + dx[i];
+            int neighborY = (int)tileCoords.y + dy[i];
+            int neighborZ = (int)tileCoords.z + dz[i];
+
+            MapTile neighbor = gameMap.getTile(neighborX, neighborY, neighborZ);
+            // Face is visible if neighbor doesn't exist or is empty (basic culling)
+            visibleFaces[i] = (neighbor == null || neighbor.geometryType == MapTileGeometryType.EMPTY);
+        }
+
+        return visibleFaces;
     }
 
     /**
