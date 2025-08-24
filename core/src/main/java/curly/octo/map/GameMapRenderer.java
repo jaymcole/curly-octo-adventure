@@ -9,32 +9,22 @@ import com.badlogic.gdx.graphics.g3d.attributes.FloatAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.PointLightsAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.PointLight;
-import com.badlogic.gdx.graphics.g3d.model.Node;
-import com.badlogic.gdx.graphics.g3d.model.NodePart;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
-import com.badlogic.gdx.graphics.glutils.ShaderProgram;
-import com.badlogic.gdx.graphics.Mesh;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameObjectManager;
 import curly.octo.map.ChunkDebugger;
-import curly.octo.map.ChunkManager;
+import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.MapHint;
-import curly.octo.map.enums.MapTileFillType;
-import curly.octo.map.rendering.AllTilesMapModelBuilder;
-import curly.octo.map.rendering.BFSVisibleMapModelBuilder;
 import curly.octo.map.rendering.ChunkedMapModelBuilder;
-import curly.octo.map.rendering.MapModelBuilder;
 import curly.octo.rendering.CubeShadowMapRenderer;
 import curly.octo.rendering.BloomRenderer;
 import curly.octo.rendering.PostProcessingRenderer;
-import jdk.javadoc.internal.doclint.Env;
 import lights.BaseLight;
-import lights.LightType;
 
 /**
  * Handles rendering of the VoxelMap in 3D space with shadow mapping.
@@ -45,21 +35,11 @@ public class GameMapRenderer implements Disposable {
     private final PostProcessingRenderer postProcessingRenderer;
     private final Array<ModelInstance> instances;
     private Model model;
-    private Model waterModel; // Separate model for transparent water
-    private Model lavaModel;  // Separate model for transparent lava
-    private Model fogModel;   // Separate model for transparent fog
-    private ModelInstance waterInstance;
-    private ModelInstance lavaInstance;
-    private ModelInstance fogInstance;
+    // Surface models are now handled within individual chunks
     private boolean disposed = false;
 
     private GameObjectManager objectManager;
     private Environment environment;
-
-    // Custom shaders for fill types
-    private ShaderProgram waterShader;
-    private ShaderProgram lavaShader;
-    private ShaderProgram fogShader;
 
     // Configurable number of shadow-casting lights (performance vs quality tradeoff)
     private int maxShadowCastingLights = 8; // Reduced from 8 to 2 for better performance
@@ -68,18 +48,12 @@ public class GameMapRenderer implements Disposable {
     private int lastTotalLights = 0;
     private int lastShadowLights = 0;
 
-    // Rendering strategy
-    public enum RenderingStrategy {
-        ALL_TILES,      // Render all occupied tiles (original approach)
-        BFS_VISIBLE,    // Render only tiles with faces visible to players
-        CHUNKED         // Render tiles organized into chunks with BFS prioritization
-    }
-    private RenderingStrategy renderingStrategy = RenderingStrategy.CHUNKED;
+    // Using chunk-based rendering strategy only
 
     // Track rendering stats for debug UI
     private long lastFacesBuilt = 0;
     private long lastTilesProcessed = 0;
-    
+
     // Chunk-based rendering
     private ChunkedMapModelBuilder chunkModelBuilder = null;
 
@@ -90,11 +64,8 @@ public class GameMapRenderer implements Disposable {
         postProcessingRenderer = new PostProcessingRenderer(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         instances = new Array<>();
 
-        // Load custom shaders for fill types
-        loadCustomShaders();
-
         Log.info("GameMapRenderer", "Initialized with HIGH quality cube shadow mapping (" + maxShadowCastingLights + " shadow-casting lights, 512x512 per face)");
-        Log.info("GameMapRenderer", "Loaded custom shaders: water, lava, fog");
+        Log.info("GameMapRenderer", "Surface shaders are now handled within individual chunk models");
         Log.info("GameMapRenderer", "Initialized bloom post-processing for realistic lava glow");
     }
 
@@ -111,34 +82,6 @@ public class GameMapRenderer implements Disposable {
         Log.info("GameMapRenderer", "Set max shadow-casting lights to: " + maxLights);
     }
 
-    private void loadCustomShaders() {
-        // Load water shader
-        String waterVertexShader = Gdx.files.internal("shaders/water.vertex.glsl").readString();
-        String waterFragmentShader = Gdx.files.internal("shaders/water.fragment.glsl").readString();
-        waterShader = new ShaderProgram(waterVertexShader, waterFragmentShader);
-        if (!waterShader.isCompiled()) {
-            Log.error("GameMapRenderer", "Water shader compilation failed: " + waterShader.getLog());
-            throw new RuntimeException("Water shader compilation failed");
-        }
-
-        // Load lava shader
-        String lavaVertexShader = Gdx.files.internal("shaders/lava.vertex.glsl").readString();
-        String lavaFragmentShader = Gdx.files.internal("shaders/lava.fragment.glsl").readString();
-        lavaShader = new ShaderProgram(lavaVertexShader, lavaFragmentShader);
-        if (!lavaShader.isCompiled()) {
-            Log.error("GameMapRenderer", "Lava shader compilation failed: " + lavaShader.getLog());
-            throw new RuntimeException("Lava shader compilation failed");
-        }
-
-        // Load fog shader
-        String fogVertexShader = Gdx.files.internal("shaders/fog.vertex.glsl").readString();
-        String fogFragmentShader = Gdx.files.internal("shaders/fog.fragment.glsl").readString();
-        fogShader = new ShaderProgram(fogVertexShader, fogFragmentShader);
-        if (!fogShader.isCompiled()) {
-            Log.error("GameMapRenderer", "Fog shader compilation failed: " + fogShader.getLog());
-            throw new RuntimeException("Fog shader compilation failed");
-        }
-    }
 
     public void render(PerspectiveCamera camera, Environment environment) {
         render(camera, environment, null);
@@ -188,13 +131,13 @@ public class GameMapRenderer implements Disposable {
                 // For chunked strategy, get only chunks near camera
                 float renderDistance = 200f; // Render chunks within 200 units of camera
                 mapInstances = chunkModelBuilder.getChunksNearPosition(camera.position, renderDistance);
-                Log.debug("GameMapRenderer", String.format("Rendering %d chunks near camera position (%.1f, %.1f, %.1f)", 
+                Log.debug("GameMapRenderer", String.format("Rendering %d chunks near camera position (%.1f, %.1f, %.1f)",
                     mapInstances.size, camera.position.x, camera.position.y, camera.position.z));
             } else {
                 // For traditional strategies, use all instances
                 mapInstances = instances;
             }
-            
+
             // Combine map instances with additional dynamic objects for shadow generation
             Array<ModelInstance> allInstances = mapInstances;
             if (additionalInstances != null && additionalInstances.size > 0) {
@@ -217,16 +160,7 @@ public class GameMapRenderer implements Disposable {
             Vector3 ambientLight = getAmbientLight(environment);
             cubeShadowMapRenderer.renderWithMultipleCubeShadows(allInstances, camera, significantLights, pointLights.lights, ambientLight);
 
-            // Render transparent surfaces with custom shaders
-            if (waterInstance != null) {
-                renderCustomShaderSurface(waterInstance, waterShader, camera, pointLights.lights, ambientLight);
-            }
-            if (lavaInstance != null) {
-                renderCustomShaderSurface(lavaInstance, lavaShader, camera, null, null); // Lava doesn't need lights
-            }
-            if (fogInstance != null) {
-                renderCustomShaderSurface(fogInstance, fogShader, camera, pointLights.lights, ambientLight);
-            }
+            // Transparent surfaces are now handled within individual chunk models
         } else {
             Log.warn("GameMapRenderer", "No lights found for shadow casting");
         }
@@ -404,65 +338,7 @@ public class GameMapRenderer implements Disposable {
         return new Vector3(0.02f, 0.02f, 0.03f); // Default very low ambient
     }
 
-    private void renderCustomShaderSurface(ModelInstance surfaceInstance, ShaderProgram shader, PerspectiveCamera camera, Array<PointLight> lights, Vector3 ambientLight) {
-        if (surfaceInstance == null || shader == null) return;
-
-        // Set up blending for transparency
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-        Gdx.gl.glDepthMask(false); // Don't write to depth buffer for transparent objects
-
-        // Begin shader
-        shader.begin();
-
-        // Set common uniforms
-        shader.setUniformMatrix("u_projViewTrans", camera.combined);
-        shader.setUniformMatrix("u_worldTrans", surfaceInstance.transform);
-        // Use a more reasonable time scale for animations (avoid precision issues)
-        float time = (System.currentTimeMillis() % 60000) / 1000.0f; // Reset every minute to avoid precision loss
-        shader.setUniformf("u_time", time);
-
-        // Set lighting uniforms (if lights provided and shader supports them)
-        if (lights != null && ambientLight != null && shader.hasUniform("u_numLights")) {
-            shader.setUniformi("u_numLights", Math.min(lights.size, 8));
-
-            if (shader.hasUniform("u_ambientLight")) {
-                shader.setUniformf("u_ambientLight", ambientLight);
-            }
-
-            for (int i = 0; i < Math.min(lights.size, 8); i++) {
-                PointLight light = lights.get(i);
-                if (shader.hasUniform("u_lightPositions[" + i + "]")) {
-                    shader.setUniformf("u_lightPositions[" + i + "]", light.position);
-                }
-                if (shader.hasUniform("u_lightColors[" + i + "]")) {
-                    shader.setUniformf("u_lightColors[" + i + "]", light.color.r, light.color.g, light.color.b);
-                }
-                if (shader.hasUniform("u_lightIntensities[" + i + "]")) {
-                    shader.setUniformf("u_lightIntensities[" + i + "]", light.intensity);
-                }
-            }
-        } else if (shader.hasUniform("u_numLights")) {
-            shader.setUniformi("u_numLights", 0);
-        }
-
-        // Render the surface
-        for (Node node : surfaceInstance.nodes) {
-            for (NodePart nodePart : node.parts) {
-                if (nodePart.enabled) {
-                    Mesh mesh = nodePart.meshPart.mesh;
-                    mesh.render(shader, nodePart.meshPart.primitiveType,
-                               nodePart.meshPart.offset, nodePart.meshPart.size);
-                }
-            }
-        }
-
-        shader.end();
-
-        // Restore depth mask
-        Gdx.gl.glDepthMask(true);
-        Gdx.gl.glDisable(GL20.GL_BLEND);
-    }
+    // Surface rendering is now handled within individual chunk models
 
 
     public void updateMap(GameMap map, Environment environment) {
@@ -480,93 +356,40 @@ public class GameMapRenderer implements Disposable {
         Material grassMaterial = createMaterial(Color.GREEN, 0.1f, 4f);
         Material pinkWall = createMaterial(Color.PINK, 0.1f, 4f);
         Material spawnMaterial = createMaterial(Color.LIME, 0.1f, 4f);
-        Material waterMaterial = createWaterMaterial();
-        Material lavaMaterial = createLavaMaterial();
-        Material fogMaterial = createFogMaterial();
+        // Surface materials are handled within individual chunks
 
-        // Create the appropriate model builder based on strategy
-        MapModelBuilder builder;
-        boolean isChunkedStrategy = false;
-        ChunkedMapModelBuilder chunkedBuilder = null;
-        
-        switch (renderingStrategy) {
-            case BFS_VISIBLE:
-                builder = new BFSVisibleMapModelBuilder(map);
-                break;
-            case CHUNKED:
-                // Debug the chunked strategy before building
-                ChunkDebugger.quickDebug(map, "Before ChunkedMapModelBuilder");
-                chunkedBuilder = new ChunkedMapModelBuilder(map);
-                builder = chunkedBuilder;
-                isChunkedStrategy = true;
-                break;
-            case ALL_TILES:
-            default:
-                builder = new AllTilesMapModelBuilder(map);
-                break;
-        }
+        // Create chunk-based model builder
+        ChunkDebugger.quickDebug(map, "Before ChunkedMapModelBuilder");
+        ChunkedMapModelBuilder chunkedBuilder = new ChunkedMapModelBuilder(map);
 
-        if (isChunkedStrategy) {
-            // For chunked strategy, build individual chunk models
-            builder.buildGeometry(null, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null);
-            // Store the chunk builder for rendering
-            this.chunkModelBuilder = chunkedBuilder;
-            // No single model for chunked strategy - we use individual chunk instances
-            model = null;
-            Log.info("GameMapRenderer", "Built " + chunkedBuilder.getAllChunkInstances().size + " individual chunk models");
-        } else {
-            // Clear chunk builder if not using chunked strategy
-            this.chunkModelBuilder = null;
-            // Build main opaque geometry (no water surfaces)
-            ModelBuilder opaqueBuilder = new ModelBuilder();
-            opaqueBuilder.begin();
-            builder.buildGeometry(opaqueBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null); // null waterMaterial = no water in main model
-            model = opaqueBuilder.end();
-        }
+        // Build individual chunk models
+        chunkedBuilder.buildGeometry(null, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null);
 
-        // Build separate surface models for transparency with simple materials
-        ModelBuilder waterBuilder = new ModelBuilder();
-        waterBuilder.begin();
-        builder.buildWaterGeometry(waterBuilder, createSimpleMaterial());
-        waterModel = waterBuilder.end();
+        // Store the chunk builder for rendering
+        this.chunkModelBuilder = chunkedBuilder;
 
-        ModelBuilder lavaBuilder = new ModelBuilder();
-        lavaBuilder.begin();
-        builder.buildLavaGeometry(lavaBuilder, createSimpleMaterial());
-        lavaModel = lavaBuilder.end();
+        // No single model for chunk-based rendering - we use individual chunk instances
+        model = null;
+        Log.info("GameMapRenderer", "Built " + chunkedBuilder.getAllChunkInstances().size + " individual chunk models");
 
-        ModelBuilder fogBuilder = new ModelBuilder();
-        fogBuilder.begin();
-        builder.buildFogGeometry(fogBuilder, createSimpleMaterial());
-        fogModel = fogBuilder.end();
+        // Surface materials are now built into individual chunks
 
         // Update stats for debug UI
-        lastFacesBuilt = builder.getTotalFacesBuilt();
-        lastTilesProcessed = builder.getTotalTilesProcessed();
+        lastFacesBuilt = chunkedBuilder.getTotalFacesBuilt();
+        lastTilesProcessed = chunkedBuilder.getTotalTilesProcessed();
 
         // Create model instances for rendering
         instances.clear();
-        if (isChunkedStrategy && chunkModelBuilder != null) {
-            // For chunked strategy, add all chunk instances
+        if (chunkModelBuilder != null) {
+            // Add all chunk instances to render queue
             instances.addAll(chunkModelBuilder.getAllChunkInstances());
             Log.info("GameMapRenderer", "Added " + instances.size + " chunk instances to render queue");
-        } else if (model != null) {
-            // For traditional strategies, add single model instance
-            instances.add(new ModelInstance(model));
         }
 
-        if (waterModel != null) {
-            waterInstance = new ModelInstance(waterModel);
-        }
-        if (lavaModel != null) {
-            lavaInstance = new ModelInstance(lavaModel);
-        }
-        if (fogModel != null) {
-            fogInstance = new ModelInstance(fogModel);
-        }
+        // Surface instances are now handled within individual chunks
 
         long endTime = System.currentTimeMillis();
-        Log.info("GameMapRenderer", "Completed map update in " + (endTime - startTime) + "ms using " + builder.getStrategyDescription());
+        Log.info("GameMapRenderer", "Completed map update in " + (endTime - startTime) + "ms using " + chunkedBuilder.getStrategyDescription());
     }
 
     private Material createMaterial(Color diffuse, float specular, float shininess) {
@@ -650,21 +473,6 @@ public class GameMapRenderer implements Disposable {
         return lastShadowLights;
     }
 
-    /**
-     * Set the rendering strategy.
-     * @param strategy The strategy to use for building visible geometry
-     */
-    public void setRenderingStrategy(RenderingStrategy strategy) {
-        this.renderingStrategy = strategy;
-    }
-
-    /**
-     * Get the current rendering strategy.
-     * @return The current strategy
-     */
-    public RenderingStrategy getRenderingStrategy() {
-        return renderingStrategy;
-    }
 
     /**
      * Get the number of faces built in the last map update.
@@ -732,7 +540,7 @@ public class GameMapRenderer implements Disposable {
             model = null;
             instances.clear();
         }
-        
+
         // Dispose chunk model builder
         if (chunkModelBuilder != null) {
             try {
@@ -744,38 +552,8 @@ public class GameMapRenderer implements Disposable {
             chunkModelBuilder = null;
         }
 
-        if (waterModel != null) {
-            try {
-                waterModel.dispose();
-                Log.info("GameMapRenderer", "Water model disposed");
-            } catch (Exception e) {
-                Log.error("GameMapRenderer", "Error disposing water model: " + e.getMessage());
-            }
-            waterModel = null;
-            waterInstance = null;
-        }
+        // Surface models are now handled within individual chunks
 
-        if (lavaModel != null) {
-            try {
-                lavaModel.dispose();
-                Log.info("GameMapRenderer", "Lava model disposed");
-            } catch (Exception e) {
-                Log.error("GameMapRenderer", "Error disposing lava model: " + e.getMessage());
-            }
-            lavaModel = null;
-            lavaInstance = null;
-        }
-
-        if (fogModel != null) {
-            try {
-                fogModel.dispose();
-                Log.info("GameMapRenderer", "Fog model disposed");
-            } catch (Exception e) {
-                Log.error("GameMapRenderer", "Error disposing fog model: " + e.getMessage());
-            }
-            fogModel = null;
-            fogInstance = null;
-        }
 
         disposed = true;
     }
@@ -809,19 +587,6 @@ public class GameMapRenderer implements Disposable {
             }
         }
 
-        // Dispose of custom shaders
-        if (waterShader != null) {
-            waterShader.dispose();
-            waterShader = null;
-        }
-        if (lavaShader != null) {
-            lavaShader.dispose();
-            lavaShader = null;
-        }
-        if (fogShader != null) {
-            fogShader.dispose();
-            fogShader = null;
-        }
-        Log.info("GameMapRenderer", "Custom shaders disposed");
+        // Custom shaders are now handled within individual chunks
     }
 }

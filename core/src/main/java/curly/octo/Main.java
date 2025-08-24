@@ -143,10 +143,6 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             // Update physics debug info
             debugUI.setPhysicsDebugEnabled(clientGameWorld.isPhysicsDebugEnabled());
             debugUI.setPhysicsStrategy(clientGameWorld.getPhysicsStrategyInfo(), clientGameWorld.getPhysicsTriangleCount());
-
-            // Update rendering strategy info
-            debugUI.setRenderingStrategy(clientGameWorld.getRenderingStrategyInfo(),
-                clientGameWorld.getRenderingFacesBuilt(), clientGameWorld.getRenderingTilesProcessed());
         }
 
         // Update and render UI
@@ -261,16 +257,6 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             GameWorld clientGameWorld = clientGameMode.getGameWorld();
             clientGameWorld.togglePhysicsStrategy();
             Log.info("Main", "Physics strategy switched to: " + clientGameWorld.getPhysicsStrategyInfo());
-        }
-    }
-
-    @Override
-    public void onToggleRenderingStrategy() {
-        // Debug controls operate on the client's world (where rendering happens)
-        if (clientGameMode != null && clientGameMode.getGameWorld() != null) {
-            GameWorld clientGameWorld = clientGameMode.getGameWorld();
-            clientGameWorld.toggleRenderingStrategy();
-            Log.info("Main", "Rendering strategy switched to: " + clientGameWorld.getRenderingStrategyInfo());
         }
     }
 }

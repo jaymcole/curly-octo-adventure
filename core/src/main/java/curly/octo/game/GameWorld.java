@@ -67,7 +67,7 @@ public abstract class GameWorld {
 
     public void setMap(GameMap map) {
         this.mapManager = map;
-        
+
         // Initialize physics for client-received maps (server-only maps don't have physics)
         if (!map.isPhysicsInitialized()) {
             Log.info("GameWorld", "Initializing physics for received map");
@@ -75,7 +75,7 @@ public abstract class GameWorld {
             // Also generate triangle mesh physics that was skipped in server-only generation
             map.regeneratePhysics();
         }
-        
+
         if (mapRenderer == null) {
             mapRenderer = new GameMapRenderer(gameObjectManager);
         }
@@ -157,27 +157,6 @@ public abstract class GameWorld {
 
     public long getPhysicsTriangleCount() {
         return mapManager != null ? mapManager.totalTriangleCount : 0;
-    }
-
-    public void toggleRenderingStrategy() {
-        if (mapRenderer != null && mapManager != null) {
-            // Switch between strategies
-            GameMapRenderer.RenderingStrategy currentStrategy = mapRenderer.getRenderingStrategy();
-            GameMapRenderer.RenderingStrategy newStrategy = (currentStrategy == GameMapRenderer.RenderingStrategy.ALL_TILES)
-                ? GameMapRenderer.RenderingStrategy.BFS_VISIBLE
-                : GameMapRenderer.RenderingStrategy.ALL_TILES;
-
-            Log.info("GameWorld", "Switching rendering strategy from " + currentStrategy + " to " + newStrategy);
-            mapRenderer.setRenderingStrategy(newStrategy);
-            mapRenderer.updateMap(mapManager, environment);
-        }
-    }
-
-    public String getRenderingStrategyInfo() {
-        if (mapRenderer != null) {
-            return mapRenderer.getRenderingStrategy().name();
-        }
-        return "N/A";
     }
 
     public long getRenderingFacesBuilt() {
