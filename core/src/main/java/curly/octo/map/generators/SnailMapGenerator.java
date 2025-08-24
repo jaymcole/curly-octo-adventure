@@ -27,8 +27,8 @@ public class SnailMapGenerator extends MapGenerator {
     private final List<ExpansionNode> optionalNodes = new ArrayList<>();
 
     // Map generation parameters
-    private static final int MIN_MAP_SIZE = 1000; // Minimum tiles before considering completion
-    private static final int MAX_MAP_SIZE = 10000; // Maximum tiles to prevent infinite generation
+    private static final int MIN_MAP_SIZE = 200; // Minimum tiles before considering completion
+    private static final int MAX_MAP_SIZE = 1000; // Maximum tiles to prevent infinite generation
     private static final float OPTIONAL_NODE_PROBABILITY = 0.4f; // Chance to use optional nodes
 
     // Snail type registry for flexible snail generation
@@ -49,7 +49,7 @@ public class SnailMapGenerator extends MapGenerator {
         Vector3 startPos = new Vector3(0, 0, 0);  // Y=0 is floor level for snails
 
         // Create initial spawn room
-        RoomSnail startRoom = new RoomSnail(map, startPos, Direction.NORTH, random, 7, 25, 7);
+        RoomSnail startRoom = new RoomSnail(map, startPos, Direction.NORTH, random, 7, 4, 7);
         executeSnailWithNodes(startRoom);
 
         // Generate expansion-based dungeon

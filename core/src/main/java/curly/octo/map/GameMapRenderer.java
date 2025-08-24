@@ -20,11 +20,13 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameObjectManager;
+import curly.octo.map.ChunkManager;
 import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.MapHint;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.rendering.AllTilesMapModelBuilder;
 import curly.octo.map.rendering.BFSVisibleMapModelBuilder;
+import curly.octo.map.rendering.ChunkedMapModelBuilder;
 import curly.octo.map.rendering.MapModelBuilder;
 import curly.octo.rendering.CubeShadowMapRenderer;
 import curly.octo.rendering.BloomRenderer;
@@ -68,9 +70,10 @@ public class GameMapRenderer implements Disposable {
     // Rendering strategy
     public enum RenderingStrategy {
         ALL_TILES,      // Render all occupied tiles (original approach)
-        BFS_VISIBLE     // Render only tiles with faces visible to players
+        BFS_VISIBLE,    // Render only tiles with faces visible to players
+        CHUNKED         // Render tiles organized into chunks with BFS prioritization
     }
-    private RenderingStrategy renderingStrategy = RenderingStrategy.BFS_VISIBLE;
+    private RenderingStrategy renderingStrategy = RenderingStrategy.CHUNKED;
 
     // Track rendering stats for debug UI
     private long lastFacesBuilt = 0;
@@ -470,6 +473,9 @@ public class GameMapRenderer implements Disposable {
             case BFS_VISIBLE:
                 builder = new BFSVisibleMapModelBuilder(map);
                 break;
+            case CHUNKED:
+                builder = new ChunkedMapModelBuilder(map);
+                break;
             case ALL_TILES:
             default:
                 builder = new AllTilesMapModelBuilder(map);
@@ -627,6 +633,16 @@ public class GameMapRenderer implements Disposable {
      */
     public long getLastTilesProcessed() {
         return lastTilesProcessed;
+    }
+    
+    /**
+     * Get the ChunkManager if the current rendering strategy supports it.
+     * @return ChunkManager instance, or null if not using chunked strategy
+     */
+    public ChunkManager getChunkManager() {
+        // This would require storing a reference to the last builder used
+        // For now, return null - external systems should create their own ChunkManager if needed
+        return null;
     }
 
     /**
