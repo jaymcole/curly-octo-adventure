@@ -15,14 +15,11 @@ import curly.octo.map.ChunkManager;
 import curly.octo.map.GameMap;
 import curly.octo.map.LevelChunk;
 import curly.octo.map.MapTile;
-import curly.octo.map.enums.Direction;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.hints.MapHint;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Map model builder that uses chunk-based organization for efficient mesh generation.
@@ -220,9 +217,16 @@ public class ChunkedMapModelBuilder extends MapModelBuilder {
     /**
      * Calculate which faces of tiles in each chunk should be visible.
      * This is done by checking neighboring tiles, including tiles in adjacent chunks.
+     * Only faces exposed to reachable empty space are marked as visible.
      */
     private void calculateChunkFaceVisibility() {
         chunkFaceVisibility.clear();
+
+        // First, identify all reachable empty tiles using BFS from spawn points
+        Set<MapTile> reachableEmptyTiles = findReachableEmptyTiles();
+
+        Log.info("ChunkedMapModelBuilder", String.format(
+            "Found %d reachable empty tiles for improved face culling", reachableEmptyTiles.size()));
 
         for (LevelChunk chunk : populatedChunks) {
             ChunkFaceInfo faceInfo = new ChunkFaceInfo();
@@ -230,7 +234,7 @@ public class ChunkedMapModelBuilder extends MapModelBuilder {
 
             for (MapTile tile : chunkTiles.values()) {
                 if (tile.geometryType != MapTileGeometryType.EMPTY) {
-                    boolean[] visibleFaces = calculateTileVisibleFaces(tile);
+                    boolean[] visibleFaces = calculateTileVisibleFaces(tile, reachableEmptyTiles);
                     faceInfo.setVisibleFaces(tile, visibleFaces);
                 }
             }
@@ -240,10 +244,67 @@ public class ChunkedMapModelBuilder extends MapModelBuilder {
     }
 
     /**
-     * Calculate which faces of a tile should be visible by checking neighbors.
-     * This method checks neighbors even across chunk boundaries.
+     * Find all empty tiles reachable from spawn points using BFS.
+     * This helps us cull faces that are exposed only to unreachable empty space.
      */
-    private boolean[] calculateTileVisibleFaces(MapTile tile) {
+    private Set<MapTile> findReachableEmptyTiles() {
+        Set<MapTile> reachableEmptyTiles = new HashSet<>();
+        Queue<MapTile> bfsQueue = new ArrayDeque<>();
+
+        // Start BFS from all spawn points
+        ArrayList<MapHint> spawnHints = gameMap.getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
+
+        if (!spawnHints.isEmpty()) {
+            for (curly.octo.map.hints.MapHint hint : spawnHints) {
+                MapTile spawnTile = gameMap.getTile(hint.tileLookupKey);
+                if (spawnTile != null && spawnTile.geometryType == MapTileGeometryType.EMPTY && !reachableEmptyTiles.contains(spawnTile)) {
+                    bfsQueue.offer(spawnTile);
+                    reachableEmptyTiles.add(spawnTile);
+                }
+            }
+        } else {
+            // Fallback: start from first empty tile found
+            for (MapTile tile : gameMap.getAllTiles()) {
+                if (tile.geometryType == MapTileGeometryType.EMPTY) {
+                    bfsQueue.offer(tile);
+                    reachableEmptyTiles.add(tile);
+                    break;
+                }
+            }
+        }
+
+        // BFS to find all connected empty tiles
+        while (!bfsQueue.isEmpty()) {
+            MapTile current = bfsQueue.poll();
+            Vector3 currentCoords = getTileCoordinates(current);
+
+            // Check all 6 neighbors
+            int[] dx = {-1, 1, 0, 0, 0, 0};
+            int[] dy = {0, 0, -1, 1, 0, 0};
+            int[] dz = {0, 0, 0, 0, -1, 1};
+
+            for (int i = 0; i < 6; i++) {
+                int neighborX = (int)currentCoords.x + dx[i];
+                int neighborY = (int)currentCoords.y + dy[i];
+                int neighborZ = (int)currentCoords.z + dz[i];
+
+                MapTile neighbor = gameMap.getTile(neighborX, neighborY, neighborZ);
+
+                if (neighbor != null && neighbor.geometryType == MapTileGeometryType.EMPTY && !reachableEmptyTiles.contains(neighbor)) {
+                    reachableEmptyTiles.add(neighbor);
+                    bfsQueue.offer(neighbor);
+                }
+            }
+        }
+
+        return reachableEmptyTiles;
+    }
+
+    /**
+     * Calculate which faces of a tile should be visible by checking neighbors.
+     * Only faces exposed to reachable empty space are considered visible.
+     */
+    private boolean[] calculateTileVisibleFaces(MapTile tile, Set<MapTile> reachableEmptyTiles) {
         boolean[] visibleFaces = new boolean[6]; // -X, +X, -Y, +Y, -Z, +Z
         Vector3 tileCoords = getTileCoordinates(tile);
 
@@ -259,11 +320,38 @@ public class ChunkedMapModelBuilder extends MapModelBuilder {
 
             MapTile neighbor = gameMap.getTile(neighborX, neighborY, neighborZ);
 
-            // Face is visible if neighbor doesn't exist or is empty
-            visibleFaces[i] = (neighbor == null || neighbor.geometryType == MapTileGeometryType.EMPTY);
+            // Face is visible if neighbor is reachable empty space
+            if (neighbor != null && neighbor.geometryType == MapTileGeometryType.EMPTY) {
+                visibleFaces[i] = reachableEmptyTiles.contains(neighbor);
+            } else if (neighbor == null) {
+                // Face exposed to outside world - only visible if we're on the boundary of reachable space
+                // Check if any adjacent empty tile is reachable
+                visibleFaces[i] = isAdjacentToReachableSpace(neighborX, neighborY, neighborZ, reachableEmptyTiles);
+            } else {
+                // Neighbor is solid, face is not visible
+                visibleFaces[i] = false;
+            }
         }
 
         return visibleFaces;
+    }
+
+    /**
+     * Check if a position (which might be outside the map) is adjacent to reachable empty space.
+     */
+    private boolean isAdjacentToReachableSpace(int x, int y, int z, Set<MapTile> reachableEmptyTiles) {
+        // Check the 6 neighbors of this position
+        int[] dx = {-1, 1, 0, 0, 0, 0};
+        int[] dy = {0, 0, -1, 1, 0, 0};
+        int[] dz = {0, 0, 0, 0, -1, 1};
+
+        for (int i = 0; i < 6; i++) {
+            MapTile adjacentTile = gameMap.getTile(x + dx[i], y + dy[i], z + dz[i]);
+            if (adjacentTile != null && reachableEmptyTiles.contains(adjacentTile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
