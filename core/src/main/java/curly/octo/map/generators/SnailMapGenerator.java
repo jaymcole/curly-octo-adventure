@@ -27,8 +27,8 @@ public class SnailMapGenerator extends MapGenerator {
     private final List<ExpansionNode> optionalNodes = new ArrayList<>();
 
     // Map generation parameters
-    private static final int MIN_MAP_SIZE = 200; // Minimum tiles before considering completion
-    private static final int MAX_MAP_SIZE = 8000; // Maximum tiles to prevent infinite generation
+    private static final int MIN_MAP_SIZE = 1000; // Minimum tiles before considering completion
+    private static final int MAX_MAP_SIZE = 10000; // Maximum tiles to prevent infinite generation
     private static final float OPTIONAL_NODE_PROBABILITY = 0.4f; // Chance to use optional nodes
 
     // Snail type registry for flexible snail generation
@@ -83,6 +83,14 @@ public class SnailMapGenerator extends MapGenerator {
         System.out.println("SnailMapGenerator: Final count - " + emptyTiles + " EMPTY, " + fullTiles + " FULL");
     }
 
+    /**
+     * Determine which level profile to use based on the current registry configuration
+     */
+    private LevelProfile determineLevelProfileFromRegistry() {
+        // For now, just return BALANCED - could be enhanced to analyze registry weights
+        return LevelProfile.BALANCED;
+    }
+
     private void generateExpansionBasedMap() {
         int iterations = 0;
         int maxIterations = 1000;
@@ -92,6 +100,12 @@ public class SnailMapGenerator extends MapGenerator {
             processNecessaryNodes();
             // Then process some optional nodes if map isn't large enough
             processOptionalNodes();
+
+            // If map is still too small and we're running out of nodes, inject more
+            if (map.getAllTiles().size() < MIN_MAP_SIZE && !hasNecessaryNodes() && optionalNodes.size() < 3) {
+                injectExpansionNodes();
+            }
+
             iterations++;
         }
     }
@@ -178,12 +192,12 @@ public class SnailMapGenerator extends MapGenerator {
         boolean hasOptionalNodes = !optionalNodes.isEmpty();
         boolean underMaxSize = currentTiles < MAX_MAP_SIZE;
         boolean underMinSize = currentTiles < MIN_MAP_SIZE;
-        
+
         // Force expansion if under minimum size and we have any nodes available
         if (underMinSize && hasOptionalNodes) {
             return true;
         }
-        
+
         // Continue with optional nodes if under max size and nodes available
         return hasOptionalNodes && underMaxSize;
     }
@@ -194,6 +208,122 @@ public class SnailMapGenerator extends MapGenerator {
         map.registerHint(new SpawnPointHint(map.constructKeyFromIndexCoordinates((int)spawnPos.x,(int)spawnPos.y,(int)spawnPos.z)));
 
         System.out.println("SnailMapGenerator: Added spawn point at " + spawnPos + " (1 tile above floor)");
+    }
+
+    /**
+     * Inject expansion nodes at promising wall locations when the map is too small
+     */
+    private void injectExpansionNodes() {
+        System.out.println("SnailMapGenerator: Injecting expansion nodes - current size: " + map.getAllTiles().size());
+
+        List<Vector3> wallPositions = findWallExpansionOpportunities();
+        int nodesInjected = 0;
+        int maxInject = Math.min(5, wallPositions.size()); // Don't inject too many at once
+
+        for (int i = 0; i < maxInject; i++) {
+            Vector3 wallPos = wallPositions.get(random.nextInt(wallPositions.size()));
+            Direction expansionDir = findBestExpansionDirection(wallPos);
+
+            if (expansionDir != null) {
+                // Create expansion node just outside the wall
+                Vector3 expansionPos = wallPos.cpy();
+                Direction.advanceVector(expansionDir, expansionPos);
+
+                ExpansionNode injectedNode = new ExpansionNode(
+                    expansionPos,
+                    expansionDir,
+                    ExpansionNode.Priority.OPTIONAL,
+                    "WallInjection"
+                );
+
+                optionalNodes.add(injectedNode);
+                nodesInjected++;
+                System.out.println("SnailMapGenerator: Injected expansion node at " + expansionPos + " facing " + expansionDir);
+            }
+
+            wallPositions.remove(wallPos); // Don't use same position twice
+        }
+
+        System.out.println("SnailMapGenerator: Injected " + nodesInjected + " expansion nodes");
+    }
+
+    /**
+     * Find wall positions that could be good expansion points
+     */
+    private List<Vector3> findWallExpansionOpportunities() {
+        List<Vector3> opportunities = new ArrayList<>();
+        List<com.badlogic.gdx.math.Vector3> allTiles = new ArrayList<>();
+
+        // Convert existing tiles to coordinate list
+        map.getAllTiles().forEach(tile -> {
+            Vector3 tileCoord = new Vector3(
+                Math.round(tile.x / 16f), // Convert world coords to tile coords
+                Math.round(tile.y / 16f),
+                Math.round(tile.z / 16f)
+            );
+            allTiles.add(tileCoord);
+        });
+
+        // Check each existing tile for expansion opportunities
+        for (Vector3 tilePos : allTiles) {
+            // Check the 4 cardinal directions from this tile
+            Direction[] directions = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST};
+
+            for (Direction dir : directions) {
+                Vector3 adjacentPos = tilePos.cpy();
+                Direction.advanceVector(dir, adjacentPos);
+
+                // If this adjacent position is empty and has some space around it, it's an opportunity
+                if (map.getTile((int)adjacentPos.x, (int)adjacentPos.y, (int)adjacentPos.z) != null) {
+                    continue; // Skip if tile already exists
+                }
+
+                // Check if there's space for expansion (at least 3 tiles in expansion direction)
+                if (hasExpansionSpace(adjacentPos, dir, 3)) {
+                    opportunities.add(adjacentPos);
+                }
+            }
+        }
+
+        System.out.println("SnailMapGenerator: Found " + opportunities.size() + " wall expansion opportunities");
+        return opportunities;
+    }
+
+    /**
+     * Check if there's enough space in a direction for expansion
+     */
+    private boolean hasExpansionSpace(Vector3 startPos, Direction direction, int requiredSpace) {
+        Vector3 checkPos = startPos.cpy();
+
+        for (int i = 0; i < requiredSpace; i++) {
+            if (map.getTile((int)checkPos.x, (int)checkPos.y, (int)checkPos.z) != null) {
+                return false; // Hit existing tile
+            }
+            Direction.advanceVector(direction, checkPos);
+        }
+
+        return true;
+    }
+
+    /**
+     * Find the best direction to expand from a wall position
+     */
+    private Direction findBestExpansionDirection(Vector3 wallPos) {
+        Direction[] directions = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST};
+        List<Direction> validDirections = new ArrayList<>();
+
+        for (Direction dir : directions) {
+            if (hasExpansionSpace(wallPos, dir, 5)) { // Need at least 5 tiles of space
+                validDirections.add(dir);
+            }
+        }
+
+        if (validDirections.isEmpty()) {
+            return null;
+        }
+
+        // Return a random valid direction
+        return validDirections.get(random.nextInt(validDirections.size()));
     }
 
     private void addLight(Vector3 lightPos) {
