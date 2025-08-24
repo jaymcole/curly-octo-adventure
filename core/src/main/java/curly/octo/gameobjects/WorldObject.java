@@ -66,6 +66,9 @@ public class WorldObject extends GameObject implements Disposable, Possessable {
 
         if (rigidBody != null && modelInstance != null) {
             rigidBody.getWorldTransform(modelInstance.transform);
+        } else if (modelInstance != null && position != null) {
+            // Update ModelInstance for objects without physics bodies
+            updateModelPosition();
         }
     }
 
@@ -75,8 +78,39 @@ public class WorldObject extends GameObject implements Disposable, Possessable {
 
     public void setModelInstance(ModelInstance modelInstance) {
         this.modelInstance = modelInstance;
+        updateModelPosition();
+    }
+
+    public void updateModelPosition() {
         if (modelInstance != null && position != null) {
-            modelInstance.transform.setToTranslation(position);
+            // Use default positioning if no model bounds available
+            Vector3 modelPosition = position.cpy();
+            modelInstance.transform.setToTranslation(modelPosition);
+            modelInstance.transform.rotate(rotation);
+        }
+    }
+
+    public void updateModelPositionWithBounds(ModelAssetManager.ModelBounds bounds, float objectHeight, float scale) {
+        updateModelPositionWithBounds(bounds, objectHeight, scale, 0f);
+    }
+    
+    public void updateModelPositionWithBounds(ModelAssetManager.ModelBounds bounds, float objectHeight, float scale, float yawDegrees) {
+        if (modelInstance != null && position != null && bounds != null) {
+            Vector3 modelPosition = bounds.getGroundCenteredPosition(position);
+            modelPosition.y -= (objectHeight/2);
+            
+            // Reset transform and apply transformations in order
+            modelInstance.transform.idt();
+            modelInstance.transform.setToTranslation(modelPosition);
+            modelInstance.transform.scl(scale);
+            
+            // Rotate only around Y axis (horizontal rotation)
+            if (yawDegrees != 0f) {
+                modelInstance.transform.rotate(Vector3.Y, yawDegrees);
+            }
+        } else {
+            // Fallback to default positioning
+            updateModelPosition();
         }
     }
 

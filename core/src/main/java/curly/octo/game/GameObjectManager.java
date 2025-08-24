@@ -40,9 +40,6 @@ public class GameObjectManager implements Disposable {
                 light.update(delta);
             }
         }
-
-        // Note: All PlayerObjects are automatically updated as GameObjects above
-
         updateRenderQueue();
         removeObjectsAfterUpdate();
     }
@@ -59,8 +56,6 @@ public class GameObjectManager implements Disposable {
                 }
             }
         }
-
-        // Note: PlayerObjects are automatically rendered as WorldObjects above
     }
 
     private void removeObjectsAfterUpdate() {
@@ -102,6 +97,16 @@ public class GameObjectManager implements Disposable {
 
         if (gameObject instanceof WorldObject) {
             WorldObject worldObject = (WorldObject) gameObject;
+            
+            // Special handling for PlayerObjects
+            if (gameObject instanceof PlayerObject) {
+                PlayerObject playerObject = (PlayerObject) gameObject;
+                // Initialize graphics with model asset manager for proper bounds calculation
+                if (!playerObject.isGraphicsInitialized()) {
+                    playerObject.initializeGraphicsWithManager(modelAssetManager);
+                }
+            }
+            
             if (worldObject.getModelAssetPath() != null && worldObject.getBasePhysicsProperties() == PhysicsProperties.DEFAULT) {
                 PhysicsProperties props = modelAssetManager.getPhysicsProperties(worldObject.getModelAssetPath());
                 worldObject.setBasePhysicsProperties(props);

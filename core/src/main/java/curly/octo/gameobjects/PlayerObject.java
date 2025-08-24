@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.g3d.Material;
 import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
+import com.badlogic.gdx.graphics.g3d.loader.ObjLoader;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController;
@@ -19,11 +20,14 @@ public class PlayerObject extends WorldObject {
 
     private static final float PLAYER_HEIGHT = 2.5f;
     private static final float PLAYER_SPEED = 25f;
+    private static final String PLAYER_MODEL_PATH = "models/character/test_scale.obj";
+    private static final float PLAYER_MODEL_SCALE = 0.1f;
 
     private String playerId;
     private transient GameMap gameMap;
     private transient btKinematicCharacterController characterController;
     private transient boolean graphicsInitialized = false;
+    private transient ModelAssetManager.ModelBounds modelBounds;
 
     // Player-specific state
     private MapTileFillType currentTileFillType = MapTileFillType.AIR;
@@ -54,27 +58,74 @@ public class PlayerObject extends WorldObject {
         super(playerId);
         this.playerId = playerId;
 
-        // Initialize graphics on OpenGL thread
-        Gdx.app.postRunnable(this::initializeGraphics);
+        // Don't initialize graphics here - let GameObjectManager handle it properly
+        // Gdx.app.postRunnable(this::initializeGraphics);
     }
 
     public PlayerObject(String playerId, boolean serverOnly) {
         super(playerId);
         this.playerId = playerId;
 
-        if (!serverOnly) {
-            Gdx.app.postRunnable(this::initializeGraphics);
-        }
+        // Don't initialize graphics here - let GameObjectManager handle it properly
+        // if (!serverOnly) {
+        //     Gdx.app.postRunnable(this::initializeGraphics);
+        // }
         Log.info("PlayerObject", "Created " + (serverOnly ? "server-only" : "client") + " PlayerObject: " + playerId);
     }
 
-    private void initializeGraphics() {
+    public void initializeGraphicsWithManager(ModelAssetManager modelAssetManager) {
         try {
-            // Create player model
-            ModelBuilder modelBuilder = new ModelBuilder();
-            Model playerModel = modelBuilder.createSphere(3f, 3f, 3f, 16, 16,
-                new Material(ColorAttribute.createDiffuse(Color.BLUE)),
-                VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal);
+            Model playerModel;
+
+            // Try to load the snowman model first
+            try {
+                ObjLoader objLoader = new ObjLoader();
+                playerModel = objLoader.loadModel(Gdx.files.internal(PLAYER_MODEL_PATH));
+
+                // Create model instance through the asset manager
+                setModelInstance(modelAssetManager.createModelInstance(PLAYER_MODEL_PATH, playerModel));
+
+                // Get model bounds for proper positioning
+                modelBounds = modelAssetManager.getModelBounds(PLAYER_MODEL_PATH);
+
+                Log.info("PlayerObject", "Loaded snowman model for player: " + playerId);
+            } catch (Exception objException) {
+                Log.warn("PlayerObject", "Failed to load snowman model, falling back to default sphere", objException);
+                // Fall back to default sphere if snowman model fails to load
+                ModelBuilder modelBuilder = new ModelBuilder();
+                playerModel = modelBuilder.createSphere(3f, 3f, 3f, 16, 16,
+                    new Material(ColorAttribute.createDiffuse(Color.BLUE)),
+                    VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal);
+
+                setModelInstance(new ModelInstance(playerModel));
+                modelBounds = null; // No bounds for procedural model
+            }
+
+            graphicsInitialized = true;
+            Log.info("PlayerObject", "Graphics initialized for player: " + playerId);
+        } catch (Exception e) {
+            Log.error("PlayerObject", "Failed to initialize graphics for player: " + playerId, e);
+        }
+    }
+
+    private void initializeGraphics() {
+        // Fallback method for backward compatibility
+        try {
+            Model playerModel;
+
+            // Try to load the snowman model first
+            try {
+                ObjLoader objLoader = new ObjLoader();
+                playerModel = objLoader.loadModel(Gdx.files.internal(PLAYER_MODEL_PATH));
+                Log.info("PlayerObject", "Loaded snowman model for player: " + playerId);
+            } catch (Exception objException) {
+                Log.warn("PlayerObject", "Failed to load snowman model, falling back to default sphere", objException);
+                // Fall back to default sphere if snowman model fails to load
+                ModelBuilder modelBuilder = new ModelBuilder();
+                playerModel = modelBuilder.createSphere(3f, 3f, 3f, 16, 16,
+                    new Material(ColorAttribute.createDiffuse(Color.BLUE)),
+                    VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal);
+            }
 
             setModelInstance(new ModelInstance(playerModel));
             graphicsInitialized = true;
@@ -110,6 +161,22 @@ public class PlayerObject extends WorldObject {
             // Sync position from physics
             if (getPosition() != null) {
                 getPosition().set(characterController.getGhostObject().getWorldTransform().getTranslation(tempVector));
+
+                // Update ModelInstance position using bounds-aware positioning
+                if (getModelInstance() != null) {
+                    if (modelBounds != null) {
+                        // Use precise bounds-based positioning with camera rotation
+                        updateModelPositionWithBounds(modelBounds, PLAYER_HEIGHT, PLAYER_MODEL_SCALE, yaw);
+                    } else {
+                        // Fallback to simple positioning for procedural models with rotation
+                        Vector3 modelPosition = getPosition().cpy();
+                        modelPosition.y -= 1.2f;
+                        getModelInstance().transform.idt();
+                        getModelInstance().transform.setToTranslation(modelPosition);
+                        getModelInstance().transform.scl(PLAYER_MODEL_SCALE);
+                        getModelInstance().transform.rotate(Vector3.Y, yaw);
+                    }
+                }
             }
         }
     }
@@ -285,10 +352,8 @@ public class PlayerObject extends WorldObject {
     @Override
     public boolean canBePossessed() {
         if (!graphicsInitialized) {
-            // Try to initialize graphics if they haven't been initialized yet
-            if (Gdx.app != null) {
-                Gdx.app.postRunnable(this::initializeGraphics);
-            }
+            // Graphics should be initialized by GameObjectManager when added
+            // Don't create duplicate models here
             return false;
         }
         return true;

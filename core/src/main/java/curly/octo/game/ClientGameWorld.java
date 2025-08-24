@@ -129,8 +129,12 @@ public class ClientGameWorld extends GameWorld {
                 }
             }
 
-            // Render the map with other players included in shadow casting
-            getMapRenderer().render(camera, getEnvironment(), getMapRenderer().getBloomFrameBuffer(), playerInstances);
+            // Collect all WorldObjects from GameObjectManager
+            Array<ModelInstance> allInstances = new Array<>(playerInstances);
+            allInstances.addAll(getGameObjectManager().getRenderQueue());
+
+            // Render the map with players and WorldObjects
+            getMapRenderer().render(camera, getEnvironment(), getMapRenderer().getBloomFrameBuffer(), allInstances);
 
             // Render physics debug information if enabled
             if (getMapManager() != null) {
