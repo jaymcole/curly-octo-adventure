@@ -79,6 +79,9 @@ public class GameMapRenderer implements Disposable {
     // Track rendering stats for debug UI
     private long lastFacesBuilt = 0;
     private long lastTilesProcessed = 0;
+    
+    // Chunk-based rendering
+    private ChunkedMapModelBuilder chunkModelBuilder = null;
 
     public GameMapRenderer(GameObjectManager objectManager) {
         this.objectManager = objectManager;
@@ -179,10 +182,23 @@ public class GameMapRenderer implements Disposable {
             // Reset light index for new frame
             cubeShadowMapRenderer.resetLightIndex();
 
+            // Get the appropriate map instances based on rendering strategy
+            Array<ModelInstance> mapInstances;
+            if (chunkModelBuilder != null) {
+                // For chunked strategy, get only chunks near camera
+                float renderDistance = 200f; // Render chunks within 200 units of camera
+                mapInstances = chunkModelBuilder.getChunksNearPosition(camera.position, renderDistance);
+                Log.debug("GameMapRenderer", String.format("Rendering %d chunks near camera position (%.1f, %.1f, %.1f)", 
+                    mapInstances.size, camera.position.x, camera.position.y, camera.position.z));
+            } else {
+                // For traditional strategies, use all instances
+                mapInstances = instances;
+            }
+            
             // Combine map instances with additional dynamic objects for shadow generation
-            Array<ModelInstance> allInstances = instances;
+            Array<ModelInstance> allInstances = mapInstances;
             if (additionalInstances != null && additionalInstances.size > 0) {
-                allInstances = new Array<>(instances);
+                allInstances = new Array<>(mapInstances);
                 allInstances.addAll(additionalInstances);
             }
 
@@ -470,6 +486,9 @@ public class GameMapRenderer implements Disposable {
 
         // Create the appropriate model builder based on strategy
         MapModelBuilder builder;
+        boolean isChunkedStrategy = false;
+        ChunkedMapModelBuilder chunkedBuilder = null;
+        
         switch (renderingStrategy) {
             case BFS_VISIBLE:
                 builder = new BFSVisibleMapModelBuilder(map);
@@ -477,7 +496,9 @@ public class GameMapRenderer implements Disposable {
             case CHUNKED:
                 // Debug the chunked strategy before building
                 ChunkDebugger.quickDebug(map, "Before ChunkedMapModelBuilder");
-                builder = new ChunkedMapModelBuilder(map);
+                chunkedBuilder = new ChunkedMapModelBuilder(map);
+                builder = chunkedBuilder;
+                isChunkedStrategy = true;
                 break;
             case ALL_TILES:
             default:
@@ -485,11 +506,23 @@ public class GameMapRenderer implements Disposable {
                 break;
         }
 
-        // Build main opaque geometry (no water surfaces)
-        ModelBuilder opaqueBuilder = new ModelBuilder();
-        opaqueBuilder.begin();
-        builder.buildGeometry(opaqueBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null); // null waterMaterial = no water in main model
-        model = opaqueBuilder.end();
+        if (isChunkedStrategy) {
+            // For chunked strategy, build individual chunk models
+            builder.buildGeometry(null, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null);
+            // Store the chunk builder for rendering
+            this.chunkModelBuilder = chunkedBuilder;
+            // No single model for chunked strategy - we use individual chunk instances
+            model = null;
+            Log.info("GameMapRenderer", "Built " + chunkedBuilder.getAllChunkInstances().size + " individual chunk models");
+        } else {
+            // Clear chunk builder if not using chunked strategy
+            this.chunkModelBuilder = null;
+            // Build main opaque geometry (no water surfaces)
+            ModelBuilder opaqueBuilder = new ModelBuilder();
+            opaqueBuilder.begin();
+            builder.buildGeometry(opaqueBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null); // null waterMaterial = no water in main model
+            model = opaqueBuilder.end();
+        }
 
         // Build separate surface models for transparency with simple materials
         ModelBuilder waterBuilder = new ModelBuilder();
@@ -513,7 +546,14 @@ public class GameMapRenderer implements Disposable {
 
         // Create model instances for rendering
         instances.clear();
-        instances.add(new ModelInstance(model));
+        if (isChunkedStrategy && chunkModelBuilder != null) {
+            // For chunked strategy, add all chunk instances
+            instances.addAll(chunkModelBuilder.getAllChunkInstances());
+            Log.info("GameMapRenderer", "Added " + instances.size + " chunk instances to render queue");
+        } else if (model != null) {
+            // For traditional strategies, add single model instance
+            instances.add(new ModelInstance(model));
+        }
 
         if (waterModel != null) {
             waterInstance = new ModelInstance(waterModel);
@@ -691,6 +731,17 @@ public class GameMapRenderer implements Disposable {
             }
             model = null;
             instances.clear();
+        }
+        
+        // Dispose chunk model builder
+        if (chunkModelBuilder != null) {
+            try {
+                chunkModelBuilder.dispose();
+                Log.info("GameMapRenderer", "Chunk model builder disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing chunk model builder: " + e.getMessage());
+            }
+            chunkModelBuilder = null;
         }
 
         if (waterModel != null) {
