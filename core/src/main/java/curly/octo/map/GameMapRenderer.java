@@ -25,6 +25,7 @@ import curly.octo.map.hints.MapHint;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.rendering.AllTilesMapModelBuilder;
 import curly.octo.map.rendering.BFSVisibleMapModelBuilder;
+import curly.octo.map.rendering.ChunkedMapRenderer;
 import curly.octo.map.rendering.MapModelBuilder;
 import curly.octo.rendering.CubeShadowMapRenderer;
 import curly.octo.rendering.BloomRenderer;
@@ -49,6 +50,10 @@ public class GameMapRenderer implements Disposable {
     private ModelInstance lavaInstance;
     private ModelInstance fogInstance;
     private boolean disposed = false;
+    
+    // Chunked rendering for large maps
+    private ChunkedMapRenderer chunkedRenderer;
+    private boolean useChunkedRendering = false;
 
     private GameObjectManager objectManager;
     private Environment environment;
@@ -195,7 +200,20 @@ public class GameMapRenderer implements Disposable {
 
             // Render opaque geometry with shadows
             Vector3 ambientLight = getAmbientLight(environment);
-            cubeShadowMapRenderer.renderWithMultipleCubeShadows(allInstances, camera, significantLights, pointLights.lights, ambientLight);
+            
+            // Always use chunked rendering
+            if (chunkedRenderer != null) {
+                chunkedRenderer.update(camera.position);
+                // For now, use a simple ModelBatch approach for chunked rendering
+                ModelBatch chunkBatch = new ModelBatch();
+                chunkBatch.begin(camera);
+                chunkedRenderer.render(chunkBatch, camera);
+                chunkBatch.end();
+                chunkBatch.dispose();
+            } else {
+                // Fallback to traditional rendering if chunked renderer failed to initialize
+                cubeShadowMapRenderer.renderWithMultipleCubeShadows(allInstances, camera, significantLights, pointLights.lights, ambientLight);
+            }
 
             // Render transparent surfaces with custom shaders
             if (waterInstance != null) {
@@ -464,60 +482,23 @@ public class GameMapRenderer implements Disposable {
         Material lavaMaterial = createLavaMaterial();
         Material fogMaterial = createFogMaterial();
 
-        // Create the appropriate model builder based on strategy
-        MapModelBuilder builder;
-        switch (renderingStrategy) {
-            case BFS_VISIBLE:
-                builder = new BFSVisibleMapModelBuilder(map);
-                break;
-            case ALL_TILES:
-            default:
-                builder = new AllTilesMapModelBuilder(map);
-                break;
-        }
+        // Always use chunked rendering to avoid vertex limits
+        int tileCount = map.getAllTiles().size();
+        useChunkedRendering = true;
+        
+        System.out.println("GameMapRenderer: Using chunked rendering (" + tileCount + " tiles)");
+        chunkedRenderer = new ChunkedMapRenderer(map, stoneMaterial, dirtMaterial, 
+                                               grassMaterial, spawnMaterial, pinkWall, waterMaterial);
 
-        // Build main opaque geometry (no water surfaces)
-        ModelBuilder opaqueBuilder = new ModelBuilder();
-        opaqueBuilder.begin();
-        builder.buildGeometry(opaqueBuilder, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null); // null waterMaterial = no water in main model
-        model = opaqueBuilder.end();
-
-        // Build separate surface models for transparency with simple materials
-        ModelBuilder waterBuilder = new ModelBuilder();
-        waterBuilder.begin();
-        builder.buildWaterGeometry(waterBuilder, createSimpleMaterial());
-        waterModel = waterBuilder.end();
-
-        ModelBuilder lavaBuilder = new ModelBuilder();
-        lavaBuilder.begin();
-        builder.buildLavaGeometry(lavaBuilder, createSimpleMaterial());
-        lavaModel = lavaBuilder.end();
-
-        ModelBuilder fogBuilder = new ModelBuilder();
-        fogBuilder.begin();
-        builder.buildFogGeometry(fogBuilder, createSimpleMaterial());
-        fogModel = fogBuilder.end();
-
-        // Update stats for debug UI
-        lastFacesBuilt = builder.getTotalFacesBuilt();
-        lastTilesProcessed = builder.getTotalTilesProcessed();
-
-        // Create model instances for rendering
+        // For chunked rendering, we don't need individual model instances
         instances.clear();
-        instances.add(new ModelInstance(model));
-
-        if (waterModel != null) {
-            waterInstance = new ModelInstance(waterModel);
-        }
-        if (lavaModel != null) {
-            lavaInstance = new ModelInstance(lavaModel);
-        }
-        if (fogModel != null) {
-            fogInstance = new ModelInstance(fogModel);
-        }
+        
+        // Update stats for debug UI (chunked renderer manages its own stats)
+        lastFacesBuilt = 0; // Will be updated by chunked renderer
+        lastTilesProcessed = tileCount;
 
         long endTime = System.currentTimeMillis();
-        Log.info("GameMapRenderer", "Completed map update in " + (endTime - startTime) + "ms using " + builder.getStrategyDescription());
+        Log.info("GameMapRenderer", "Completed chunked map setup in " + (endTime - startTime) + "ms");
     }
 
     private Material createMaterial(Color diffuse, float specular, float shininess) {
@@ -701,6 +682,12 @@ public class GameMapRenderer implements Disposable {
             }
             fogModel = null;
             fogInstance = null;
+        }
+
+        // Dispose chunked renderer
+        if (chunkedRenderer != null) {
+            chunkedRenderer.dispose();
+            chunkedRenderer = null;
         }
 
         disposed = true;

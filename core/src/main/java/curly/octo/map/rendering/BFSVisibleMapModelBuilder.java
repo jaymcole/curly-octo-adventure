@@ -28,10 +28,36 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
     
     private Set<MapTile> reachableTiles = new HashSet<>();
     private Set<MapTile> visibleTiles = new HashSet<>();
+    private Set<MapTile> tileFilter = null; // Optional filter for chunked rendering
     private Map<MapTile, boolean[]> visibleFaces = new HashMap<>(); // Which faces of each tile are visible
     
     public BFSVisibleMapModelBuilder(GameMap gameMap) {
         super(gameMap);
+    }
+
+    public BFSVisibleMapModelBuilder() {
+        super(null);
+    }
+
+    /**
+     * Set tile filter for chunked rendering
+     */
+    public void setTileFilter(Set<MapTile> filter) {
+        this.tileFilter = filter;
+    }
+
+    /**
+     * Clear tile filter
+     */
+    public void clearTileFilter() {
+        this.tileFilter = null;
+    }
+
+    /**
+     * Set the game map (for chunked rendering)
+     */
+    public void setGameMap(GameMap gameMap) {
+        this.gameMap = gameMap;
     }
     
     @Override
@@ -65,8 +91,9 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
         
         int waterSurfaceCount = 0;
         
-        // Find all water surfaces and build them by iterating over actual tiles
-        for (MapTile tile : gameMap.getAllTiles()) {
+        // Find all water surfaces and build them by iterating over actual tiles (or filtered tiles)
+        Collection<MapTile> tilesToProcess = (tileFilter != null) ? tileFilter : gameMap.getAllTiles();
+        for (MapTile tile : tilesToProcess) {
             if (tile.fillType == MapTileFillType.WATER) {
                 int x = (int)(tile.x / MapTile.TILE_SIZE);
                 int y = (int)(tile.y / MapTile.TILE_SIZE);
@@ -282,8 +309,9 @@ public class BFSVisibleMapModelBuilder extends MapModelBuilder {
 
         int renderedTiles = 0;
 
-        // Iterate over all tiles in the map
-        for (MapTile tile : gameMap.getAllTiles()) {
+        // Iterate over all tiles in the map (or filtered tiles for chunking)
+        Collection<MapTile> tilesToProcess = (tileFilter != null) ? tileFilter : gameMap.getAllTiles();
+        for (MapTile tile : tilesToProcess) {
             totalTilesProcessed++;
 
             // Add spawn markers (always visible)
