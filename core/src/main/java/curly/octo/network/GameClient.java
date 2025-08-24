@@ -28,7 +28,7 @@ public class GameClient {
     public GameClient(String host) {
         this.host = host;
         // Increased buffer sizes for large map transfers (5MB each)
-        this.client = new Client(5242880, 5242880);
+        this.client = new Client(50000000, 50000000);
 
         // Register all network classes
         Network.register(client);
@@ -147,7 +147,7 @@ public class GameClient {
             } catch (Exception e) {
                 Log.warn("Client", "Exception during immediate disconnect: " + e.getMessage());
             }
-            
+
             // Then stop the client in a separate thread to avoid blocking
             Thread stopThread = new Thread(() -> {
                 try {

@@ -31,8 +31,16 @@ public class SnailMapGenerator extends MapGenerator {
     private static final int MAX_MAP_SIZE = 8000; // Maximum tiles to prevent infinite generation
     private static final float OPTIONAL_NODE_PROBABILITY = 0.4f; // Chance to use optional nodes
 
+    // Snail type registry for flexible snail generation
+    private final SnailTypeRegistry snailRegistry;
+
     public SnailMapGenerator(Random random, GameMap gameMap) {
+        this(random, gameMap, LevelProfile.BALANCED);
+    }
+
+    public SnailMapGenerator(Random random, GameMap gameMap, LevelProfile profile) {
         super(random, gameMap);
+        this.snailRegistry = profile.createRegistry();
     }
 
     @Override
@@ -88,47 +96,11 @@ public class SnailMapGenerator extends MapGenerator {
         }
     }
 
-    private void executeSnails(BaseSnail initialSnail) {
-        List<BaseSnail> activeSnails = new ArrayList<>();
-        activeSnails.add(initialSnail);
-
-        int maxSteps = 1000; // Safety limit
-        int steps = 0;
-
-        while (!activeSnails.isEmpty() && steps < maxSteps) {
-            List<BaseSnail> nextGeneration = new ArrayList<>();
-
-            for (BaseSnail snail : activeSnails) {
-                if (!snail.isDone()) {
-                    SnailResult result = snail.execute();
-
-                    if (!result.isComplete()) {
-                        // Snail continues, keep it for next iteration
-                        nextGeneration.add(snail);
-                    }
-
-                    // Add any spawned snails
-                    nextGeneration.addAll(result.getSpawnedSnails());
-                }
-            }
-
-            activeSnails = nextGeneration;
-            steps++;
-        }
-
-        if (steps >= maxSteps) {
-            System.err.println("Warning: Snail generation reached maximum steps limit");
-        }
-
-        System.out.println("SnailMapGenerator: Executed " + steps + " steps with " +
-                          (steps >= maxSteps ? "MAX STEPS REACHED" : "completion"));
-    }
-
     private void executeSnailWithNodes(BaseSnail snail) {
         List<BaseSnail> activeSnails = new ArrayList<>();
         activeSnails.add(snail);
 
-        int maxSteps = 1000;
+        int maxSteps = 100;
         int steps = 0;
 
         while (!activeSnails.isEmpty() && steps < maxSteps) {
@@ -192,29 +164,9 @@ public class SnailMapGenerator extends MapGenerator {
     }
 
     private BaseSnail createRandomSnailForNode(ExpansionNode node) {
-        // Create various types of snails based on random selection
-        float choice = random.nextFloat();
         Vector3 pos = node.getPosition();
         Direction dir = node.getDirection();
-
-        return new HallwaySnail(map, pos, dir, random, random.nextInt(15) + 10, 3, 3);
-
-//        if (choice < 0.3f) {
-//            return new ForwardSnail(map, pos, dir, random, random.nextInt(1, 5), 3);
-//        } else if (choice < 0.6f) {
-//            // L-shaped corridor
-//            int length1 = random.nextInt(3, 8);
-//            int length2 = random.nextInt(3, 8);
-//            Turn turn = random.nextBoolean() ? Turn.CLOCKWISE : Turn.COUNTERCLOCKWISE;
-//            return new ForwardSnail(map, pos, dir, random, length1, 3)
-//                    .then(new TurnSnail(map, pos, dir, random, turn))
-//                    .then(new ForwardSnail(map, pos, dir, random, length2, 3));
-//        } else { //if (choice < 0.8f) {
-//            // Room
-//            int width = random.nextInt(4, 8);
-//            int depth = random.nextInt(4, 8);
-//            return new RoomSnail(map, pos, dir, random, width, 2, depth);
-//        }
+        return snailRegistry.createRandomSnail(map, pos, dir, random);
     }
 
     private boolean hasNecessaryNodes() {
@@ -223,7 +175,17 @@ public class SnailMapGenerator extends MapGenerator {
 
     private boolean shouldAddMoreOptionalNodes() {
         int currentTiles = map.getAllTiles().size();
-        return !optionalNodes.isEmpty() && currentTiles < MAX_MAP_SIZE;
+        boolean hasOptionalNodes = !optionalNodes.isEmpty();
+        boolean underMaxSize = currentTiles < MAX_MAP_SIZE;
+        boolean underMinSize = currentTiles < MIN_MAP_SIZE;
+        
+        // Force expansion if under minimum size and we have any nodes available
+        if (underMinSize && hasOptionalNodes) {
+            return true;
+        }
+        
+        // Continue with optional nodes if under max size and nodes available
+        return hasOptionalNodes && underMaxSize;
     }
 
     private void addSpawnPoint(Vector3 startPos) {

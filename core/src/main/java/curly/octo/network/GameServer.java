@@ -35,7 +35,7 @@ public class GameServer {
         this.players = players;
         this.gameWorld = gameWorld;
         // Increased buffer sizes for large map transfers (5MB each)
-        this.server = new Server(5242880, 5242880);
+        this.server = new Server(50000000, 50000000);
         this.networkListener = new NetworkListener(server);
 
         // Register all network classes

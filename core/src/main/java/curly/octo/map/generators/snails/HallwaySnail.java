@@ -25,6 +25,24 @@ public class HallwaySnail extends BaseSnail{
         
         // Create a wide hallway by marking tiles across the width at each step
         for(int i = 0; i < distance; i++) {
+            // Only check for collisions after we've made some progress (allow connecting to existing structures)
+            // Be more lenient when the map is still small
+            Vector3 checkPos = coordinate.cpy();
+            int minStepsBeforeCollision = shouldBeLenientWithCollisions() ? Math.max(5, distance / 2) : 2;
+            if (i > minStepsBeforeCollision && tileExists(checkPos)) {
+                System.out.println("HallwaySnail: Terminating early at step " + i + " - found existing tile at " + checkPos);
+                // Still create an expansion node at this connection point
+                ExpansionNode connectionNode = new ExpansionNode(
+                    coordinate.cpy(), 
+                    direction, 
+                    ExpansionNode.Priority.OPTIONAL, 
+                    "HallwaySnail-connection"
+                );
+                expansionNodes.add(connectionNode);
+                complete = true;
+                return SnailResult.withExpansionNodes(true, expansionNodes.toArray(new ExpansionNode[0]));
+            }
+            
             // Mark tiles across the width at current position
             Vector3 leftDirection = getPerpendicularVector(Direction.rotateCounterClockwise(direction));
             Vector3 rightDirection = getPerpendicularVector(Direction.rotateClockwise(direction));

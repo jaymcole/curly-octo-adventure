@@ -81,6 +81,34 @@ public abstract class BaseSnail {
         this.map.touchTile(coordinate);
     }
 
+    /**
+     * Check if a tile already exists at the given coordinates.
+     * @param coordinate The position to check
+     * @return true if a tile already exists, false otherwise
+     */
+    protected boolean tileExists(Vector3 coordinate) {
+        return map.getTile((int)coordinate.x, (int)coordinate.y, (int)coordinate.z) != null;
+    }
+
+    /**
+     * Check if collision detection should be lenient due to small map size.
+     * @return true if map is still small and should continue generating
+     */
+    protected boolean shouldBeLenientWithCollisions() {
+        return map.getAllTiles().size() < 200; // MIN_MAP_SIZE
+    }
+
+    /**
+     * Check if a tile already exists at the given coordinates.
+     * @param x The x coordinate
+     * @param y The y coordinate  
+     * @param z The z coordinate
+     * @return true if a tile already exists, false otherwise
+     */
+    protected boolean tileExists(int x, int y, int z) {
+        return map.getTile(x, y, z) != null;
+    }
+
     // Getters for snail state
     public Vector3 getCoordinate() {
         return coordinate.cpy();
