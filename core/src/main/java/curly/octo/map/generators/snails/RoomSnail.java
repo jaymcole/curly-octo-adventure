@@ -38,7 +38,7 @@ public class RoomSnail extends BaseSnail {
         Vector3 floorCenter = coordinate.cpy();
         int halfWidth = width / 2;
         int halfDepth = depth / 2;
-        
+
         // Check multiple positions within the room area
         Vector3[] checkPositions = {
             floorCenter.cpy(), // Center
@@ -47,19 +47,18 @@ public class RoomSnail extends BaseSnail {
             new Vector3(floorCenter.x - halfWidth + 1, floorCenter.y, floorCenter.z + halfDepth - 1), // NW interior
             new Vector3(floorCenter.x + halfWidth - 1, floorCenter.y, floorCenter.z + halfDepth - 1)  // NE interior
         };
-        
+
         int occupiedCount = 0;
         for (Vector3 checkPos : checkPositions) {
             if (tileExists(checkPos)) {
                 occupiedCount++;
             }
         }
-        
+
         // Only terminate if more than half the check positions are occupied (heavy overlap)
         // But be more lenient if the map is still small
         int threshold = shouldBeLenientWithCollisions() ? checkPositions.length - 1 : checkPositions.length / 2;
         if (occupiedCount > threshold) {
-            System.out.println("RoomSnail: Terminating - " + occupiedCount + "/" + checkPositions.length + " positions occupied at " + floorCenter + " (threshold=" + threshold + ")");
             complete = true;
             return SnailResult.COMPLETE;
         }
@@ -82,11 +81,6 @@ public class RoomSnail extends BaseSnail {
 
         // Create expansion nodes on room walls
         ExpansionNode[] expansionNodes = createRoomExpansionNodes(floorCenter);
-
-        System.out.println("RoomSnail: Created " + width + "x" + height + "x" + depth +
-                          " room at " + floorCenter + " (" + tilesCreated + " tiles, " +
-                          expansionNodes.length + " expansion nodes)");
-
         roomCreated = true;
         complete = true;
         return SnailResult.withExpansionNodes(true, expansionNodes);

@@ -26,19 +26,19 @@ public class ChunkingExample {
         Set<LevelChunk> populatedChunks = chunkManager.organizeIntoChunks();
         
         // Step 3: Log chunk organization results
-        Vector3 chunkBounds = chunkManager.getChunkBounds();
         Vector3 worldBounds = chunkManager.getWorldBounds();
         
         Log.info("ChunkingExample", String.format(
             "Organized map into chunks:\n" +
-            "  Total chunks: %d (%dx%dx%d)\n" +
-            "  Populated chunks: %d (%.1f%% usage)\n" +
+            "  Created chunks: %d\n" +
+            "  Populated chunks: %d (%.1f%% of created)\n" +
+            "  Max possible chunks: %d\n" +
             "  World bounds: %dx%dx%d tiles\n" +
             "  World coordinates: (%d,%d,%d) to (%d,%d,%d)",
             chunkManager.getTotalChunkCount(),
-            (int)chunkBounds.x, (int)chunkBounds.y, (int)chunkBounds.z,
             populatedChunks.size(),
-            (populatedChunks.size() * 100.0f / chunkManager.getTotalChunkCount()),
+            (populatedChunks.size() * 100.0f / Math.max(1, chunkManager.getTotalChunkCount())),
+            chunkManager.getMaxPossibleChunkCount(),
             (int)worldBounds.x, (int)worldBounds.y, (int)worldBounds.z,
             (int)chunkManager.getMinWorldCoords().x, (int)chunkManager.getMinWorldCoords().y, (int)chunkManager.getMinWorldCoords().z,
             (int)chunkManager.getMaxWorldCoords().x, (int)chunkManager.getMaxWorldCoords().y, (int)chunkManager.getMaxWorldCoords().z

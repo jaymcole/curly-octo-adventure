@@ -55,7 +55,6 @@ public abstract class BaseSnail {
         lightHint.flicker = LightPresets.LIGHT_FLICKER_1;
 
         map.registerHint(lightHint);
-        System.out.println("SnailMapGenerator: Added light at " + lightPos);
     }
 
     /**
@@ -101,7 +100,7 @@ public abstract class BaseSnail {
     /**
      * Check if a tile already exists at the given coordinates.
      * @param x The x coordinate
-     * @param y The y coordinate  
+     * @param y The y coordinate
      * @param z The z coordinate
      * @return true if a tile already exists, false otherwise
      */

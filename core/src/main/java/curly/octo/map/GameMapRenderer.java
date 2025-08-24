@@ -20,6 +20,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameObjectManager;
+import curly.octo.map.ChunkDebugger;
 import curly.octo.map.ChunkManager;
 import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.MapHint;
@@ -474,6 +475,8 @@ public class GameMapRenderer implements Disposable {
                 builder = new BFSVisibleMapModelBuilder(map);
                 break;
             case CHUNKED:
+                // Debug the chunked strategy before building
+                ChunkDebugger.quickDebug(map, "Before ChunkedMapModelBuilder");
                 builder = new ChunkedMapModelBuilder(map);
                 break;
             case ALL_TILES:

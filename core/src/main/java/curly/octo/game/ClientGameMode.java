@@ -316,31 +316,23 @@ public class ClientGameMode implements GameMode {
 
     private void checkReady() {
         Log.info("ClientGameMode", "checkReady() - mapReceived: " + mapReceived + ", playerAssigned: " + playerAssigned + ", active: " + active);
-        System.out.println("checkReady() - mapReceived: " + mapReceived + ", playerAssigned: " + playerAssigned + ", active: " + active);
 
         if (mapReceived && playerAssigned && !active) {
             Log.info("ClientGameMode", "All conditions met, activating client mode...");
-            System.out.println("All conditions met, activating client mode...");
             // Switch to 3D view
             Gdx.app.postRunnable(() -> {
                 try {
                     Thread.sleep(1000);
                     active = true;
-                    System.out.println("ClientGameMode activated! active=" + active);
 
                     if (gameWorld.getGameObjectManager().localPlayer != null) {
                         inputController.setPossessionTarget(gameWorld.getGameObjectManager().localPlayer);
                         if (inputController instanceof com.badlogic.gdx.InputProcessor) {
                             Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
-                            System.out.println("Set InputProcessor to: " + inputController.getClass().getSimpleName());
-                        } else {
-                            System.out.println("ERROR: inputController is not an InputProcessor: " + inputController.getClass().getSimpleName());
                         }
                         Log.info("ClientGameMode", "Client mode activated successfully");
-                        System.out.println("Client mode activated successfully with local player: " + gameWorld.getGameObjectManager().localPlayer.getPlayerId());
                     } else {
                         Log.error("ClientGameMode", "Local player object is null, cannot activate");
-                        System.out.println("ERROR: Local player object is null, cannot activate");
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

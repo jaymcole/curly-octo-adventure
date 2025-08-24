@@ -214,8 +214,6 @@ public class SnailMapGenerator extends MapGenerator {
      * Inject expansion nodes at promising wall locations when the map is too small
      */
     private void injectExpansionNodes() {
-        System.out.println("SnailMapGenerator: Injecting expansion nodes - current size: " + map.getAllTiles().size());
-
         List<Vector3> wallPositions = findWallExpansionOpportunities();
         int nodesInjected = 0;
         int maxInject = Math.min(5, wallPositions.size()); // Don't inject too many at once
@@ -238,13 +236,10 @@ public class SnailMapGenerator extends MapGenerator {
 
                 optionalNodes.add(injectedNode);
                 nodesInjected++;
-                System.out.println("SnailMapGenerator: Injected expansion node at " + expansionPos + " facing " + expansionDir);
             }
 
             wallPositions.remove(wallPos); // Don't use same position twice
         }
-
-        System.out.println("SnailMapGenerator: Injected " + nodesInjected + " expansion nodes");
     }
 
     /**
@@ -284,8 +279,6 @@ public class SnailMapGenerator extends MapGenerator {
                 }
             }
         }
-
-        System.out.println("SnailMapGenerator: Found " + opportunities.size() + " wall expansion opportunities");
         return opportunities;
     }
 
@@ -340,6 +333,5 @@ public class SnailMapGenerator extends MapGenerator {
         lightHint.flicker = LightPresets.LIGHT_FLICKER_1;
 
         map.registerHint(lightHint);
-        System.out.println("SnailMapGenerator: Added light at " + lightPos);
     }
 }

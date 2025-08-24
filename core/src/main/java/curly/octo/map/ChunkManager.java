@@ -20,16 +20,15 @@ import java.util.*;
 public class ChunkManager {
     
     private final GameMap gameMap;
-    private LevelChunk[][][] chunks;
-    private Vector3 chunkBounds;
+    private HashMap<Long, LevelChunk> chunks; // Use HashMap instead of 3D array
     private Vector3 worldBounds;
     private Vector3 minWorldCoords;
     private Vector3 maxWorldCoords;
     
     public ChunkManager(GameMap gameMap) {
         this.gameMap = gameMap;
+        this.chunks = new HashMap<>();
         calculateBounds();
-        initializeChunks();
     }
     
     /**
@@ -54,6 +53,12 @@ public class ChunkManager {
         Log.info("ChunkManager", 
             String.format("Chunk organization complete: %d populated chunks, %d total tiles processed",
                 populatedChunks.size(), processedTiles.size()));
+        
+        // Log detailed placement statistics
+        Log.info("ChunkManager", String.format(
+            "Tile placement stats: SUCCESS=%d, SET_TILE_FAIL=%d. Created %d chunks total.",
+            placeTileSuccessCount, setTileFailureCount, chunks.size()
+        ));
                 
         return populatedChunks;
     }
@@ -167,22 +172,44 @@ public class ChunkManager {
      * @param tile The MapTile to place
      * @return true if the tile was successfully placed, false otherwise
      */
+    // Counters for debugging
+    private int placeTileFailureCount = 0;
+    private int placeTileSuccessCount = 0;
+    private int boundsFailureCount = 0;
+    private int chunkNotFoundCount = 0;
+    private int setTileFailureCount = 0;
+    
     private boolean placeTileInChunk(MapTile tile) {
         Vector3 tileCoords = getTileCoordinates(tile);
         Vector3 chunkCoords = worldToChunkCoordinates((int)tileCoords.x, (int)tileCoords.y, (int)tileCoords.z);
         
-        if (chunkCoords == null) {
-            Log.warn("ChunkManager", "Tile at " + tileCoords + " is outside chunk bounds");
-            return false;
+        // With HashMap approach, we can always create a chunk, so chunkCoords is never null
+        LevelChunk chunk = getOrCreateChunk((int)chunkCoords.x, (int)chunkCoords.y, (int)chunkCoords.z);
+        
+        boolean success = chunk.setTileByWorldCoordinates((int)tileCoords.x, (int)tileCoords.y, (int)tileCoords.z, tile);
+        if (success) {
+            placeTileSuccessCount++;
+            // Log first few successful placements for debugging
+            if (placeTileSuccessCount <= 5) {
+                Log.info("ChunkManager", String.format(
+                    "SUCCESS: Placed tile %s at tile coords (%d,%d,%d) in chunk (%d,%d,%d)",
+                    tile.geometryType.name(),
+                    (int)tileCoords.x, (int)tileCoords.y, (int)tileCoords.z,
+                    (int)chunkCoords.x, (int)chunkCoords.y, (int)chunkCoords.z
+                ));
+            }
+        } else {
+            setTileFailureCount++;
+            if (setTileFailureCount <= 3) {
+                Log.warn("ChunkManager", String.format(
+                    "Failed to set tile at tile coords (%d,%d,%d) in chunk (%d,%d,%d)",
+                    (int)tileCoords.x, (int)tileCoords.y, (int)tileCoords.z,
+                    (int)chunkCoords.x, (int)chunkCoords.y, (int)chunkCoords.z
+                ));
+            }
         }
         
-        LevelChunk chunk = getChunk((int)chunkCoords.x, (int)chunkCoords.y, (int)chunkCoords.z);
-        if (chunk == null) {
-            Log.warn("ChunkManager", "No chunk found at chunk coordinates " + chunkCoords);
-            return false;
-        }
-        
-        return chunk.setTileByWorldCoordinates((int)tileCoords.x, (int)tileCoords.y, (int)tileCoords.z, tile);
+        return success;
     }
     
     /**
@@ -204,29 +231,55 @@ public class ChunkManager {
     
     /**
      * Converts world tile coordinates to chunk coordinates.
+     * Now handles negative coordinates properly using floor division.
      * 
      * @param worldX World X coordinate in tile units
      * @param worldY World Y coordinate in tile units
      * @param worldZ World Z coordinate in tile units
-     * @return Vector3 with chunk coordinates, or null if out of bounds
+     * @return Vector3 with chunk coordinates (never null with HashMap approach)
      */
     public Vector3 worldToChunkCoordinates(int worldX, int worldY, int worldZ) {
-        if (worldX < minWorldCoords.x || worldX > maxWorldCoords.x ||
-            worldY < minWorldCoords.y || worldY > maxWorldCoords.y ||
-            worldZ < minWorldCoords.z || worldZ > maxWorldCoords.z) {
-            return null;
-        }
-        
-        // Adjust for minimum coordinates and calculate chunk position
-        int adjustedX = (int)(worldX - minWorldCoords.x);
-        int adjustedY = (int)(worldY - minWorldCoords.y);
-        int adjustedZ = (int)(worldZ - minWorldCoords.z);
-        
-        int chunkX = adjustedX / LevelChunk.CHUNK_SIZE;
-        int chunkY = adjustedY / LevelChunk.CHUNK_SIZE;
-        int chunkZ = adjustedZ / LevelChunk.CHUNK_SIZE;
+        // Use floor division to handle negative coordinates properly
+        int chunkX = Math.floorDiv(worldX, LevelChunk.CHUNK_SIZE);
+        int chunkY = Math.floorDiv(worldY, LevelChunk.CHUNK_SIZE);
+        int chunkZ = Math.floorDiv(worldZ, LevelChunk.CHUNK_SIZE);
         
         return new Vector3(chunkX, chunkY, chunkZ);
+    }
+    
+    /**
+     * Encode chunk coordinates into a long key for HashMap storage.
+     * This allows us to store chunks at any coordinate, including negative ones.
+     * 
+     * @param chunkX Chunk X coordinate  
+     * @param chunkY Chunk Y coordinate
+     * @param chunkZ Chunk Z coordinate
+     * @return Encoded long key
+     */
+    private long encodeChunkCoordinates(int chunkX, int chunkY, int chunkZ) {
+        // Use the same encoding as GameMap for consistency
+        // This supports coordinates from -1048576 to 1048575 in each dimension
+        return (((long)chunkX & 0x1FFFFF) << 42) | (((long)chunkY & 0x1FFFFF) << 21) | ((long)chunkZ & 0x1FFFFF);
+    }
+    
+    /**
+     * Get or create a chunk at the specified chunk coordinates.
+     * 
+     * @param chunkX Chunk X coordinate
+     * @param chunkY Chunk Y coordinate  
+     * @param chunkZ Chunk Z coordinate
+     * @return LevelChunk at the specified coordinates
+     */
+    private LevelChunk getOrCreateChunk(int chunkX, int chunkY, int chunkZ) {
+        long key = encodeChunkCoordinates(chunkX, chunkY, chunkZ);
+        LevelChunk chunk = chunks.get(key);
+        
+        if (chunk == null) {
+            chunk = new LevelChunk(chunkX, chunkY, chunkZ);
+            chunks.put(key, chunk);
+        }
+        
+        return chunk;
     }
     
     /**
@@ -251,17 +304,11 @@ public class ChunkManager {
      * @param chunkX Chunk X coordinate
      * @param chunkY Chunk Y coordinate
      * @param chunkZ Chunk Z coordinate
-     * @return The LevelChunk at the specified coordinates, or null if out of bounds
+     * @return The LevelChunk at the specified coordinates, or null if it doesn't exist
      */
     public LevelChunk getChunk(int chunkX, int chunkY, int chunkZ) {
-        if (chunks == null ||
-            chunkX < 0 || chunkX >= chunkBounds.x ||
-            chunkY < 0 || chunkY >= chunkBounds.y ||
-            chunkZ < 0 || chunkZ >= chunkBounds.z) {
-            return null;
-        }
-        
-        return chunks[chunkX][chunkY][chunkZ];
+        long key = encodeChunkCoordinates(chunkX, chunkY, chunkZ);
+        return chunks.get(key);
     }
     
     /**
@@ -272,16 +319,9 @@ public class ChunkManager {
     public Set<LevelChunk> getPopulatedChunks() {
         Set<LevelChunk> populated = new HashSet<>();
         
-        if (chunks != null) {
-            for (int x = 0; x < chunkBounds.x; x++) {
-                for (int y = 0; y < chunkBounds.y; y++) {
-                    for (int z = 0; z < chunkBounds.z; z++) {
-                        LevelChunk chunk = chunks[x][y][z];
-                        if (chunk != null && chunk.hasContent()) {
-                            populated.add(chunk);
-                        }
-                    }
-                }
+        for (LevelChunk chunk : chunks.values()) {
+            if (chunk != null && chunk.hasContent()) {
+                populated.add(chunk);
             }
         }
         
@@ -325,31 +365,7 @@ public class ChunkManager {
                 (int)worldBounds.x, (int)worldBounds.y, (int)worldBounds.z));
     }
     
-    /**
-     * Initializes the chunk array based on the calculated world bounds.
-     */
-    private void initializeChunks() {
-        // Calculate how many chunks we need in each dimension
-        int chunksX = (int)Math.ceil(worldBounds.x / (float)LevelChunk.CHUNK_SIZE);
-        int chunksY = (int)Math.ceil(worldBounds.y / (float)LevelChunk.CHUNK_SIZE);
-        int chunksZ = (int)Math.ceil(worldBounds.z / (float)LevelChunk.CHUNK_SIZE);
-        
-        chunkBounds = new Vector3(chunksX, chunksY, chunksZ);
-        chunks = new LevelChunk[chunksX][chunksY][chunksZ];
-        
-        // Create all chunks
-        for (int x = 0; x < chunksX; x++) {
-            for (int y = 0; y < chunksY; y++) {
-                for (int z = 0; z < chunksZ; z++) {
-                    chunks[x][y][z] = new LevelChunk(x, y, z);
-                }
-            }
-        }
-        
-        Log.info("ChunkManager", 
-            String.format("Initialized %d chunks (%dx%dx%d) for world bounds %s",
-                chunksX * chunksY * chunksZ, chunksX, chunksY, chunksZ, worldBounds));
-    }
+    // Removed initializeChunks() method - now using HashMap with lazy chunk creation
     
     /**
      * Extracts tile coordinates from a MapTile's world position.
@@ -366,10 +382,6 @@ public class ChunkManager {
     
     // Getters
     
-    public Vector3 getChunkBounds() {
-        return new Vector3(chunkBounds);
-    }
-    
     public Vector3 getWorldBounds() {
         return new Vector3(worldBounds);
     }
@@ -383,6 +395,17 @@ public class ChunkManager {
     }
     
     public int getTotalChunkCount() {
-        return (int)(chunkBounds.x * chunkBounds.y * chunkBounds.z);
+        return chunks.size(); // Return actual number of created chunks
+    }
+    
+    /**
+     * Get the theoretical maximum chunks needed to cover the world bounds.
+     * This is different from getTotalChunkCount() which returns actual created chunks.
+     */
+    public int getMaxPossibleChunkCount() {
+        int chunksX = (int)Math.ceil(worldBounds.x / (float)LevelChunk.CHUNK_SIZE);
+        int chunksY = (int)Math.ceil(worldBounds.y / (float)LevelChunk.CHUNK_SIZE);
+        int chunksZ = (int)Math.ceil(worldBounds.z / (float)LevelChunk.CHUNK_SIZE);
+        return chunksX * chunksY * chunksZ;
     }
 }
