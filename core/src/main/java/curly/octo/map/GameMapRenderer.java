@@ -585,7 +585,11 @@ public class GameMapRenderer implements Disposable {
             LightHint lightHint = (LightHint) hint;
             BaseLight light = new BaseLight(environment, objectManager, lightHint.entityId, lightHint.color_r, lightHint.color_g, lightHint.color_b, lightHint.intensity, null, lightHint.flicker);
             MapTile tile = map.getTile(hint.tileLookupKey);
-            light.setPosition(new Vector3(tile.x + MapTile.TILE_SIZE / 2f, tile.y + MapTile.TILE_SIZE / 2f, tile.z + MapTile.TILE_SIZE / 2f));
+            if (tile != null) {
+                light.setPosition(new Vector3(tile.x + MapTile.TILE_SIZE / 2f, tile.y + MapTile.TILE_SIZE / 2f, tile.z + MapTile.TILE_SIZE / 2f));
+            } else {
+                Log.error("extractLightsFromMap", "We registered a light for a tile that does not exist somehow");
+            }
             objectManager.add(light);
             lightCount++;
         }
@@ -637,7 +641,7 @@ public class GameMapRenderer implements Disposable {
     public long getLastTilesProcessed() {
         return lastTilesProcessed;
     }
-    
+
     /**
      * Get the ChunkManager if the current rendering strategy supports it.
      * @return ChunkManager instance, or null if not using chunked strategy

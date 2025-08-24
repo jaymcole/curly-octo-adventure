@@ -34,7 +34,7 @@ public abstract class BaseSnail {
             return SnailResult.COMPLETE;
         }
 
-        if (random.nextFloat() > 0.95f) {
+        if (random.nextFloat() > 0.8f) {
             addLight(coordinate);
         }
 
@@ -47,7 +47,7 @@ public abstract class BaseSnail {
 
         // Create light hint at position
         LightHint lightHint = new LightHint(map.constructKeyFromIndexCoordinates(
-            (int)lightPos.x, (int)lightPos.y, (int)lightPos.z));
+            (int)lightPos.x, (int)lightPos.y + 1, (int)lightPos.z));
         lightHint.color_r = 0.8f;  // Warm white light
         lightHint.color_g = 0.7f;
         lightHint.color_b = 0.5f;

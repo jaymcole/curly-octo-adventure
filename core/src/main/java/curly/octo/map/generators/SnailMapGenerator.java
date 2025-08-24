@@ -59,7 +59,7 @@ public class SnailMapGenerator extends MapGenerator {
         addSpawnPoint(startPos);
 
         // Add a light at spawn point (above player head)
-        addLight(new Vector3(startPos.x, startPos.y+ 1, startPos.z));
+        addLight(new Vector3(startPos.x, startPos.y + 1, startPos.z));
 
         // Close the map by creating walls around all open spaces
         int tilesBeforeClose = map.getAllTiles().size();

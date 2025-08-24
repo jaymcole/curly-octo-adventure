@@ -13,8 +13,6 @@ import com.badlogic.gdx.physics.bullet.linearmath.btDefaultMotionState;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
-import curly.octo.map.generators.BasicMap;
-import curly.octo.map.generators.MapGenerator;
 import curly.octo.map.generators.SnailMapGenerator;
 import curly.octo.map.hints.MapHint;
 import curly.octo.map.physics.AllTilesPhysicsBodyBuilder;
@@ -165,6 +163,13 @@ public class GameMap {
 
     public ArrayList<MapTile> getAllTiles () {
         return new ArrayList<>(map.values());
+    }
+
+    public long constructKeyFromWorldCoordinates(float worldX, float worldY, float worldZ) {
+        int xIndex = (int)(worldX / MapTile.TILE_SIZE);
+        int yIndex = (int)(worldY / MapTile.TILE_SIZE);
+        int zIndex = (int)(worldZ / MapTile.TILE_SIZE);
+        return constructKeyFromIndexCoordinates(xIndex, yIndex, zIndex);
     }
 
     public Long constructKeyFromIndexCoordinates(int x, int y, int z) {
