@@ -197,26 +197,24 @@ public class SnailMapGenerator extends MapGenerator {
         Vector3 pos = node.getPosition();
         Direction dir = node.getDirection();
 
-        if (choice < 0.3f) {
-            return new ForwardSnail(map, pos, dir, random, random.nextInt(1, 5));
-        } else if (choice < 0.6f) {
-            // L-shaped corridor
-            int length1 = random.nextInt(3, 8);
-            int length2 = random.nextInt(3, 8);
-            Turn turn = random.nextBoolean() ? Turn.CLOCKWISE : Turn.COUNTERCLOCKWISE;
-            return new ForwardSnail(map, pos, dir, random, length1)
-                    .then(new TurnSnail(map, pos, dir, random, turn))
-                    .then(new ForwardSnail(map, pos, dir, random, length2));
-        } else if (choice < 0.8f) {
-            // Room
-            int width = random.nextInt(4, 8);
-            int depth = random.nextInt(4, 8);
-            return new RoomSnail(map, pos, dir, random, width, 2, depth);
-        } else {
-            // T-intersection (TODO: implement TIntersectionSnail)
-            int length = random.nextInt(4, 8);
-            return new ForwardSnail(map, pos, dir, random, length);
-        }
+        return new HallwaySnail(map, pos, dir, random, random.nextInt(15) + 10, 3, 3);
+
+//        if (choice < 0.3f) {
+//            return new ForwardSnail(map, pos, dir, random, random.nextInt(1, 5), 3);
+//        } else if (choice < 0.6f) {
+//            // L-shaped corridor
+//            int length1 = random.nextInt(3, 8);
+//            int length2 = random.nextInt(3, 8);
+//            Turn turn = random.nextBoolean() ? Turn.CLOCKWISE : Turn.COUNTERCLOCKWISE;
+//            return new ForwardSnail(map, pos, dir, random, length1, 3)
+//                    .then(new TurnSnail(map, pos, dir, random, turn))
+//                    .then(new ForwardSnail(map, pos, dir, random, length2, 3));
+//        } else { //if (choice < 0.8f) {
+//            // Room
+//            int width = random.nextInt(4, 8);
+//            int depth = random.nextInt(4, 8);
+//            return new RoomSnail(map, pos, dir, random, width, 2, depth);
+//        }
     }
 
     private boolean hasNecessaryNodes() {

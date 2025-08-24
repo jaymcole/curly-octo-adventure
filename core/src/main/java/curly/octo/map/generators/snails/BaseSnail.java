@@ -3,6 +3,8 @@ package curly.octo.map.generators.snails;
 import com.badlogic.gdx.math.Vector3;
 import curly.octo.map.GameMap;
 import curly.octo.map.enums.Direction;
+import curly.octo.map.hints.LightHint;
+import lights.LightPresets;
 
 import java.util.Random;
 
@@ -31,8 +33,29 @@ public abstract class BaseSnail {
         if (complete) {
             return SnailResult.COMPLETE;
         }
-        
+
+        if (random.nextFloat() > 0.95f) {
+            addLight(coordinate);
+        }
+
         return doStep();
+    }
+
+    private void addLight(Vector3 lightPos) {
+        // Ensure light tile exists
+        map.touchTile(lightPos);
+
+        // Create light hint at position
+        LightHint lightHint = new LightHint(map.constructKeyFromIndexCoordinates(
+            (int)lightPos.x, (int)lightPos.y, (int)lightPos.z));
+        lightHint.color_r = 0.8f;  // Warm white light
+        lightHint.color_g = 0.7f;
+        lightHint.color_b = 0.5f;
+        lightHint.intensity = 3f;  // Much lower intensity
+        lightHint.flicker = LightPresets.LIGHT_FLICKER_1;
+
+        map.registerHint(lightHint);
+        System.out.println("SnailMapGenerator: Added light at " + lightPos);
     }
 
     /**
@@ -53,7 +76,7 @@ public abstract class BaseSnail {
     protected void markTileAsPartOfMap() {
         this.map.touchTile(this.coordinate);
     }
-    
+
     protected void markTileAsPartOfMap(Vector3 coordinate) {
         this.map.touchTile(coordinate);
     }
@@ -62,16 +85,16 @@ public abstract class BaseSnail {
     public Vector3 getCoordinate() {
         return coordinate.cpy();
     }
-    
+
     public Direction getDirection() {
         return direction;
     }
-    
+
     // Fluent API for chaining
     public SequentialSnail then(BaseSnail nextSnail) {
         return new SequentialSnail(map, coordinate.cpy(), direction, random, this, nextSnail);
     }
-    
+
     public ParallelSnail spawn(BaseSnail... snails) {
         return new ParallelSnail(map, coordinate.cpy(), direction, random, this, snails);
     }

@@ -13,10 +13,19 @@ import java.util.Random;
 public class ForwardSnail extends BaseSnail {
 
     private int remainingDistance;
+    private int ceilingHeight;
+    private boolean produceExpansionNode;
 
-    public ForwardSnail(GameMap map, Vector3 coordinate, Direction direction, Random random, int distance) {
+    public ForwardSnail(GameMap map, Vector3 coordinate, Direction direction, Random random, int distance, int ceilingHeight, boolean produceExpansionNode) {
         super(map, coordinate, direction, random);
         this.remainingDistance = distance;
+        this.ceilingHeight = ceilingHeight;
+        this.produceExpansionNode = produceExpansionNode;
+    }
+
+    public ForwardSnail(GameMap map, Vector3 coordinate, Direction direction, Random random, int distance, int ceilingHeight) {
+        super(map, coordinate, direction, random);
+        new ForwardSnail(map, coordinate, direction, random, distance, ceilingHeight, false);
     }
 
     @Override
@@ -25,34 +34,38 @@ public class ForwardSnail extends BaseSnail {
             complete = true;
             return SnailResult.COMPLETE;
         }
-        
+
         // Create vertical corridor space (3 tiles high starting from current level)
         markTileAsPartOfMap(); // Floor level
-        markTileAsPartOfMap(new Vector3(coordinate.x, coordinate.y + 1, coordinate.z)); // Middle
-        markTileAsPartOfMap(new Vector3(coordinate.x, coordinate.y + 2, coordinate.z)); // Top
-        
+        for(int i = 0; i < ceilingHeight; i++) {
+            markTileAsPartOfMap(new Vector3(coordinate.x, coordinate.y + i, coordinate.z)); // Middle
+        }
+
+
         // Move forward
         Direction.advanceVector(direction, coordinate);
         remainingDistance--;
-        
+
         if (remainingDistance <= 0) {
             complete = true;
             // Create expansion node at the end of the corridor (NECESSARY to avoid dead ends)
-            ExpansionNode endNode = new ExpansionNode(
-                coordinate.cpy(), 
-                direction, 
-                ExpansionNode.Priority.NECESSARY, 
-                "ForwardSnail"
-            );
-            return SnailResult.withExpansionNodes(true, endNode);
+            if (produceExpansionNode) {
+                ExpansionNode endNode = new ExpansionNode(
+                    coordinate.cpy(),
+                    direction,
+                    ExpansionNode.Priority.NECESSARY,
+                    "ForwardSnail"
+                );
+                return SnailResult.withExpansionNodes(true, endNode);
+            }
         }
-        
+
         return SnailResult.CONTINUE;
     }
 
     @Override
     public BaseSnail createCopy() {
-        return new ForwardSnail(map, coordinate.cpy(), direction, random, remainingDistance);
+        return new ForwardSnail(map, coordinate.cpy(), direction, random, remainingDistance, ceilingHeight);
     }
 
 }
