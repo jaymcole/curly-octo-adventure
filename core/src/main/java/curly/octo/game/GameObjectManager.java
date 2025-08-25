@@ -3,6 +3,7 @@ package curly.octo.game;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
+import com.esotericsoftware.minlog.Log;
 import curly.octo.gameobjects.GameObject;
 import curly.octo.gameobjects.ModelAssetManager;
 import curly.octo.gameobjects.PhysicsProperties;
@@ -29,6 +30,8 @@ public class GameObjectManager implements Disposable {
     private final Array<ModelInstance> renderQueue = new Array<>();
 
     public void update(float delta) {
+//        Log.info("GameObjectManager.update", "Total objects to update: " + gameObjects.size());
+
         for(GameObject objects : gameObjects) {
             if (!gameObjectsToBeRemoved.contains(objects)) {
                 objects.update(delta);

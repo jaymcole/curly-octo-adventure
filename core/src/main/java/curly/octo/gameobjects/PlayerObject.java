@@ -119,7 +119,6 @@ public class PlayerObject extends WorldObject {
                 // Update ModelInstance position using bounds-aware positioning
                 if (getModelInstance() != null) {
                     if (modelBounds != null) {
-                        Log.info("PlayerObject.update", "Update: " + entityId);
                         // Use precise bounds-based positioning with camera rotation
                         updateModelPositionWithBounds(modelBounds, PLAYER_HEIGHT, PLAYER_MODEL_SCALE, yaw);
                     } else {

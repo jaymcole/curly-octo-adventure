@@ -15,6 +15,7 @@ import curly.octo.gameobjects.PlayerObject;
 import java.util.ArrayList;
 
 import java.util.Random;
+import java.util.UUID;
 
 /**
  * Client-specific game world that handles client-side rendering and physics.
@@ -36,7 +37,7 @@ public class ClientGameWorld extends GameWorld {
     public void setupLocalPlayer() {
         if (getGameObjectManager().localPlayer == null) {
             Log.info("ClientGameWorld", "Creating local player object");
-            getGameObjectManager().localPlayer = new PlayerObject("localPlayer");
+            getGameObjectManager().localPlayer = new PlayerObject(UUID.randomUUID().toString());
 
             // Graphics initialization happens asynchronously on OpenGL thread
             Log.info("ClientGameWorld", "Graphics initialization scheduled for local player");

@@ -11,8 +11,11 @@ import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.gameobjects.PlayerObject;
 import curly.octo.input.InputController;
 import curly.octo.input.MinimalPlayerController;
+import curly.octo.map.MapTile;
+import curly.octo.map.hints.MapHint;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 
 /**
@@ -255,29 +258,71 @@ public class ClientGameMode implements GameMode {
         Log.info("ClientGameMode", "Found existing player: " + (existingPlayer != null ? "YES" : "NO"));
 
         if (existingPlayer != null) {
-            // Found existing player from roster, but create a fresh local player instead
-            // The existing player is for network tracking, not local control
-            Log.info("ClientGameMode", "Found existing player from roster, but creating fresh local player for control");
+            // Found existing player from roster, reuse it as the local player
+            Log.info("ClientGameMode", "Found existing player from roster, reusing as local player");
             Log.info("ClientGameMode", "Existing player graphics initialized: " + existingPlayer.isGraphicsInitialized());
             Log.info("ClientGameMode", "Existing player current position: " + existingPlayer.getPosition());
 
-            // Remove the existing network player from active players since we'll replace it
-            gameWorld.getGameObjectManager().activePlayers.remove(existingPlayer);
-            gameWorld.getGameObjectManager().remove(existingPlayer);
+            // Set this existing player as the local player instead of creating a new one
+            gameWorld.getGameObjectManager().localPlayer = existingPlayer;
+            
+            // Set up the existing player for local control with full physics setup
+            if (gameWorld.getMapManager() != null) {
+                // Check if player physics is already set up
+                if (gameWorld.getMapManager().getPlayerController() == null) {
+                    // Add player to physics world only if not already added
+                    float playerRadius = 1.0f;
+                    float playerHeight = 5.0f;
+                    float playerMass = 10.0f;
+                    Vector3 playerStart = new Vector3(15, 25, 15);
+                    ArrayList<MapHint> spawnHints = gameWorld.getMapManager().getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
+                    if (!spawnHints.isEmpty()) {
+                        MapTile spawnTile = gameWorld.getMapManager().getTile(spawnHints.get(0).tileLookupKey);
+                        if (spawnTile != null) {
+                            // Spawn above the tile, not at the tile position
+                            playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+                        }
+                    }
+                    gameWorld.getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
+                }
+                
+                // Link the PlayerObject to the physics character controller
+                existingPlayer.setGameMap(gameWorld.getMapManager());
+                existingPlayer.setCharacterController(gameWorld.getMapManager().getPlayerController());
+                
+                // Set spawn position
+                Vector3 playerStart = new Vector3(15, 25, 15);
+                ArrayList<MapHint> spawnHints = gameWorld.getMapManager().getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
+                if (!spawnHints.isEmpty()) {
+                    MapTile spawnTile = gameWorld.getMapManager().getTile(spawnHints.get(0).tileLookupKey);
+                    if (spawnTile != null) {
+                        playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+                    }
+                }
+                existingPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
+            }
+            
+            inputController.setPossessionTarget(existingPlayer);
+            if (inputController instanceof com.badlogic.gdx.InputProcessor) {
+                Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
+            }
+            
+            Log.info("ClientGameMode", "Successfully reused existing player as local player ID: " + localPlayerId);
+            return; // Exit early since we've set up the local player
         }
 
-        // Always create a fresh local player for proper initialization
-        {
-            // Create the local player if it doesn't exist
-            if (gameWorld.getGameObjectManager().localPlayer == null) {
-                Log.info("ClientGameMode", "Creating local player object");
-                gameWorld.setupLocalPlayer();
-            }
+        // Create a fresh local player only if none exists
+        if (gameWorld.getGameObjectManager().localPlayer == null) {
+            Log.info("ClientGameMode", "No existing local player found, creating new local player object");
+            gameWorld.setupLocalPlayer();
+            
+            // Update the entity ID to match the server-assigned ID
+            gameWorld.getGameObjectManager().localPlayer.entityId = localPlayerId;
 
-            // Set the player ID
+            // Set up the newly created local player
             PlayerObject localPlayer = gameWorld.getGameObjectManager().localPlayer;
             if (localPlayer != null) {
-                // Also set the localPlayerId in GameWorld
+                // Set up the player for local control
                 if (gameWorld.getMapManager() != null) {
                     localPlayer.setGameMap(gameWorld.getMapManager());
                 }
@@ -285,22 +330,9 @@ public class ClientGameMode implements GameMode {
                 if (inputController instanceof com.badlogic.gdx.InputProcessor) {
                     Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
                 }
+                Log.info("ClientGameMode", "Successfully created and set local player ID to: " + localPlayerId);
             } else {
-                // Try to create it again
-                gameWorld.setupLocalPlayer();
-                localPlayer = gameWorld.getGameObjectManager().localPlayer;
-                if (localPlayer != null) {
-                    if (gameWorld.getMapManager() != null) {
-                        localPlayer.setGameMap(gameWorld.getMapManager());
-                    }
-                    inputController.setPossessionTarget(localPlayer);
-                if (inputController instanceof com.badlogic.gdx.InputProcessor) {
-                Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
-            }
-                    Log.info("ClientGameMode", "Successfully created and set local player ID to: " + localPlayerId);
-                } else {
-                    Log.error("ClientGameMode", "Still failed to create local player controller after retry");
-                }
+                Log.error("ClientGameMode", "Failed to create local player controller");
             }
         }
     }
