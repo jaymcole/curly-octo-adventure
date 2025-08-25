@@ -224,6 +224,8 @@ public class ClientGameMode implements GameMode {
                 }
 
                 targetPlayer.setPosition(new Vector3(playerUpdate.x, playerUpdate.y, playerUpdate.z));
+                targetPlayer.setYaw(playerUpdate.yaw);
+                targetPlayer.setPitch(playerUpdate.pitch);
             });
         });
     }
@@ -495,10 +497,14 @@ public class ClientGameMode implements GameMode {
         if (gameClient != null) {
             String playerId = getLocalPlayerId();
             Vector3 position = getLocalPlayerPosition();
+            GameObjectManager gom = gameWorld.getGameObjectManager();
 
-            if (playerId != null && position != null) {
-                Log.info("sendPositionUpdate", "Sending position update: " + position.toString());
-                PlayerUpdate update = new PlayerUpdate(playerId, position);
+            if (playerId != null && position != null && gom.localPlayer != null) {
+                float yaw = gom.localPlayer.getYaw();
+                float pitch = gom.localPlayer.getPitch();
+                
+                Log.info("sendPositionUpdate", "Sending position update: " + position.toString() + " yaw:" + yaw + " pitch:" + pitch);
+                PlayerUpdate update = new PlayerUpdate(playerId, position, yaw, pitch);
                 gameClient.sendUDP(update);
             }
         }

@@ -36,7 +36,6 @@ public abstract class GameWorld {
     public GameWorld(Random random, boolean serverOnly) {
         this.random = random;
         if (serverOnly) {
-            // Server only needs minimal objects for network sync
             this.players = new ArrayList<>();
             this.gameObjectManager = new GameObjectManager();
             // Skip: environment, dungeonLights, setupEnvironment() - all graphics related

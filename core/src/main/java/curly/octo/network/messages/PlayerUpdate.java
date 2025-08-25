@@ -6,6 +6,7 @@ import com.badlogic.gdx.math.Vector3;
 public class PlayerUpdate {
     public String playerId;
     public float x, y, z;
+    public float yaw, pitch;
 
     public PlayerUpdate() {
     }
@@ -15,5 +16,16 @@ public class PlayerUpdate {
         this.x = position.x;
         this.y = position.y;
         this.z = position.z;
+        this.yaw = 0f;
+        this.pitch = 0f;
+    }
+    
+    public PlayerUpdate(String playerId, Vector3 position, float yaw, float pitch) {
+        this.playerId = playerId;
+        this.x = position.x;
+        this.y = position.y;
+        this.z = position.z;
+        this.yaw = yaw;
+        this.pitch = pitch;
     }
 }

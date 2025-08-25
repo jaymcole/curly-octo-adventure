@@ -244,6 +244,18 @@ public class PlayerObject extends WorldObject {
     public void setPitch(float pitch) {
         this.pitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, pitch));
     }
+    
+    public float getYaw() {
+        return yaw;
+    }
+    
+    public float getPitch() {
+        return pitch;
+    }
+    
+    public void setYaw(float yaw) {
+        this.yaw = yaw;
+    }
 
     public void addYaw(float deltaYaw) {
         this.yaw += deltaYaw;
