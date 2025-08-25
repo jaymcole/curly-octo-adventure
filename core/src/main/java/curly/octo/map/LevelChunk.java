@@ -8,27 +8,27 @@ import java.util.Map;
 /**
  * Represents a cubic chunk of MapTiles in the game world.
  * Chunks are used to organize tiles for efficient mesh generation and culling.
- * 
+ *
  * Each chunk contains a 3D array of MapTiles and provides methods to:
  * - Store and retrieve tiles by local coordinates within the chunk
  * - Convert between world coordinates and local chunk coordinates
  * - Track whether the chunk contains any solid tiles worth rendering
  */
 public class LevelChunk {
-    
+
     public static final int CHUNK_SIZE = 16;
-    
+
     private final MapTile[][][] tiles;
     private final Vector3 chunkCoordinates;
     private final Vector3 worldOffset;
     private boolean hasContent;
     private int solidTileCount;
-    
+
     /**
      * Creates a new chunk at the specified chunk coordinates.
-     * 
+     *
      * @param chunkX The X coordinate of this chunk in chunk space
-     * @param chunkY The Y coordinate of this chunk in chunk space  
+     * @param chunkY The Y coordinate of this chunk in chunk space
      * @param chunkZ The Z coordinate of this chunk in chunk space
      */
     public LevelChunk(int chunkX, int chunkY, int chunkZ) {
@@ -42,10 +42,10 @@ public class LevelChunk {
         this.hasContent = false;
         this.solidTileCount = 0;
     }
-    
+
     /**
      * Places a tile at the specified local coordinates within this chunk.
-     * 
+     *
      * @param localX Local X coordinate within the chunk (0 to CHUNK_SIZE-1)
      * @param localY Local Y coordinate within the chunk (0 to CHUNK_SIZE-1)
      * @param localZ Local Z coordinate within the chunk (0 to CHUNK_SIZE-1)
@@ -56,17 +56,17 @@ public class LevelChunk {
         if (!isValidLocalCoordinate(localX, localY, localZ)) {
             return false;
         }
-        
+
         MapTile oldTile = tiles[localX][localY][localZ];
         tiles[localX][localY][localZ] = tile;
-        
+
         updateContentFlags(oldTile, tile);
         return true;
     }
-    
+
     /**
      * Retrieves a tile at the specified local coordinates within this chunk.
-     * 
+     *
      * @param localX Local X coordinate within the chunk (0 to CHUNK_SIZE-1)
      * @param localY Local Y coordinate within the chunk (0 to CHUNK_SIZE-1)
      * @param localZ Local Z coordinate within the chunk (0 to CHUNK_SIZE-1)
@@ -78,11 +78,11 @@ public class LevelChunk {
         }
         return tiles[localX][localY][localZ];
     }
-    
+
     /**
      * Sets a tile using world coordinates. The method converts world coordinates
      * to local chunk coordinates and places the tile.
-     * 
+     *
      * @param worldX World X coordinate in tile units
      * @param worldY World Y coordinate in tile units
      * @param worldZ World Z coordinate in tile units
@@ -96,26 +96,10 @@ public class LevelChunk {
         }
         return setTile((int)localCoords.x, (int)localCoords.y, (int)localCoords.z, tile);
     }
-    
-    /**
-     * Retrieves a tile using world coordinates.
-     * 
-     * @param worldX World X coordinate in tile units
-     * @param worldY World Y coordinate in tile units
-     * @param worldZ World Z coordinate in tile units
-     * @return The MapTile at the specified world coordinates, or null if not in this chunk or empty
-     */
-    public MapTile getTileByWorldCoordinates(int worldX, int worldY, int worldZ) {
-        Vector3 localCoords = worldToLocalCoordinates(worldX, worldY, worldZ);
-        if (localCoords == null) {
-            return null;
-        }
-        return getTile((int)localCoords.x, (int)localCoords.y, (int)localCoords.z);
-    }
-    
+
     /**
      * Converts world tile coordinates to local chunk coordinates.
-     * 
+     *
      * @param worldX World X coordinate in tile units
      * @param worldY World Y coordinate in tile units
      * @param worldZ World Z coordinate in tile units
@@ -125,49 +109,29 @@ public class LevelChunk {
         int expectedChunkX = Math.floorDiv(worldX, CHUNK_SIZE);
         int expectedChunkY = Math.floorDiv(worldY, CHUNK_SIZE);
         int expectedChunkZ = Math.floorDiv(worldZ, CHUNK_SIZE);
-        
+
         if (expectedChunkX != (int)chunkCoordinates.x ||
             expectedChunkY != (int)chunkCoordinates.y ||
             expectedChunkZ != (int)chunkCoordinates.z) {
             return null;
         }
-        
+
         int localX = worldX - ((int)chunkCoordinates.x * CHUNK_SIZE);
         int localY = worldY - ((int)chunkCoordinates.y * CHUNK_SIZE);
         int localZ = worldZ - ((int)chunkCoordinates.z * CHUNK_SIZE);
-        
+
         return new Vector3(localX, localY, localZ);
     }
-    
-    /**
-     * Converts local chunk coordinates to world tile coordinates.
-     * 
-     * @param localX Local X coordinate within the chunk (0 to CHUNK_SIZE-1)
-     * @param localY Local Y coordinate within the chunk (0 to CHUNK_SIZE-1)
-     * @param localZ Local Z coordinate within the chunk (0 to CHUNK_SIZE-1)
-     * @return Vector3 with world tile coordinates, or null if local coordinates are invalid
-     */
-    public Vector3 localToWorldCoordinates(int localX, int localY, int localZ) {
-        if (!isValidLocalCoordinate(localX, localY, localZ)) {
-            return null;
-        }
-        
-        int worldX = (int)chunkCoordinates.x * CHUNK_SIZE + localX;
-        int worldY = (int)chunkCoordinates.y * CHUNK_SIZE + localY;
-        int worldZ = (int)chunkCoordinates.z * CHUNK_SIZE + localZ;
-        
-        return new Vector3(worldX, worldY, worldZ);
-    }
-    
+
     /**
      * Gets all tiles in this chunk as a map of local coordinates to MapTiles.
      * Only returns non-null tiles.
-     * 
+     *
      * @return Map where keys are local coordinate strings "x,y,z" and values are MapTiles
      */
     public Map<String, MapTile> getAllTiles() {
         Map<String, MapTile> tileMap = new HashMap<>();
-        
+
         for (int x = 0; x < CHUNK_SIZE; x++) {
             for (int y = 0; y < CHUNK_SIZE; y++) {
                 for (int z = 0; z < CHUNK_SIZE; z++) {
@@ -178,10 +142,10 @@ public class LevelChunk {
                 }
             }
         }
-        
+
         return tileMap;
     }
-    
+
     /**
      * Checks if local coordinates are valid for this chunk.
      */
@@ -190,7 +154,7 @@ public class LevelChunk {
                localY >= 0 && localY < CHUNK_SIZE &&
                localZ >= 0 && localZ < CHUNK_SIZE;
     }
-    
+
     /**
      * Updates the hasContent flag and solid tile count when tiles are added/removed.
      */
@@ -198,7 +162,7 @@ public class LevelChunk {
         if (oldTile != null && oldTile.geometryType != curly.octo.map.enums.MapTileGeometryType.EMPTY) {
             solidTileCount--;
         }
-        
+
         if (newTile != null && newTile.geometryType != curly.octo.map.enums.MapTileGeometryType.EMPTY) {
             solidTileCount++;
             hasContent = true;
@@ -207,47 +171,47 @@ public class LevelChunk {
             solidTileCount = 0;
         }
     }
-    
+
     // Getters
-    
+
     /**
      * @return The chunk coordinates in chunk space
      */
     public Vector3 getChunkCoordinates() {
         return new Vector3(chunkCoordinates);
     }
-    
+
     /**
      * @return The world offset of this chunk (bottom-corner world position)
      */
     public Vector3 getWorldOffset() {
         return new Vector3(worldOffset);
     }
-    
+
     /**
      * @return True if this chunk contains any solid (non-empty) tiles
      */
     public boolean hasContent() {
         return hasContent;
     }
-    
+
     /**
      * @return The number of solid tiles in this chunk
      */
     public int getSolidTileCount() {
         return solidTileCount;
     }
-    
+
     /**
      * @return The total capacity of this chunk
      */
     public int getCapacity() {
         return CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
     }
-    
+
     /**
      * Calculates the load factor of this chunk (0.0 = empty, 1.0 = completely full).
-     * 
+     *
      * @return Load factor as a float between 0.0 and 1.0
      */
     public float getLoadFactor() {

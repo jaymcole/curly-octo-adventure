@@ -28,7 +28,7 @@ public class MinimalPlayerController extends InputAdapter implements InputContro
 
     @Override
     public void handleInput(float delta, Possessable target, PerspectiveCamera camera) {
-        if (target == null || !target.canBePossessed()) {
+        if (target == null) {
             return;
         }
 

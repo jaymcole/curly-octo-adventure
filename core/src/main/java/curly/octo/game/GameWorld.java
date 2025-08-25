@@ -29,14 +29,6 @@ public abstract class GameWorld {
     protected static final float POSITION_UPDATE_INTERVAL = 1/60f; // 60 updates per second
     protected boolean disposed = false;
 
-    public GameWorld(Random random) {
-        this.random = random;
-        this.players = new ArrayList<>();
-        this.environment = new Environment();
-        this.gameObjectManager = new GameObjectManager();
-        setupEnvironment();
-    }
-
     /**
      * Server-only constructor that creates minimal GameWorld for network coordination only.
      * Skips graphics initialization entirely.
@@ -59,11 +51,8 @@ public abstract class GameWorld {
     }
 
     private void setupEnvironment() {
-        // Extremely low ambient light for very hard shadows
-//        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.02f, 0.02f, 0.03f, 1f));
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.0f, .0f, .0f, 1f));
     }
-
 
     public void setMap(GameMap map) {
         this.mapManager = map;
@@ -83,10 +72,7 @@ public abstract class GameWorld {
         Log.info("GameWorld", "Set map from network");
     }
 
-
     public abstract void update(float deltaTime);
-
-
 
     public boolean shouldSendPositionUpdate() {
         if (positionUpdateTimer >= POSITION_UPDATE_INTERVAL) {
@@ -108,16 +94,12 @@ public abstract class GameWorld {
         return players;
     }
 
-    // Getters
     public GameMap getMapManager() { return mapManager; }
     public GameMapRenderer getMapRenderer() { return mapRenderer; }
     public Environment getEnvironment() { return environment; }
     public Random getRandom() { return random; }
     public GameObjectManager getGameObjectManager() { return gameObjectManager; }
 
-
-
-    // Physics debug methods
     public void togglePhysicsDebug() {
         if (mapManager != null) {
             boolean newState = !mapManager.isDebugRenderingEnabled();
@@ -159,14 +141,6 @@ public abstract class GameWorld {
         return mapManager != null ? mapManager.totalTriangleCount : 0;
     }
 
-    public long getRenderingFacesBuilt() {
-        return mapRenderer != null ? mapRenderer.getLastFacesBuilt() : 0;
-    }
-
-    public long getRenderingTilesProcessed() {
-        return mapRenderer != null ? mapRenderer.getLastTilesProcessed() : 0;
-    }
-
     public void dispose() {
         if (disposed) {
             Log.info("GameWorld", "Already disposed, skipping");
@@ -175,7 +149,6 @@ public abstract class GameWorld {
 
         Log.info("GameWorld", "Disposing game world...");
 
-        // Dispose map renderer first
         if (mapRenderer != null) {
             try {
                 mapRenderer.disposeAll();
@@ -186,7 +159,6 @@ public abstract class GameWorld {
             mapRenderer = null;
         }
 
-        // Dispose map manager
         if (mapManager != null) {
             try {
                 mapManager.dispose();
@@ -197,7 +169,6 @@ public abstract class GameWorld {
             mapManager = null;
         }
 
-        // Clear references
         players.clear();
         gameObjectManager.activePlayers.clear();
         gameObjectManager.localPlayer = null;

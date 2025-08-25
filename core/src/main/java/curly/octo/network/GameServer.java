@@ -49,11 +49,11 @@ public class GameServer {
                 PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
                 players.add(newPlayer);
 
-                connectionToPlayerMap.put(connection.getID(), newPlayer.getPlayerId());
+                connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
                 broadcastNewPlayerRoster();
                 // Also send roster directly to the new connection to ensure they get it
                 sendPlayerRosterToConnection(connection);
-                assignPlayer(connection, newPlayer.getPlayerId());
+                assignPlayer(connection, newPlayer.entityId);
 
                 // Send another roster after a delay to test if timing is the issue
                 new Thread(() -> {
@@ -75,7 +75,7 @@ public class GameServer {
                 } catch (Exception e) {
                     Log.warn("Server", "Could not get remote address: " + e.getMessage());
                 }
-                Log.info("Server", "Player " + newPlayer.getPlayerId() + " connected from " + address);
+                Log.info("Server", "Player " + newPlayer.entityId + " connected from " + address);
             }
 
             @Override
@@ -88,7 +88,7 @@ public class GameServer {
 
                     // Update the player's position in our local list
                     for (PlayerObject player : players) {
-                        if (player.getPlayerId().equals(update.playerId)) {
+                        if (player.entityId.equals(update.playerId)) {
                             player.setPosition(new Vector3(update.x, update.y, update.z));
                             break;
                         }
@@ -113,7 +113,7 @@ public class GameServer {
                 if (playerId != null) {
                     PlayerObject disconnectedPlayer = null;
                     for (PlayerObject player : players) {
-                        if (player.getPlayerId().equals(playerId)) {
+                        if (player.entityId.equals(playerId)) {
                             disconnectedPlayer = player;
                             break;
                         }
@@ -126,10 +126,10 @@ public class GameServer {
 //                        gameWorld.removePlayerFromEnvironment(disconnectedPlayer);
 
                         // Broadcast disconnect message to all remaining clients
-                        broadcastPlayerDisconnect(disconnectedPlayer.getPlayerId());
+                        broadcastPlayerDisconnect(disconnectedPlayer.entityId);
 
                         broadcastNewPlayerRoster();
-                        Log.info("Server", "Player " + disconnectedPlayer.getPlayerId() + " disconnected");
+                        Log.info("Server", "Player " + disconnectedPlayer.entityId + " disconnected");
                     }
                 }
             }

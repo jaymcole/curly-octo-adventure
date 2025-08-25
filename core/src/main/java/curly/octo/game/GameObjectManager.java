@@ -97,7 +97,7 @@ public class GameObjectManager implements Disposable {
 
         if (gameObject instanceof WorldObject) {
             WorldObject worldObject = (WorldObject) gameObject;
-            
+
             // Special handling for PlayerObjects
             if (gameObject instanceof PlayerObject) {
                 PlayerObject playerObject = (PlayerObject) gameObject;
@@ -106,7 +106,7 @@ public class GameObjectManager implements Disposable {
                     playerObject.initializeGraphicsWithManager(modelAssetManager);
                 }
             }
-            
+
             if (worldObject.getModelAssetPath() != null && worldObject.getBasePhysicsProperties() == PhysicsProperties.DEFAULT) {
                 PhysicsProperties props = modelAssetManager.getPhysicsProperties(worldObject.getModelAssetPath());
                 worldObject.setBasePhysicsProperties(props);
@@ -119,10 +119,6 @@ public class GameObjectManager implements Disposable {
 
     public GameObject getObjectById(String id) {
         return idToGameObjectMap.getOrDefault(id, null);
-    }
-
-    public ModelAssetManager getModelAssetManager() {
-        return modelAssetManager;
     }
 
     public Array<ModelInstance> getRenderQueue() {

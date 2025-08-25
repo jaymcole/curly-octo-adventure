@@ -57,7 +57,7 @@ public class ClientGameMode implements GameMode {
     private String getLocalPlayerId() {
         GameObjectManager gom = gameWorld.getGameObjectManager();
         if (gom.localPlayer != null) {
-            return gom.localPlayer.getPlayerId();
+            return gom.localPlayer.entityId;
         }
         return null;
     }
@@ -163,15 +163,15 @@ public class ClientGameMode implements GameMode {
             Gdx.app.postRunnable(() -> {
                 HashSet<String> currentPlayers = new HashSet<>();
                 for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
-                    currentPlayers.add(player.getPlayerId());
+                    currentPlayers.add(player.entityId);
                 }
 
                 for (PlayerObject player : roster.players) {
-                    if (!currentPlayers.contains(player.getPlayerId())) {
+                    if (!currentPlayers.contains(player.entityId)) {
                         gameWorld.getGameObjectManager().activePlayers.add(player);
                         gameWorld.getGameObjectManager().add(player);
                     } else {
-                        Log.info("ClientGameMode", "Skipping player " + player.getPlayerId() + " - already in current players");
+                        Log.info("ClientGameMode", "Skipping player " + player.entityId + " - already in current players");
                     }
                 }
             });
@@ -185,17 +185,13 @@ public class ClientGameMode implements GameMode {
                 // Find and remove the disconnected player
                 PlayerObject playerToRemove = null;
                 for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
-                    if (player.getPlayerId().equals(disconnectUpdate.playerId)) {
+                    if (player.entityId.equals(disconnectUpdate.playerId)) {
                         playerToRemove = player;
                         break;
                     }
                 }
 
                 if (playerToRemove != null) {
-                    // Remove player light from environment
-//                    gameWorld.removePlayerFromEnvironment(playerToRemove);
-
-                    // Remove player from list
                     gameWorld.getGameObjectManager().activePlayers.remove(playerToRemove);
                     gameWorld.getGameObjectManager().remove(playerToRemove);
 
@@ -209,9 +205,6 @@ public class ClientGameMode implements GameMode {
         // Player update listener
         gameClient.setPlayerUpdateListener(playerUpdate -> {
             Gdx.app.postRunnable(() -> {
-                // Log.debug("ClientGameMode", "Received position update for player " + playerUpdate.playerId + ": " +
-                //     playerUpdate.x + ", " + playerUpdate.y + ", " + playerUpdate.z);
-
                 // Skip updates for the local player (if local player is set up)
                 String localId = getLocalPlayerId();
                 if (localId != null && playerUpdate.playerId.equals(localId)) {
@@ -221,7 +214,7 @@ public class ClientGameMode implements GameMode {
                 // Find the player in our list
                 PlayerObject targetPlayer = null;
                 for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
-                    if (player.getPlayerId().equals(playerUpdate.playerId)) {
+                    if (player.entityId.equals(playerUpdate.playerId)) {
                         targetPlayer = player;
                         break;
                     }
@@ -230,7 +223,7 @@ public class ClientGameMode implements GameMode {
                 // If player not found, create a new one
                 if (targetPlayer == null) {
                     Log.info("ClientGameMode", "Creating new player controller for player " + playerUpdate.playerId);
-                    targetPlayer = new PlayerObject(playerUpdate.playerId, true); // server-only mode
+                    targetPlayer = new PlayerObject(playerUpdate.playerId); // client mode - need graphics
                     gameWorld.getGameObjectManager().activePlayers.add(targetPlayer);
                     gameWorld.getGameObjectManager().add(targetPlayer);
                 }
@@ -247,13 +240,13 @@ public class ClientGameMode implements GameMode {
         // Debug: Print all active players
         for (int i = 0; i < gameWorld.getGameObjectManager().activePlayers.size(); i++) {
             PlayerObject p = gameWorld.getGameObjectManager().activePlayers.get(i);
-            Log.info("ClientGameMode", "activePlayers[" + i + "] = " + (p != null ? p.getPlayerId() : "NULL"));
+            Log.info("ClientGameMode", "activePlayers[" + i + "] = " + (p != null ? p.entityId : "NULL"));
         }
 
         // First, check if a player with this ID already exists in activePlayers (from roster)
         PlayerObject existingPlayer = null;
         for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
-            if (player != null && player.getPlayerId() != null && player.getPlayerId().equals(localPlayerId)) {
+            if (player != null && player.entityId != null && player.entityId.equals(localPlayerId)) {
                 existingPlayer = player;
                 break;
             }
@@ -284,21 +277,19 @@ public class ClientGameMode implements GameMode {
             // Set the player ID
             PlayerObject localPlayer = gameWorld.getGameObjectManager().localPlayer;
             if (localPlayer != null) {
-                localPlayer.setPlayerId(localPlayerId);
                 // Also set the localPlayerId in GameWorld
                 if (gameWorld.getMapManager() != null) {
                     localPlayer.setGameMap(gameWorld.getMapManager());
                 }
                 inputController.setPossessionTarget(localPlayer);
                 if (inputController instanceof com.badlogic.gdx.InputProcessor) {
-                Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
-            }
+                    Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
+                }
             } else {
                 // Try to create it again
                 gameWorld.setupLocalPlayer();
                 localPlayer = gameWorld.getGameObjectManager().localPlayer;
                 if (localPlayer != null) {
-                    localPlayer.setPlayerId(localPlayerId);
                     if (gameWorld.getMapManager() != null) {
                         localPlayer.setGameMap(gameWorld.getMapManager());
                     }
@@ -487,9 +478,5 @@ public class ClientGameMode implements GameMode {
                 // Log.debug("ClientGameMode", "Sent position update: " + update.x + ", " + update.y + ", " + update.z);
             }
         }
-    }
-
-    public GameClient getGameClient() {
-        return gameClient;
     }
 }

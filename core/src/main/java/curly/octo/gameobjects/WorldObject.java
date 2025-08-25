@@ -81,6 +81,13 @@ public class WorldObject extends GameObject implements Disposable, Possessable {
         updateModelPosition();
     }
 
+    @Override
+    public void setPosition(Vector3 newPosition) {
+        super.setPosition(newPosition);
+        // Update model position when position changes
+        updateModelPosition();
+    }
+
     public void updateModelPosition() {
         if (modelInstance != null && position != null) {
             // Use default positioning if no model bounds available

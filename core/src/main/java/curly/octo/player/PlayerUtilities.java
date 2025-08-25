@@ -17,6 +17,6 @@ public class PlayerUtilities {
      */
     public static PlayerObject createServerPlayerObject() {
         String playerId = UUID.randomUUID().toString();
-        return new PlayerObject(playerId, true); // true = server-only
+        return new PlayerObject(playerId); // true = server-only
     }
 }

@@ -13,58 +13,58 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This prevents server logic from blocking the main render thread.
  */
 public class ThreadedHostedGameMode implements GameMode {
-    
+
     private final HostedGameMode hostedGameMode;
     private Thread serverThread;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private volatile Exception initializationException = null;
-    
+
     private static final int TARGET_FPS = 60;
     private static final long FRAME_TIME_NS = 1_000_000_000L / TARGET_FPS;
-    
+
     public ThreadedHostedGameMode(java.util.Random random) {
         this.hostedGameMode = new HostedGameMode(random);
     }
-    
+
     @Override
     public void initialize() {
         Log.info("ThreadedHostedGameMode", "Starting initialization in separate thread");
-        
+
         serverThread = new Thread(() -> {
             try {
                 // Initialize the hosted game mode
                 hostedGameMode.initialize();
                 initialized.set(true);
                 running.set(true);
-                
+
                 Log.info("ThreadedHostedGameMode", "Server thread initialized successfully");
-                
+
                 // Run the server update loop
                 long lastTime = System.nanoTime();
                 while (running.get()) {
                     long currentTime = System.nanoTime();
                     float deltaTime = (currentTime - lastTime) / 1_000_000_000.0f;
                     lastTime = currentTime;
-                    
+
                     // Cap delta time to prevent large jumps
                     if (deltaTime > 0.1f) {
                         deltaTime = 0.1f;
                     }
-                    
+
                     try {
                         // Update the hosted game mode
                         hostedGameMode.update(deltaTime);
-                        
+
                         // Sleep to maintain target FPS
                         long frameEndTime = System.nanoTime();
                         long frameTime = frameEndTime - currentTime;
                         long sleepTime = FRAME_TIME_NS - frameTime;
-                        
+
                         if (sleepTime > 0) {
                             Thread.sleep(sleepTime / 1_000_000, (int) (sleepTime % 1_000_000));
                         }
-                        
+
                     } catch (IOException e) {
                         Log.error("ThreadedHostedGameMode", "Server update error: " + e.getMessage());
                         e.printStackTrace();
@@ -74,20 +74,20 @@ public class ThreadedHostedGameMode implements GameMode {
                         break;
                     }
                 }
-                
+
             } catch (Exception e) {
                 Log.error("ThreadedHostedGameMode", "Server thread initialization failed: " + e.getMessage());
                 e.printStackTrace();
                 initializationException = e;
                 initialized.set(true); // Set to true even on failure so main thread doesn't hang
             }
-            
+
             Log.info("ThreadedHostedGameMode", "Server thread exiting");
         }, "ServerUpdateThread");
-        
+
         serverThread.setDaemon(false); // Keep JVM alive
         serverThread.start();
-        
+
         // Wait for initialization to complete
         while (!initialized.get()) {
             try {
@@ -97,41 +97,35 @@ public class ThreadedHostedGameMode implements GameMode {
                 throw new RuntimeException("Interrupted while waiting for server initialization", e);
             }
         }
-        
+
         // Check if initialization failed
         if (initializationException != null) {
             throw new RuntimeException("Server initialization failed", initializationException);
         }
-        
+
         Log.info("ThreadedHostedGameMode", "Threaded hosted mode initialization complete");
     }
-    
+
     @Override
-    public void update(float deltaTime) throws IOException {
-        // Server updates are handled in the separate thread
-        // This method is intentionally empty to prevent blocking the render thread
-    }
-    
+    public void update(float deltaTime) throws IOException {}
+
     @Override
-    public void render(ModelBatch modelBatch, Environment environment) {
-        // Delegate to the underlying hosted game mode
-        hostedGameMode.render(modelBatch, environment);
-    }
-    
+    public void render(ModelBatch modelBatch, Environment environment) {}
+
     @Override
     public void resize(int width, int height) {
         hostedGameMode.resize(width, height);
     }
-    
+
     @Override
     public void dispose() {
         long startTime = System.currentTimeMillis();
         Log.info("ThreadedHostedGameMode", "Disposing threaded hosted game mode...");
-        
+
         // Signal the server thread to stop
         long threadStopStart = System.currentTimeMillis();
         running.set(false);
-        
+
         // Wait for the server thread to finish
         if (serverThread != null && serverThread.isAlive()) {
             try {
@@ -147,31 +141,31 @@ public class ThreadedHostedGameMode implements GameMode {
         }
         long threadStopEnd = System.currentTimeMillis();
         Log.info("ThreadedHostedGameMode", "Server thread stopped in " + (threadStopEnd - threadStopStart) + "ms");
-        
+
         // Dispose the underlying hosted game mode
         long hostedModeStart = System.currentTimeMillis();
         hostedGameMode.dispose();
         long hostedModeEnd = System.currentTimeMillis();
         Log.info("ThreadedHostedGameMode", "Hosted game mode disposed in " + (hostedModeEnd - hostedModeStart) + "ms");
-        
+
         long totalTime = System.currentTimeMillis() - startTime;
         Log.info("ThreadedHostedGameMode", "Threaded hosted game mode disposed in " + totalTime + "ms");
     }
-    
+
     @Override
     public boolean isActive() {
         return running.get() && hostedGameMode.isActive();
     }
-    
+
     @Override
     public GameWorld getGameWorld() {
         return hostedGameMode.getGameWorld();
     }
-    
+
     public GameServer getGameServer() {
         return hostedGameMode.getGameServer();
     }
-    
+
     public ClientGameMode getClientGameMode() {
         // Ensure initialization is complete before returning client mode
         if (!initialized.get()) {

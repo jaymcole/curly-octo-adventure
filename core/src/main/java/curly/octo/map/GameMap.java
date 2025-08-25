@@ -502,10 +502,4 @@ public class GameMap {
         long totalTime = System.currentTimeMillis() - startTime;
         Log.info("GameMap", "Physics disposal completed in " + totalTime + "ms");
     }
-
-    public void logPerformanceMetrics() {
-        Log.info("GameMap Performance",
-            String.format("Triangle Mesh: %d triangles | Strategy: %s | Single collision body for entire terrain",
-                totalTriangleCount, physicsStrategy.name()));
-    }
 }

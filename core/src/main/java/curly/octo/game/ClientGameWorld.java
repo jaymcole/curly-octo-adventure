@@ -37,13 +37,13 @@ public class ClientGameWorld extends GameWorld {
         if (getGameObjectManager().localPlayer == null) {
             Log.info("ClientGameWorld", "Creating local player object");
             getGameObjectManager().localPlayer = new PlayerObject("localPlayer");
-            
+
             // Graphics initialization happens asynchronously on OpenGL thread
             Log.info("ClientGameWorld", "Graphics initialization scheduled for local player");
-            
+
             getGameObjectManager().add(getGameObjectManager().localPlayer);
             getPlayers().add(getGameObjectManager().localPlayer);
-            Log.info("ClientGameWorld", "Local player object created with ID: " + getGameObjectManager().localPlayer.getPlayerId() + " and added to players list");
+            Log.info("ClientGameWorld", "Local player object created with ID: " + getGameObjectManager().localPlayer.entityId + " and added to players list");
         }
 
         if (getMapManager() != null) {
@@ -69,7 +69,7 @@ public class ClientGameWorld extends GameWorld {
             // Link the PlayerObject to the physics character controller
             getGameObjectManager().localPlayer.setGameMap(getMapManager());
             getGameObjectManager().localPlayer.setCharacterController(getMapManager().getPlayerController());
-            
+
             // Set spawn position
             Vector3 playerStart = new Vector3(15, 25, 15);
             ArrayList<MapHint> spawnHints = getMapManager().getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
@@ -115,14 +115,11 @@ public class ClientGameWorld extends GameWorld {
             Array<ModelInstance> playerInstances = new Array<>();
             if (getGameObjectManager().activePlayers != null && getGameObjectManager().localPlayer != null) {
                 for (PlayerObject player : getGameObjectManager().activePlayers) {
-                    if (!player.getPlayerId().equals(getGameObjectManager().localPlayer.getPlayerId())) {
+                    if (!player.entityId.equals(getGameObjectManager().localPlayer.entityId)) {
                         // Get the player's ModelInstance for shadow casting
                         ModelInstance playerModel = player.getModelInstance();
                         if (playerModel != null) {
-                            // Update the model position to match player position
-                            Vector3 playerPos = player.getPosition();
-                            playerModel.transform.idt();
-                            playerModel.transform.setToTranslation(playerPos.x, playerPos.y + 2.5f, playerPos.z);
+                            // Don't manually position here - PlayerObject.update() handles this with bounds-aware positioning
                             playerInstances.add(playerModel);
                         }
                     }

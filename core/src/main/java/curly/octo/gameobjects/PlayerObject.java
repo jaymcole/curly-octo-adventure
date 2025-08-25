@@ -23,7 +23,6 @@ public class PlayerObject extends WorldObject {
     private static final String PLAYER_MODEL_PATH = "models/character/test_scale.obj";
     private static final float PLAYER_MODEL_SCALE = 0.1f;
 
-    private String playerId;
     private transient GameMap gameMap;
     private transient btKinematicCharacterController characterController;
     private transient boolean graphicsInitialized = false;
@@ -37,7 +36,6 @@ public class PlayerObject extends WorldObject {
     private boolean possessed = false;
 
     // Physics constants (matching old PlayerController behavior)
-    private static final float GRAVITY = -50f;
     private static final float JUMP_FORCE = 25f;
     private boolean onGround = false;
 
@@ -50,27 +48,11 @@ public class PlayerObject extends WorldObject {
     // No-arg constructor for Kryo serialization
     public PlayerObject() {
         super();
-        this.playerId = "unknown";
         // Don't initialize graphics for serialized objects
     }
 
     public PlayerObject(String playerId) {
         super(playerId);
-        this.playerId = playerId;
-
-        // Don't initialize graphics here - let GameObjectManager handle it properly
-        // Gdx.app.postRunnable(this::initializeGraphics);
-    }
-
-    public PlayerObject(String playerId, boolean serverOnly) {
-        super(playerId);
-        this.playerId = playerId;
-
-        // Don't initialize graphics here - let GameObjectManager handle it properly
-        // if (!serverOnly) {
-        //     Gdx.app.postRunnable(this::initializeGraphics);
-        // }
-        Log.info("PlayerObject", "Created " + (serverOnly ? "server-only" : "client") + " PlayerObject: " + playerId);
     }
 
     public void initializeGraphicsWithManager(ModelAssetManager modelAssetManager) {
@@ -88,7 +70,7 @@ public class PlayerObject extends WorldObject {
                 // Get model bounds for proper positioning
                 modelBounds = modelAssetManager.getModelBounds(PLAYER_MODEL_PATH);
 
-                Log.info("PlayerObject", "Loaded snowman model for player: " + playerId);
+                Log.info("PlayerObject", "Loaded snowman model for player: " + entityId);
             } catch (Exception objException) {
                 Log.warn("PlayerObject", "Failed to load snowman model, falling back to default sphere", objException);
                 // Fall back to default sphere if snowman model fails to load
@@ -102,37 +84,9 @@ public class PlayerObject extends WorldObject {
             }
 
             graphicsInitialized = true;
-            Log.info("PlayerObject", "Graphics initialized for player: " + playerId);
+            Log.info("PlayerObject", "Graphics initialized for player: " + entityId);
         } catch (Exception e) {
-            Log.error("PlayerObject", "Failed to initialize graphics for player: " + playerId, e);
-        }
-    }
-
-    private void initializeGraphics() {
-        // Fallback method for backward compatibility
-        try {
-            Model playerModel;
-
-            // Try to load the snowman model first
-            try {
-                ObjLoader objLoader = new ObjLoader();
-                playerModel = objLoader.loadModel(Gdx.files.internal(PLAYER_MODEL_PATH));
-                Log.info("PlayerObject", "Loaded snowman model for player: " + playerId);
-            } catch (Exception objException) {
-                Log.warn("PlayerObject", "Failed to load snowman model, falling back to default sphere", objException);
-                // Fall back to default sphere if snowman model fails to load
-                ModelBuilder modelBuilder = new ModelBuilder();
-                playerModel = modelBuilder.createSphere(3f, 3f, 3f, 16, 16,
-                    new Material(ColorAttribute.createDiffuse(Color.BLUE)),
-                    VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal);
-            }
-
-            setModelInstance(new ModelInstance(playerModel));
-            graphicsInitialized = true;
-
-            Log.info("PlayerObject", "Graphics initialized for player: " + playerId);
-        } catch (Exception e) {
-            Log.error("PlayerObject", "Failed to initialize graphics for player: " + playerId, e);
+            Log.error("PlayerObject", "Failed to initialize graphics for player: " + entityId, e);
         }
     }
 
@@ -165,6 +119,7 @@ public class PlayerObject extends WorldObject {
                 // Update ModelInstance position using bounds-aware positioning
                 if (getModelInstance() != null) {
                     if (modelBounds != null) {
+                        Log.info("PlayerObject.update", "Update: " + entityId);
                         // Use precise bounds-based positioning with camera rotation
                         updateModelPositionWithBounds(modelBounds, PLAYER_HEIGHT, PLAYER_MODEL_SCALE, yaw);
                     } else {
@@ -220,33 +175,16 @@ public class PlayerObject extends WorldObject {
         addPitch(deltaPitch);
     }
 
-    // Legacy methods for backward compatibility
-    public void setVelocity(Vector3 velocity) {
-        move(velocity);
-    }
-
-    public void addVelocity(Vector3 velocity) {
-        if (velocity.y > 0) {
-            jump();
-        } else if (velocity.len2() > 0) {
-            move(velocity);
-        }
-    }
-
-    public Vector3 getVelocity() {
-        return velocity.cpy();
-    }
-
     @Override
     public void onPossessionStart() {
         possessed = true;
-        Log.info("PlayerObject", "Player " + playerId + " possessed");
+        Log.info("PlayerObject", "Player " + entityId + " possessed");
     }
 
     @Override
     public void onPossessionEnd() {
         possessed = false;
-        Log.info("PlayerObject", "Player " + playerId + " possession ended");
+        Log.info("PlayerObject", "Player " + entityId + " possession ended");
     }
 
     @Override
@@ -275,25 +213,28 @@ public class PlayerObject extends WorldObject {
         ).nor().cpy();
     }
 
-    // Player-specific getters/setters
-    public String getPlayerId() {
-        return playerId;
-    }
-
-    public void setPlayerId(String playerId) {
-        this.playerId = playerId;
-    }
-
-    public GameMap getGameMap() {
-        return gameMap;
+    @Override
+    public void setPosition(Vector3 newPosition) {
+        super.setPosition(newPosition);
+        // Update model position with bounds-aware positioning when position changes
+        if (getModelInstance() != null) {
+            if (modelBounds != null) {
+                // Use precise bounds-based positioning
+                updateModelPositionWithBounds(modelBounds, PLAYER_HEIGHT, PLAYER_MODEL_SCALE, yaw);
+            } else {
+                // Fallback to simple positioning for procedural models
+                Vector3 modelPosition = getPosition().cpy();
+                modelPosition.y -= 1.2f;
+                getModelInstance().transform.idt();
+                getModelInstance().transform.setToTranslation(modelPosition);
+                getModelInstance().transform.scl(PLAYER_MODEL_SCALE);
+                getModelInstance().transform.rotate(Vector3.Y, yaw);
+            }
+        }
     }
 
     public void setGameMap(GameMap gameMap) {
         this.gameMap = gameMap;
-    }
-
-    public btKinematicCharacterController getCharacterController() {
-        return characterController;
     }
 
     public void setCharacterController(btKinematicCharacterController characterController) {
@@ -302,34 +243,6 @@ public class PlayerObject extends WorldObject {
 
     public MapTileFillType getCurrentTileFillType() {
         return currentTileFillType;
-    }
-
-    public MapTile getCurrentTile() {
-        return currentTile;
-    }
-
-    public boolean isInFog() {
-        return currentTileFillType == MapTileFillType.FOG;
-    }
-
-    public boolean isInWater() {
-        return currentTileFillType == MapTileFillType.WATER;
-    }
-
-    public boolean isInLava() {
-        return currentTileFillType == MapTileFillType.LAVA;
-    }
-
-    public float getYaw() {
-        return yaw;
-    }
-
-    public void setYaw(float yaw) {
-        this.yaw = yaw;
-    }
-
-    public float getPitch() {
-        return pitch;
     }
 
     public void setPitch(float pitch) {
