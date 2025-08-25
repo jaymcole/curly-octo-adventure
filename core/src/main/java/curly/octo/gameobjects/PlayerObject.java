@@ -70,6 +70,12 @@ public class PlayerObject extends WorldObject {
                 // Get model bounds for proper positioning
                 modelBounds = modelAssetManager.getModelBounds(PLAYER_MODEL_PATH);
 
+                // Fallback: create bounds directly if not available from asset manager
+                if (modelBounds == null) {
+                    Log.warn("PlayerObject", "ModelBounds not available from asset manager, creating directly");
+                    modelBounds = new ModelAssetManager.ModelBounds(playerModel);
+                }
+
                 Log.info("PlayerObject", "Loaded snowman model for player: " + entityId);
             } catch (Exception objException) {
                 Log.warn("PlayerObject", "Failed to load snowman model, falling back to default sphere", objException);
@@ -80,10 +86,17 @@ public class PlayerObject extends WorldObject {
                     VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal);
 
                 setModelInstance(new ModelInstance(playerModel));
-                modelBounds = null; // No bounds for procedural model
+                // Create bounds for procedural model to ensure consistent positioning
+                modelBounds = new ModelAssetManager.ModelBounds(playerModel);
             }
 
             graphicsInitialized = true;
+
+            // Apply current position to the newly created model instance
+            if (getPosition() != null) {
+                updateModelTransform();
+            }
+
             Log.info("PlayerObject", "Graphics initialized for player: " + entityId);
         } catch (Exception e) {
             Log.error("PlayerObject", "Failed to initialize graphics for player: " + entityId, e);
@@ -114,23 +127,11 @@ public class PlayerObject extends WorldObject {
 
             // Sync position from physics
             if (getPosition() != null) {
+
                 getPosition().set(characterController.getGhostObject().getWorldTransform().getTranslation(tempVector));
 
-                // Update ModelInstance position using bounds-aware positioning
-                if (getModelInstance() != null) {
-                    if (modelBounds != null) {
-                        // Use precise bounds-based positioning with camera rotation
-                        updateModelPositionWithBounds(modelBounds, PLAYER_HEIGHT, PLAYER_MODEL_SCALE, yaw);
-                    } else {
-                        // Fallback to simple positioning for procedural models with rotation
-                        Vector3 modelPosition = getPosition().cpy();
-                        modelPosition.y -= 1.2f;
-                        getModelInstance().transform.idt();
-                        getModelInstance().transform.setToTranslation(modelPosition);
-                        getModelInstance().transform.scl(PLAYER_MODEL_SCALE);
-                        getModelInstance().transform.rotate(Vector3.Y, yaw);
-                    }
-                }
+                // Update ModelInstance position using consistent transform logic
+                updateModelTransform();
             }
         }
     }
@@ -212,23 +213,19 @@ public class PlayerObject extends WorldObject {
         ).nor().cpy();
     }
 
+    private void updateModelTransform() {
+        if (getModelInstance() != null && getPosition() != null && modelBounds != null) {
+            // All players now have modelBounds, so use precise bounds-based positioning
+            updateModelPositionWithBounds(modelBounds, PLAYER_HEIGHT, PLAYER_MODEL_SCALE, yaw);
+        }
+    }
+
     @Override
     public void setPosition(Vector3 newPosition) {
         super.setPosition(newPosition);
-        // Update model position with bounds-aware positioning when position changes
-        if (getModelInstance() != null) {
-            if (modelBounds != null) {
-                // Use precise bounds-based positioning
-                updateModelPositionWithBounds(modelBounds, PLAYER_HEIGHT, PLAYER_MODEL_SCALE, yaw);
-            } else {
-                // Fallback to simple positioning for procedural models
-                Vector3 modelPosition = getPosition().cpy();
-                modelPosition.y -= 1.2f;
-                getModelInstance().transform.idt();
-                getModelInstance().transform.setToTranslation(modelPosition);
-                getModelInstance().transform.scl(PLAYER_MODEL_SCALE);
-                getModelInstance().transform.rotate(Vector3.Y, yaw);
-            }
+        // Update model position only if graphics are initialized
+        if (graphicsInitialized) {
+            updateModelTransform();
         }
     }
 

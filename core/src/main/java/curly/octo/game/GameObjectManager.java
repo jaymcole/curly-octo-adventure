@@ -49,12 +49,11 @@ public class GameObjectManager implements Disposable {
 
     private void updateRenderQueue() {
         renderQueue.clear();
-
         for (GameObject object : gameObjects) {
             if (!gameObjectsToBeRemoved.contains(object) && object instanceof WorldObject) {
                 WorldObject worldObject = (WorldObject) object;
                 ModelInstance instance = worldObject.getModelInstance();
-                if (instance != null) {
+                if (instance != null && !object.entityId.equals(localPlayer.entityId)) {
                     renderQueue.add(instance);
                 }
             }
