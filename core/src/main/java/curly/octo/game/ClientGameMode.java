@@ -116,17 +116,9 @@ public class ClientGameMode implements GameMode {
                             sendPositionUpdate();
                         }
                     }
-
-                    // Don't overwhelm the network - 60 FPS updates
-                    Thread.sleep(16); // ~60 FPS
-
                 } catch (IOException e) {
                     Log.error("ClientGameMode", "Network thread error: " + e.getMessage());
                     e.printStackTrace();
-                } catch (InterruptedException e) {
-                    Log.info("ClientGameMode", "Network thread interrupted");
-                    Thread.currentThread().interrupt();
-                    break;
                 }
             }
 
@@ -265,7 +257,7 @@ public class ClientGameMode implements GameMode {
 
             // Set this existing player as the local player instead of creating a new one
             gameWorld.getGameObjectManager().localPlayer = existingPlayer;
-            
+
             // Set up the existing player for local control with full physics setup
             if (gameWorld.getMapManager() != null) {
                 // Check if player physics is already set up
@@ -285,11 +277,11 @@ public class ClientGameMode implements GameMode {
                     }
                     gameWorld.getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
                 }
-                
+
                 // Link the PlayerObject to the physics character controller
                 existingPlayer.setGameMap(gameWorld.getMapManager());
                 existingPlayer.setCharacterController(gameWorld.getMapManager().getPlayerController());
-                
+
                 // Set spawn position
                 Vector3 playerStart = new Vector3(15, 25, 15);
                 ArrayList<MapHint> spawnHints = gameWorld.getMapManager().getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
@@ -301,12 +293,12 @@ public class ClientGameMode implements GameMode {
                 }
                 existingPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
             }
-            
+
             inputController.setPossessionTarget(existingPlayer);
             if (inputController instanceof com.badlogic.gdx.InputProcessor) {
                 Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
             }
-            
+
             Log.info("ClientGameMode", "Successfully reused existing player as local player ID: " + localPlayerId);
             return; // Exit early since we've set up the local player
         }
@@ -315,7 +307,7 @@ public class ClientGameMode implements GameMode {
         if (gameWorld.getGameObjectManager().localPlayer == null) {
             Log.info("ClientGameMode", "No existing local player found, creating new local player object");
             gameWorld.setupLocalPlayer();
-            
+
             // Update the entity ID to match the server-assigned ID
             gameWorld.getGameObjectManager().localPlayer.entityId = localPlayerId;
 
@@ -505,9 +497,9 @@ public class ClientGameMode implements GameMode {
             Vector3 position = getLocalPlayerPosition();
 
             if (playerId != null && position != null) {
+                Log.info("sendPositionUpdate", "Sending position update: " + position.toString());
                 PlayerUpdate update = new PlayerUpdate(playerId, position);
                 gameClient.sendUDP(update);
-                // Log.debug("ClientGameMode", "Sent position update: " + update.x + ", " + update.y + ", " + update.z);
             }
         }
     }

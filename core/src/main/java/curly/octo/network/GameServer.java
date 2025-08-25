@@ -190,7 +190,7 @@ public class GameServer {
     public void broadcastPlayerPosition(String playerId, Vector3 position) {
         if (server != null) {
             PlayerUpdate update = new PlayerUpdate(playerId, position);
-            server.sendToAllUDP(update); // Using UDP for faster, less reliable but faster updates
+            server.sendToAllUDP(update); // Using UDP less reliable but faster updates
         }
     }
 
