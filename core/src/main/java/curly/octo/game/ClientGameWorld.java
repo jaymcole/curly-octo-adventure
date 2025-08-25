@@ -98,8 +98,6 @@ public class ClientGameWorld extends GameWorld {
             getGameObjectManager().update(deltaTime);
         }
 
-        // Update position update timer
-        incrementPositionUpdateTimer(deltaTime);
     }
 
     public void render(ModelBatch modelBatch, PerspectiveCamera camera) {

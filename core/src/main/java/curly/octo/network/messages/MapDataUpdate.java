@@ -6,9 +6,6 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import curly.octo.map.GameMap;
 
-/**
- * Network message for sending map data from server to clients.
- */
 public class MapDataUpdate implements KryoSerializable {
     public GameMap map;
 

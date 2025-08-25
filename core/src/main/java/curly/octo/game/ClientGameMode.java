@@ -38,6 +38,7 @@ public class ClientGameMode implements GameMode {
     // Network threading
     private Thread networkThread;
     private volatile boolean networkRunning = false;
+    private long lastNetworkLoopTime = System.nanoTime();
 
     public ClientGameMode(String host, java.util.Random random) {
         this.host = host;
@@ -111,9 +112,16 @@ public class ClientGameMode implements GameMode {
                             gameClient.update();
                         }
 
-                        // Send position updates
-                        if (active && gameWorld.shouldSendPositionUpdate()) {
-                            sendPositionUpdate();
+                        // Send position updates - increment timer based on actual time elapsed
+                        if (active) {
+                            long currentTime = System.nanoTime();
+                            float deltaTimeSeconds = (currentTime - lastNetworkLoopTime) / 1_000_000_000.0f;
+                            lastNetworkLoopTime = currentTime;
+
+                            gameWorld.incrementPositionUpdateTimer(deltaTimeSeconds);
+                            if (gameWorld.shouldSendPositionUpdate()) {
+                                sendPositionUpdate();
+                            }
                         }
                     }
                 } catch (IOException e) {
@@ -502,8 +510,6 @@ public class ClientGameMode implements GameMode {
             if (playerId != null && position != null && gom.localPlayer != null) {
                 float yaw = gom.localPlayer.getYaw();
                 float pitch = gom.localPlayer.getPitch();
-                
-                Log.info("sendPositionUpdate", "Sending position update: " + position.toString() + " yaw:" + yaw + " pitch:" + pitch);
                 PlayerUpdate update = new PlayerUpdate(playerId, position, yaw, pitch);
                 gameClient.sendUDP(update);
             }

@@ -83,13 +83,11 @@ public class GameServer {
                 if (object instanceof PlayerUpdate) {
                     // Received a player position update, broadcast to all other clients
                     PlayerUpdate update = (PlayerUpdate) object;
-                    // Log.debug("Server", "Received position update for player " + update.playerId + ": " +
-                    //     update.x + ", " + update.y + ", " + update.z);
-
-                    // Update the player's position in our local list
                     for (PlayerObject player : players) {
                         if (player.entityId.equals(update.playerId)) {
                             player.setPosition(new Vector3(update.x, update.y, update.z));
+                            player.setYaw(update.yaw);
+                            player.setPitch(update.pitch);
                             break;
                         }
                     }
