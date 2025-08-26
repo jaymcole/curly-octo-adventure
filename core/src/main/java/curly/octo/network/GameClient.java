@@ -5,6 +5,11 @@ import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.network.messages.*;
 import curly.octo.network.messages.MapReceivedListener;
+import java.io.ByteArrayInputStream;
+import java.io.ObjectInputStream;
+import java.util.concurrent.ConcurrentHashMap;
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
 
 import java.io.IOException;
 
@@ -20,6 +25,33 @@ public class GameClient {
     private PlayerRosterListener playerRosterListener;
     private PlayerUpdateListener playerUpdateListener;
     private PlayerDisconnectListener playerDisconnectListener;
+    
+    // Chunked map transfer support
+    private final ConcurrentHashMap<String, MapTransferState> activeTransfers = new ConcurrentHashMap<>();
+    
+    // Inner class to track map transfer state
+    private static class MapTransferState {
+        final String mapId;
+        final int totalChunks;
+        final long totalSize;
+        final byte[][] chunks;
+        int chunksReceived = 0;
+        
+        MapTransferState(String mapId, int totalChunks, long totalSize) {
+            this.mapId = mapId;
+            this.totalChunks = totalChunks;
+            this.totalSize = totalSize;
+            this.chunks = new byte[totalChunks][];
+        }
+        
+        boolean isComplete() {
+            return chunksReceived == totalChunks;
+        }
+        
+        float getProgress() {
+            return (float) chunksReceived / totalChunks;
+        }
+    }
 
     /**
      * Creates a new game client that will connect to the specified host.
@@ -27,9 +59,8 @@ public class GameClient {
      */
     public GameClient(String host) {
         this.host = host;
-        // Optimized buffer sizes - large enough for map transfers but not wasteful
-        // 5MB write buffer (for map uploads), 1MB read buffer (for regular gameplay)
-        this.client = new Client(1000000, 5000000);
+        // Small buffers for fast network operations - maps will be transferred in chunks
+        this.client = new Client(16384, 16384); // 16KB read/write buffers
 
         // Register all network classes
         Network.register(client);
@@ -55,6 +86,12 @@ public class GameClient {
             }
         });
 
+        // Handle chunked map transfer messages
+        networkListener.setMapTransferStartListener(this::handleMapTransferStart);
+        networkListener.setMapChunkListener(this::handleMapChunk);
+        networkListener.setMapTransferCompleteListener(this::handleMapTransferComplete);
+        
+        // Keep old map listener for backwards compatibility (though it won't be used)
         networkListener.setMapReceivedListener(map -> {
             if (this.mapReceivedListener != null) {
                 this.mapReceivedListener.onMapReceived(map);
@@ -243,5 +280,88 @@ public class GameClient {
     public void setPlayerDisconnectListener(PlayerDisconnectListener listener) {
         this.playerDisconnectListener = listener;
         this.networkListener.setPlayerDisconnectListener(listener);
+    }
+    
+    /**
+     * Handles the start of a chunked map transfer
+     */
+    private void handleMapTransferStart(MapTransferStartMessage message) {
+        Log.info("GameClient", "Starting map transfer: " + message.mapId + 
+                " (" + message.totalChunks + " chunks, " + message.totalSize + " bytes)");
+        
+        MapTransferState state = new MapTransferState(message.mapId, message.totalChunks, message.totalSize);
+        activeTransfers.put(message.mapId, state);
+    }
+    
+    /**
+     * Handles receiving a chunk of map data
+     */
+    private void handleMapChunk(MapChunkMessage message) {
+        MapTransferState state = activeTransfers.get(message.mapId);
+        if (state == null) {
+            Log.warn("GameClient", "Received chunk for unknown transfer: " + message.mapId);
+            return;
+        }
+        
+        // Store the chunk
+        state.chunks[message.chunkIndex] = message.chunkData;
+        state.chunksReceived++;
+        
+        Log.info("GameClient", "Received chunk " + message.chunkIndex + "/" + message.totalChunks + 
+                " for " + message.mapId + " (" + (int)(state.getProgress() * 100) + "% complete)");
+    }
+    
+    /**
+     * Handles completion of a chunked map transfer
+     */
+    private void handleMapTransferComplete(MapTransferCompleteMessage message) {
+        MapTransferState state = activeTransfers.remove(message.mapId);
+        if (state == null) {
+            Log.warn("GameClient", "Received completion for unknown transfer: " + message.mapId);
+            return;
+        }
+        
+        if (!state.isComplete()) {
+            Log.error("GameClient", "Transfer marked complete but missing chunks: " + 
+                     state.chunksReceived + "/" + state.totalChunks);
+            return;
+        }
+        
+        Log.info("GameClient", "Map transfer complete: " + message.mapId + ", reassembling...");
+        
+        try {
+            // Reassemble the chunks into the original map data
+            int totalLength = 0;
+            for (byte[] chunk : state.chunks) {
+                totalLength += chunk.length;
+            }
+            
+            byte[] completeData = new byte[totalLength];
+            int offset = 0;
+            for (byte[] chunk : state.chunks) {
+                System.arraycopy(chunk, 0, completeData, offset, chunk.length);
+                offset += chunk.length;
+            }
+            
+            // Deserialize the map using Kryo (same as KryoNet uses)
+            try (ByteArrayInputStream bais = new ByteArrayInputStream(completeData);
+                 Input input = new Input(bais)) {
+                
+                // Get the client's Kryo instance (already configured with our registrations)
+                Kryo kryo = client.getKryo();
+                curly.octo.map.GameMap map = kryo.readObject(input, curly.octo.map.GameMap.class);
+                
+                Log.info("GameClient", "Map successfully deserialized using Kryo, notifying listener");
+                
+                // Notify the listener that the map is ready
+                if (this.mapReceivedListener != null) {
+                    this.mapReceivedListener.onMapReceived(map);
+                }
+            }
+            
+        } catch (Exception e) {
+            Log.error("GameClient", "Error reassembling map from chunks: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }

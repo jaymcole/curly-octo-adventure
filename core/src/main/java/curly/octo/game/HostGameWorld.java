@@ -31,7 +31,7 @@ public class HostGameWorld extends GameWorld {
             int size = 50;
             int height = 10;
 
-            GameMap map = new GameMap(2, true); // true = server-only
+            GameMap map = new GameMap(8, true); // true = server-only
             Log.info("HostGameWorld", "Created host map ("+size+"x"+height+"x"+size+" = " + (size*height*size) + " tiles) - no rendering, no physics");
 
             // Set the map without renderer initialization

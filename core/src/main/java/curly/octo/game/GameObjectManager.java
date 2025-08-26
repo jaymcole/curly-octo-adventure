@@ -29,8 +29,6 @@ public class GameObjectManager implements Disposable {
     private final Array<ModelInstance> renderQueue = new Array<>();
 
     public void update(float delta) {
-//        Log.info("GameObjectManager.update", "Total objects to update: " + gameObjects.size());
-
         for(GameObject objects : gameObjects) {
             if (!gameObjectsToBeRemoved.contains(objects)) {
                 objects.update(delta);

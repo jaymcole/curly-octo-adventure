@@ -16,6 +16,9 @@ import org.bitlet.weupnp.GatewayDiscover;
 import curly.octo.map.GameMap;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.network.messages.MapDataUpdate;
+import curly.octo.network.messages.MapChunkMessage;
+import curly.octo.network.messages.MapTransferStartMessage;
+import curly.octo.network.messages.MapTransferCompleteMessage;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerDisconnectUpdate;
 import curly.octo.network.messages.PlayerObjectRosterUpdate;
@@ -77,6 +80,9 @@ public class Network {
 
         // Register network message classes
         kryo.register(MapDataUpdate.class);
+        kryo.register(MapChunkMessage.class);
+        kryo.register(MapTransferStartMessage.class);
+        kryo.register(MapTransferCompleteMessage.class);
         kryo.register(PlayerUpdate.class);
         kryo.register(PlayerDisconnectUpdate.class);
 

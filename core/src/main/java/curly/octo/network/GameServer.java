@@ -8,6 +8,9 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameWorld;
 import curly.octo.map.GameMap;
 import curly.octo.network.messages.MapDataUpdate;
+import curly.octo.network.messages.MapChunkMessage;
+import curly.octo.network.messages.MapTransferStartMessage;
+import curly.octo.network.messages.MapTransferCompleteMessage;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerDisconnectUpdate;
 import curly.octo.network.messages.PlayerObjectRosterUpdate;
@@ -16,7 +19,12 @@ import curly.octo.gameobjects.PlayerObject;
 import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectOutputStream;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Output;
 
 /**
  * Handles server-side network operations.
@@ -29,14 +37,17 @@ public class GameServer {
     private final GameWorld gameWorld;
     private final Map<Integer, String> connectionToPlayerMap = new HashMap<>();
     private final Set<Integer> readyClients = new HashSet<>(); // Track clients that have received map and assignment
+    
+    // Chunked map transfer support
+    private static final int CHUNK_SIZE = 8192; // 8KB chunks
+    private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
 
     public GameServer(Random random, GameMap map, List<PlayerObject> players, GameWorld gameWorld) {
         this.map = map;
         this.players = players;
         this.gameWorld = gameWorld;
-        // Optimized buffer sizes - large enough for map transfers but not wasteful
-        // 5MB write buffer (for map downloads), 1MB read buffer (for player updates)
-        this.server = new Server(1000000, 5000000);
+        // Small buffers for fast network operations - maps will be transferred in chunks
+        this.server = new Server(16384, 16384); // 16KB read/write buffers
         this.networkListener = new NetworkListener(server);
 
         // Register all network classes
@@ -241,10 +252,76 @@ public class GameServer {
     }
 
     public void sendMapRefreshToUser(Connection connection) {
-        Log.info("Server", "Sending map data to client " + connection.getID());
-        MapDataUpdate mapUpdate = new MapDataUpdate(map);
-        server.sendToTCP(connection.getID(), mapUpdate);
-        Log.info("Server", "Map data sent to client " + connection.getID());
-
+        String mapId = "map_" + System.currentTimeMillis(); // Unique map ID
+        Log.info("Server", "Starting chunked map transfer to client " + connection.getID() + " (mapId: " + mapId + ")");
+        
+        try {
+            // Serialize the map (with caching)
+            byte[] mapData = getSerializedMapData();
+            int totalChunks = (int) Math.ceil((double) mapData.length / CHUNK_SIZE);
+            
+            Log.info("Server", "Map size: " + mapData.length + " bytes, " + totalChunks + " chunks");
+            
+            // Send transfer start message
+            MapTransferStartMessage startMessage = new MapTransferStartMessage(mapId, totalChunks, mapData.length);
+            server.sendToTCP(connection.getID(), startMessage);
+            
+            // Send chunks in sequence
+            for (int i = 0; i < totalChunks; i++) {
+                int offset = i * CHUNK_SIZE;
+                int chunkLength = Math.min(CHUNK_SIZE, mapData.length - offset);
+                
+                byte[] chunkData = new byte[chunkLength];
+                System.arraycopy(mapData, offset, chunkData, 0, chunkLength);
+                
+                MapChunkMessage chunkMessage = new MapChunkMessage(mapId, i, totalChunks, chunkData);
+                server.sendToTCP(connection.getID(), chunkMessage);
+                
+                // Small delay between chunks to avoid overwhelming the network
+                if (i > 0 && i % 10 == 0) {
+                    Thread.sleep(1); // 1ms pause every 10 chunks
+                }
+            }
+            
+            // Send transfer complete message
+            MapTransferCompleteMessage completeMessage = new MapTransferCompleteMessage(mapId);
+            server.sendToTCP(connection.getID(), completeMessage);
+            
+            Log.info("Server", "Chunked map transfer completed to client " + connection.getID());
+            
+        } catch (Exception e) {
+            Log.error("Server", "Error sending chunked map data to client " + connection.getID() + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Serializes the map data using Kryo and caches it for reuse.
+     * @return serialized map data as byte array
+     */
+    private byte[] getSerializedMapData() throws IOException {
+        String cacheKey = "current_map"; // Could be made more sophisticated based on map content hash
+        
+        byte[] cachedData = serializedMaps.get(cacheKey);
+        if (cachedData != null) {
+            Log.info("Server", "Using cached map data (" + cachedData.length + " bytes)");
+            return cachedData;
+        }
+        
+        // Serialize the map using Kryo (same as KryoNet uses)
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             Output output = new Output(baos)) {
+            
+            // Get the server's Kryo instance (already configured with our registrations)
+            Kryo kryo = server.getKryo();
+            kryo.writeObject(output, map);
+            output.flush();
+            
+            byte[] mapData = baos.toByteArray();
+            serializedMaps.put(cacheKey, mapData); // Cache for future use
+            
+            Log.info("Server", "Serialized and cached map data using Kryo (" + mapData.length + " bytes)");
+            return mapData;
+        }
     }
 }

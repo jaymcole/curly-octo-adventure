@@ -8,6 +8,9 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.network.messages.*;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.MapReceivedListener;
+import curly.octo.network.messages.MapTransferStartListener;
+import curly.octo.network.messages.MapChunkListener;
+import curly.octo.network.messages.MapTransferCompleteListener;
 import curly.octo.network.messages.PlayerDisconnectListener;
 
 /**
@@ -17,6 +20,9 @@ import curly.octo.network.messages.PlayerDisconnectListener;
 public class NetworkListener implements Listener {
     private ConnectionListener connectionListener;
     private MapReceivedListener mapReceivedListener;
+    private MapTransferStartListener mapTransferStartListener;
+    private MapChunkListener mapChunkListener;
+    private MapTransferCompleteListener mapTransferCompleteListener;
     private PlayerAssignmentListener playerAssignmentListener;
     private PlayerRosterListener playerRosterListener;
     private PlayerUpdateListener playerUpdateListener;
@@ -50,6 +56,18 @@ public class NetworkListener implements Listener {
     }
     public void setPlayerDisconnectListener(PlayerDisconnectListener listener) {
         this.playerDisconnectListener = listener;
+    }
+    
+    public void setMapTransferStartListener(MapTransferStartListener listener) {
+        this.mapTransferStartListener = listener;
+    }
+    
+    public void setMapChunkListener(MapChunkListener listener) {
+        this.mapChunkListener = listener;
+    }
+    
+    public void setMapTransferCompleteListener(MapTransferCompleteListener listener) {
+        this.mapTransferCompleteListener = listener;
     }
     /**
      * Called when a connection is received from a client (server-side)
@@ -106,6 +124,23 @@ public class NetworkListener implements Listener {
             PlayerUpdate update = (PlayerUpdate) object;
             if (playerUpdateListener != null) {
                 playerUpdateListener.onPlayerUpdateReceived(update);
+            }
+        } else if (object instanceof MapTransferStartMessage) {
+            MapTransferStartMessage message = (MapTransferStartMessage) object;
+            Log.info("Network", "Received map transfer start: " + message.mapId);
+            if (mapTransferStartListener != null) {
+                mapTransferStartListener.onMapTransferStart(message);
+            }
+        } else if (object instanceof MapChunkMessage) {
+            MapChunkMessage message = (MapChunkMessage) object;
+            if (mapChunkListener != null) {
+                mapChunkListener.onMapChunk(message);
+            }
+        } else if (object instanceof MapTransferCompleteMessage) {
+            MapTransferCompleteMessage message = (MapTransferCompleteMessage) object;
+            Log.info("Network", "Received map transfer complete: " + message.mapId);
+            if (mapTransferCompleteListener != null) {
+                mapTransferCompleteListener.onMapTransferComplete(message);
             }
         } else if (object instanceof PlayerDisconnectUpdate) {
             PlayerDisconnectUpdate update = (PlayerDisconnectUpdate) object;

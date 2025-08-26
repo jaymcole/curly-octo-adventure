@@ -37,7 +37,6 @@ public abstract class GameWorld {
         if (serverOnly) {
             this.players = new ArrayList<>();
             this.gameObjectManager = new GameObjectManager();
-            // Skip: environment, dungeonLights, setupEnvironment() - all graphics related
             Log.info("GameWorld", "Created server-only GameWorld (no graphics)");
         } else {
             // Normal client initialization
