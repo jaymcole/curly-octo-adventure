@@ -27,8 +27,9 @@ public class GameClient {
      */
     public GameClient(String host) {
         this.host = host;
-        // Increased buffer sizes for large map transfers (5MB each)
-        this.client = new Client(50000000, 50000000);
+        // Optimized buffer sizes - large enough for map transfers but not wasteful
+        // 5MB write buffer (for map uploads), 1MB read buffer (for regular gameplay)
+        this.client = new Client(1000000, 5000000);
 
         // Register all network classes
         Network.register(client);
@@ -167,7 +168,30 @@ public class GameClient {
      */
     public void update() throws IOException {
         if (client != null) {
-            client.update(0);
+            long startTime = System.nanoTime();
+            
+            // Profile the KryoNet client update call
+            try {
+                client.update(0);
+                long updateTime = (System.nanoTime() - startTime) / 1_000_000;
+                
+                // Only log if it takes longer than expected (>10ms is suspicious for a 0-timeout call)
+                if (updateTime > 10) {
+                    Log.warn("GameClient", "KryoNet client.update(0) took " + updateTime + "ms - this should be near-instant!");
+                    
+                    // Additional diagnostics
+                    if (client.isConnected()) {
+                        int rtt = client.getReturnTripTime();
+                        Log.warn("GameClient", "Connection RTT: " + rtt + "ms, Connected: true");
+                    } else {
+                        Log.warn("GameClient", "Client not connected during slow update");
+                    }
+                }
+            } catch (Exception e) {
+                long errorTime = (System.nanoTime() - startTime) / 1_000_000;
+                Log.error("GameClient", "KryoNet client.update() failed after " + errorTime + "ms: " + e.getMessage());
+                throw e;
+            }
         }
     }
 

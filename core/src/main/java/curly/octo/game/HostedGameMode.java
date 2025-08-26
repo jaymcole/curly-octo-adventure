@@ -48,8 +48,8 @@ public class HostedGameMode implements GameMode {
 
             Log.info("HostedGameMode", "Server started, now connecting as client to localhost");
 
-            // Wait a moment for server to be ready
-            Thread.sleep(500);
+            // Brief wait for server to be ready
+            Thread.sleep(50);
 
             // Create client mode to connect to our own server (with its own GameWorld)
             clientGameMode = new ClientGameMode("localhost", random);

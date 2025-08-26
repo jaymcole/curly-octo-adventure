@@ -34,8 +34,9 @@ public class GameServer {
         this.map = map;
         this.players = players;
         this.gameWorld = gameWorld;
-        // Increased buffer sizes for large map transfers (5MB each)
-        this.server = new Server(50000000, 50000000);
+        // Optimized buffer sizes - large enough for map transfers but not wasteful
+        // 5MB write buffer (for map downloads), 1MB read buffer (for player updates)
+        this.server = new Server(1000000, 5000000);
         this.networkListener = new NetworkListener(server);
 
         // Register all network classes
@@ -55,16 +56,6 @@ public class GameServer {
                 sendPlayerRosterToConnection(connection);
                 assignPlayer(connection, newPlayer.entityId);
 
-                // Send another roster after a delay to test if timing is the issue
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(1000); // Wait 1 second
-                        Log.info("GameServer", "Sending delayed roster to connection " + connection.getID());
-                        sendPlayerRosterToConnection(connection);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                }).start();
 
                 // Safe logging of connection address
                 String address = "unknown";

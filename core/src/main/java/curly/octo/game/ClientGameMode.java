@@ -40,6 +40,21 @@ public class ClientGameMode implements GameMode {
     private volatile boolean networkRunning = false;
     private long lastNetworkLoopTime = System.nanoTime();
 
+    // Debug: Position update frequency tracking
+    private long lastPositionUpdateCount = 0;
+    private long lastPositionUpdateTime = System.currentTimeMillis();
+
+    // Debug: Network loop frequency tracking
+    private long networkLoopCount = 0;
+    private long lastNetworkLoopLogTime = System.currentTimeMillis();
+
+    // Smart rate limiting for sustained performance
+    private long lastPositionSendTime = 0;
+    private final long TARGET_POSITION_INTERVAL_NS = 20_000_000; // 50 FPS (20ms between updates) - high but sustainable
+    
+    // Buffer monitoring
+    private long lastBufferCheckTime = System.currentTimeMillis();
+
     public ClientGameMode(String host, java.util.Random random) {
         this.host = host;
         this.gameWorld = new ClientGameWorld(random);
@@ -95,6 +110,16 @@ public class ClientGameMode implements GameMode {
 
             while (networkRunning) {
                 try {
+                    long loopStartTime = System.currentTimeMillis();
+
+                    // Debug: Track network loop frequency
+                    networkLoopCount++;
+                    if (loopStartTime - lastNetworkLoopLogTime >= 1000) {
+                        Log.info("ClientGameMode", "Network loops per second: " + networkLoopCount);
+                        networkLoopCount = 0;
+                        lastNetworkLoopLogTime = loopStartTime;
+                    }
+
                     // Process network updates
                     if (gameClient != null) {
                         // Handle connection state
@@ -108,24 +133,45 @@ public class ClientGameMode implements GameMode {
                                 }
                             }
                         } else {
-                            // Regular client updates - this is the blocking operation!
-                            gameClient.update();
-                        }
+                            // Only call client update every 100th loop to reduce overhead
+                            if (networkLoopCount % 100 == 0) {
+                                long updateStart = System.nanoTime();
+                                gameClient.update();
+                                long updateTime = (System.nanoTime() - updateStart) / 1_000_000; // Convert to ms
 
-                        // Send position updates - increment timer based on actual time elapsed
-                        if (active) {
-                            long currentTime = System.nanoTime();
-                            float deltaTimeSeconds = (currentTime - lastNetworkLoopTime) / 1_000_000_000.0f;
-                            lastNetworkLoopTime = currentTime;
-
-                            gameWorld.incrementPositionUpdateTimer(deltaTimeSeconds);
-                            if (gameWorld.shouldSendPositionUpdate()) {
-                                sendPositionUpdate();
+                                if (updateTime > 1) { // Log if update takes more than 1ms
+                                    Log.warn("ClientGameMode", "gameClient.update() took " + updateTime + "ms");
+                                }
                             }
                         }
+
+                        // Send position updates - smart rate limiting for sustained performance
+                        if (active) {
+                            long currentTime = System.nanoTime();
+                            if (currentTime - lastPositionSendTime >= TARGET_POSITION_INTERVAL_NS) {
+                                sendPositionUpdate();
+                                lastPositionSendTime = currentTime;
+                            }
+                        }
+                        
+                        // Monitor network buffer status every few seconds
+                        long currentTimeMs = System.currentTimeMillis();
+                        if (gameClient != null && currentTimeMs - lastBufferCheckTime >= 2000) {
+                            checkNetworkBufferStatus();
+                            lastBufferCheckTime = currentTimeMs;
+                        }
                     }
+
+                    // Small sleep to prevent excessive CPU usage while maintaining responsiveness
+                    Thread.sleep(1);
                 } catch (IOException e) {
                     Log.error("ClientGameMode", "Network thread error: " + e.getMessage());
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    Log.error("ClientGameMode", "Network thread exception: " + e.getMessage());
                     e.printStackTrace();
                 }
             }
@@ -346,21 +392,16 @@ public class ClientGameMode implements GameMode {
             Log.info("ClientGameMode", "All conditions met, activating client mode...");
             // Switch to 3D view
             Gdx.app.postRunnable(() -> {
-                try {
-                    Thread.sleep(1000);
-                    active = true;
+                active = true;
 
-                    if (gameWorld.getGameObjectManager().localPlayer != null) {
-                        inputController.setPossessionTarget(gameWorld.getGameObjectManager().localPlayer);
-                        if (inputController instanceof com.badlogic.gdx.InputProcessor) {
-                            Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
-                        }
-                        Log.info("ClientGameMode", "Client mode activated successfully");
-                    } else {
-                        Log.error("ClientGameMode", "Local player object is null, cannot activate");
+                if (gameWorld.getGameObjectManager().localPlayer != null) {
+                    inputController.setPossessionTarget(gameWorld.getGameObjectManager().localPlayer);
+                    if (inputController instanceof com.badlogic.gdx.InputProcessor) {
+                        Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
                     }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                    Log.info("ClientGameMode", "Client mode activated successfully");
+                } else {
+                    Log.error("ClientGameMode", "Local player object is null, cannot activate");
                 }
             });
         } else {
@@ -512,6 +553,55 @@ public class ClientGameMode implements GameMode {
                 float pitch = gom.localPlayer.getPitch();
                 PlayerUpdate update = new PlayerUpdate(playerId, position, yaw, pitch);
                 gameClient.sendUDP(update);
+
+                // Debug: Track actual position update frequency (only incremented when actually sent)
+                lastPositionUpdateCount++;
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastPositionUpdateTime >= 1000) {
+                    Log.info("ClientGameMode", "Actual position updates per second: " + lastPositionUpdateCount);
+                    lastPositionUpdateCount = 0;
+                    lastPositionUpdateTime = currentTime;
+                }
+            }
+        }
+    }
+    
+    private void checkNetworkBufferStatus() {
+        if (gameClient != null && gameClient.getClient() != null) {
+            try {
+                // Get the underlying KryoNet client
+                com.esotericsoftware.kryonet.Client client = gameClient.getClient();
+                
+                // Check if client is connected first
+                if (client.isConnected()) {
+                    // KryoNet may not expose direct buffer size methods, but we can check connection state
+                    // and use reflection or indirect methods to monitor network health
+                    
+                    // Check return trip time which can indicate network congestion
+                    int returnTripTime = client.getReturnTripTime();
+                    
+                    // Log network health indicators
+                    if (returnTripTime > 100) {
+                        Log.warn("ClientGameMode", "High network latency detected: " + returnTripTime + "ms RTT - possible congestion");
+                    } else if (returnTripTime > 0) {
+                        Log.info("ClientGameMode", "Network RTT: " + returnTripTime + "ms (healthy)");
+                    }
+                    
+                    // Additional connection info
+                    String remoteAddress = "unknown";
+                    try {
+                        if (client.getRemoteAddressTCP() != null) {
+                            remoteAddress = client.getRemoteAddressTCP().toString();
+                        }
+                    } catch (Exception e) {
+                        // Ignore address lookup errors
+                    }
+                    
+                    Log.info("ClientGameMode", "Connection status - Address: " + remoteAddress + 
+                            ", Connected: " + client.isConnected());
+                }
+            } catch (Exception e) {
+                Log.warn("ClientGameMode", "Could not check network status: " + e.getMessage());
             }
         }
     }

@@ -3,7 +3,6 @@ package curly.octo.game;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
-import com.esotericsoftware.minlog.Log;
 import curly.octo.gameobjects.GameObject;
 import curly.octo.gameobjects.ModelAssetManager;
 import curly.octo.gameobjects.PhysicsProperties;
@@ -45,6 +44,10 @@ public class GameObjectManager implements Disposable {
         }
         updateRenderQueue();
         removeObjectsAfterUpdate();
+    }
+
+    private void sendObjectUpdates() {
+
     }
 
     private void updateRenderQueue() {

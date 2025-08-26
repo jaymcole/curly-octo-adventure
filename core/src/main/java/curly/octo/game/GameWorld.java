@@ -26,7 +26,6 @@ public abstract class GameWorld {
 
     // Physics update timer
     protected float positionUpdateTimer = 0;
-    protected static final float POSITION_UPDATE_INTERVAL = 1/60f; // 120 updates per second for smoother movement
     protected boolean disposed = false;
 
     /**
@@ -72,14 +71,6 @@ public abstract class GameWorld {
     }
 
     public abstract void update(float deltaTime);
-
-    public boolean shouldSendPositionUpdate() {
-        if (positionUpdateTimer >= POSITION_UPDATE_INTERVAL) {
-            positionUpdateTimer = 0;
-            return true;
-        }
-        return false;
-    }
 
     protected void incrementPositionUpdateTimer(float deltaTime) {
         positionUpdateTimer += deltaTime;
