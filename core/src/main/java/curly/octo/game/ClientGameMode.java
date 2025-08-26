@@ -133,13 +133,13 @@ public class ClientGameMode implements GameMode {
                                 }
                             }
                         } else {
-                            // Only call client update every 100th loop to reduce overhead
-                            if (networkLoopCount % 100 == 0) {
+                            // Only call client update every 300th loop to minimize periodic spikes
+                            if (networkLoopCount % 300 == 0) {
                                 long updateStart = System.nanoTime();
                                 gameClient.update();
                                 long updateTime = (System.nanoTime() - updateStart) / 1_000_000; // Convert to ms
 
-                                if (updateTime > 1) { // Log if update takes more than 1ms
+                                if (updateTime > 50) { // Log if update takes more than 50ms
                                     Log.warn("ClientGameMode", "gameClient.update() took " + updateTime + "ms");
                                 }
                             }

@@ -175,8 +175,8 @@ public class GameClient {
                 client.update(0);
                 long updateTime = (System.nanoTime() - startTime) / 1_000_000;
                 
-                // Only log if it takes longer than expected (>10ms is suspicious for a 0-timeout call)
-                if (updateTime > 10) {
+                // Only log if it takes longer than expected (>50ms is definitely problematic)
+                if (updateTime > 50) {
                     Log.warn("GameClient", "KryoNet client.update(0) took " + updateTime + "ms - this should be near-instant!");
                     
                     // Additional diagnostics
