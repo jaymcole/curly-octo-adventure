@@ -414,7 +414,10 @@ public class GameMap {
 
     public void stepPhysics(float deltaTime) {
         if (dynamicsWorld != null) {
-            dynamicsWorld.stepSimulation(deltaTime, 5, 1f/60f);
+            // Use dynamic timestep with reasonable constraints
+            // maxSubSteps = 10 to prevent spiral of death at very low FPS
+            // fixedTimeStep = 1f/120f for smoother physics at high FPS
+            dynamicsWorld.stepSimulation(deltaTime, 10, 1f/120f);
         }
     }
 

@@ -19,7 +19,7 @@ import curly.octo.map.enums.MapTileFillType;
 public class PlayerObject extends WorldObject {
 
     private static final float PLAYER_HEIGHT = 2.5f;
-    private static final float PLAYER_SPEED = 25f;
+    private static final float PLAYER_SPEED = 0.3f;
     private static final String PLAYER_MODEL_PATH = "models/character/test_scale.obj";
     private static final float PLAYER_MODEL_SCALE = 0.1f;
 
@@ -113,7 +113,8 @@ public class PlayerObject extends WorldObject {
         // Use character controller for physics-based movement
         if (characterController != null) {
             // Apply horizontal movement via character controller
-            tempVector.set(velocity.x, 0, velocity.z).scl(delta);
+            // setWalkDirection expects velocity (units per second), not displacement
+            tempVector.set(velocity.x, 0, velocity.z);
             characterController.setWalkDirection(tempVector);
 
             // Check if we can jump (character controller handles ground detection)
