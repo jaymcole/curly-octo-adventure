@@ -1,5 +1,6 @@
 package curly.octo.ui;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -17,6 +18,7 @@ public class DebugUI {
     private Label fpsLabel;
     private Label playerPositionLabel;
     private Label debugClientIPAddressLabel;
+    private Label mapSeedLabel;
     private Label lightsLabel;
     private Label shadowLightsLabel;
     private Label physicsDebugLabel;
@@ -61,6 +63,25 @@ public class DebugUI {
         // Client IP Address
         debugClientIPAddressLabel = new Label("Client IP: N/A", skin);
         debugTable.add(debugClientIPAddressLabel).pad(10).row();
+
+        // Map Generation Seed
+        mapSeedLabel = new Label("Map Seed: " + Constants.MAP_GENERATION_SEED, skin);
+        debugTable.add(mapSeedLabel).pad(10).row();
+
+        // Lighting System Limits
+        Label lightingLimitsLabel = new Label("Lighting: " + Constants.LIGHTING_ENHANCED_SHADER_LIGHTS + "/" + 
+                                            Constants.LIGHTING_MAX_FALLBACK_LIGHTS + " (Enhanced/Fallback)", skin);
+        debugTable.add(lightingLimitsLabel).pad(5).row();
+
+        // Physics Settings
+        Label physicsSettingsLabel = new Label("Physics: " + Math.round(Constants.PHYSICS_GRAVITY) + 
+                                             " gravity, " + Constants.PHYSICS_MAX_SUBSTEPS + " substeps", skin);
+        debugTable.add(physicsSettingsLabel).pad(5).row();
+
+        // Network & Performance Settings  
+        Label networkSettingsLabel = new Label("Network: " + (1000_000_000L / Constants.NETWORK_POSITION_UPDATE_INTERVAL_NS) + 
+                                             " FPS updates, Target: " + Constants.GAME_TARGET_FPS + " FPS", skin);
+        debugTable.add(networkSettingsLabel).pad(5).row();
 
         // FPS
         fpsLabel = new Label("FPS: ...", skin);
@@ -146,5 +167,9 @@ public class DebugUI {
 
     public void setPhysicsStrategy(String strategy, long triangleCount) {
         physicsStrategyLabel.setText("Physics: " + strategy + " (" + triangleCount + " triangles)");
+    }
+
+    public void setMapSeed(long seed) {
+        mapSeedLabel.setText("Map Seed: " + seed);
     }
 }

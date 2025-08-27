@@ -151,8 +151,11 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             lobbyUI.render();
         }
 
-        debugUI.update(deltaTime);
-        debugUI.render();
+        // Show debug UI only if enabled in constants
+        if (Constants.DEBUG_SHOW_FPS) {
+            debugUI.update(deltaTime);
+            debugUI.render();
+        }
 
         // Check for OpenGL errors
         int error = Gdx.gl.glGetError();
