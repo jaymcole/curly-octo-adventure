@@ -158,6 +158,8 @@ public class GameMapRenderer implements Disposable {
 
             // Render opaque geometry with shadows
             Vector3 ambientLight = getAmbientLight(environment);
+            // TEMPORARY: Use original method to test if our changes broke rendering
+            Log.info("GameMapRenderer", "Using original rendering method for debugging");
             cubeShadowMapRenderer.renderWithMultipleCubeShadows(allInstances, camera, significantLights, pointLights.lights, ambientLight);
 
             // Transparent surfaces are now handled within individual chunk models

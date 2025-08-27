@@ -10,6 +10,8 @@ import java.util.Random;
 
 public abstract class BaseSnail {
 
+    public static Random randomLights;
+
     public final GameMap map;
 
     protected Vector3 coordinate;
@@ -18,6 +20,9 @@ public abstract class BaseSnail {
     protected Random random;
 
     public BaseSnail(GameMap map, Vector3 coordinate, Direction direction, Random random) {
+        if (randomLights == null) {
+            randomLights = new Random();
+        }
         this.map = map;
         this.coordinate = coordinate;
         this.direction = direction;
@@ -34,7 +39,7 @@ public abstract class BaseSnail {
             return SnailResult.COMPLETE;
         }
 
-        if (random.nextFloat() > 0.8f) {
+        if (random.nextFloat() > 0.1f) {
             addLight(coordinate);
         }
 
@@ -48,10 +53,11 @@ public abstract class BaseSnail {
         // Create light hint at position
         LightHint lightHint = new LightHint(map.constructKeyFromIndexCoordinates(
             (int)lightPos.x, (int)lightPos.y + 1, (int)lightPos.z));
-        lightHint.color_r = 0.8f;  // Warm white light
-        lightHint.color_g = 0.7f;
-        lightHint.color_b = 0.5f;
-        lightHint.intensity = 3f;  // Much lower intensity
+        lightHint.color_r = randomLights.nextFloat();//0.8f;  // Warm white light
+        lightHint.color_g = randomLights.nextFloat();//0.7f;
+        lightHint.color_b = randomLights.nextFloat();//0.5f;
+        lightHint.intensity = random.nextInt(5) + randomLights.nextFloat();//3f;  // Much lower intensity
+        lightHint.intensity = randomLights.nextFloat();//3f;  // Much lower intensity
         lightHint.flicker = LightPresets.LIGHT_FLICKER_1;
 
         map.registerHint(lightHint);

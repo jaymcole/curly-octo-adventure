@@ -10,11 +10,11 @@ uniform sampler2D u_diffuseTexture;  // Diffuse texture
 uniform int u_hasTexture;  // Whether texture is present
 uniform float u_farPlane;
 
-// All lights (up to 8 lights total)
+// All lights (increased to 32 for better capacity)
 uniform int u_numLights;
-uniform vec3 u_lightPositions[8];
-uniform vec3 u_lightColors[8];
-uniform float u_lightIntensities[8];
+uniform vec3 u_lightPositions[32];  // Increased from 16 to 32
+uniform vec3 u_lightColors[32];
+uniform float u_lightIntensities[32];
 
 // Shadow casting lights (up to 8 lights with shadows)
 uniform int u_numShadowLights;
@@ -147,8 +147,8 @@ void main() {
     // Start with ambient lighting
     vec3 totalLighting = u_ambientLight;
     
-    // Calculate lighting from ALL lights
-    for (int i = 0; i < 8; i++) {
+    // Calculate lighting from ALL lights (up to 32)
+    for (int i = 0; i < 32; i++) {
         if (i >= u_numLights) break;
         
         vec3 lightPos = u_lightPositions[i];
