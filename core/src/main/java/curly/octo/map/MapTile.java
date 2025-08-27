@@ -10,7 +10,6 @@ import curly.octo.map.hints.SpawnPointHint;
 import java.util.ArrayList;
 
 public class MapTile {
-    public static final float TILE_SIZE = 5;
     public float x,y,z;
     public MapTileFillType fillType;
     public MapTileGeometryType geometryType;

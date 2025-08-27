@@ -1,5 +1,6 @@
 package curly.octo.game;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.g3d.Environment;
@@ -50,7 +51,7 @@ public class ClientGameMode implements GameMode {
 
     // Smart rate limiting for sustained performance
     private long lastPositionSendTime = 0;
-    private final long TARGET_POSITION_INTERVAL_NS = 20_000_000; // 50 FPS (20ms between updates) - high but sustainable
+    private final long TARGET_POSITION_INTERVAL_NS = Constants.NETWORK_POSITION_UPDATE_INTERVAL_NS; // 50 FPS (20ms between updates) - high but sustainable
     
     // Buffer monitoring
     private long lastBufferCheckTime = System.currentTimeMillis();
@@ -442,9 +443,9 @@ public class ClientGameMode implements GameMode {
             // Log.info("ClientGameMode", "Rendering with local player: " + localPlayer.getPlayerId());
             // Create camera for rendering if not exists
             if (camera == null) {
-                camera = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-                camera.near = 0.1f;
-                camera.far = 300f;
+                camera = new PerspectiveCamera(Constants.CAMERA_FOV, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+                camera.near = Constants.CAMERA_NEAR_PLANE;
+                camera.far = Constants.CAMERA_FAR_PLANE;
             }
 
             // Update camera from input controller

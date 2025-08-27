@@ -3,6 +3,7 @@ package curly.octo.map.physics;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.collision.btTriangleMesh;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.Constants;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.Direction;
@@ -50,7 +51,7 @@ public class AllTilesPhysicsBodyBuilder extends PhysicsBodyBuilder {
         float x = tile.x;
         float y = tile.y;
         float z = tile.z;
-        float size = MapTile.TILE_SIZE;
+        float size = Constants.MAP_TILE_SIZE;
 
         switch (tile.geometryType) {
             case FULL:

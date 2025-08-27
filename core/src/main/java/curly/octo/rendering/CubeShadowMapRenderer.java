@@ -1,5 +1,6 @@
 package curly.octo.rendering;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g3d.*;
@@ -201,7 +202,7 @@ public class CubeShadowMapRenderer implements Disposable {
         lightViewProjections = new Matrix4[6];
 
         for (int i = 0; i < 6; i++) {
-            lightCameras[i] = new PerspectiveCamera(90f, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+            lightCameras[i] = new PerspectiveCamera(Constants.CUBE_SHADOW_CAMERA_FOV, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
             lightCameras[i].near = 0.1f;
             lightCameras[i].far = 50f; // Increased light range for smoother falloff
             lightViewProjections[i] = new Matrix4();
@@ -343,14 +344,14 @@ public class CubeShadowMapRenderer implements Disposable {
         shadowShader.setUniformi("u_numShadowLights", numShadowLights);
 
         // Send lights to shader (adaptive limit based on shader capability)
-        int maxLights = usingFallbackShader ? 8 : 32; // Use appropriate limit for loaded shader
+        int maxLights = usingFallbackShader ? Constants.LIGHTING_FALLBACK_SHADER_LIGHTS : Constants.LIGHTING_ENHANCED_SHADER_LIGHTS;
         int totalLights = Math.min(allLights.size, maxLights);
         shadowShader.setUniformi("u_numLights", totalLights);
         
         // Log overflow information for monitoring
         if (allLights.size > maxLights) {
             int overflowCount = allLights.size - maxLights;
-            String shaderType = usingFallbackShader ? "fallback (8-light)" : "enhanced (16-light)";
+            String shaderType = usingFallbackShader ? "fallback (" + Constants.LIGHTING_FALLBACK_SHADER_LIGHTS + "-light)" : "enhanced (" + Constants.LIGHTING_ENHANCED_SHADER_LIGHTS + "-light)";
             Log.warn("CubeShadowMapRenderer", "Light overflow with " + shaderType + " shader: " + 
                      overflowCount + " lights not rendered (total: " + allLights.size + ", limit: " + maxLights + "). " +
                      "Consider using distance culling or reducing light density.");
@@ -484,12 +485,12 @@ public class CubeShadowMapRenderer implements Disposable {
         }
 
         // Send ordered lights to shader (limited by shader array size but with overflow handling)
-        int totalLights = Math.min(orderedLights.size, 32);
+        int totalLights = Math.min(orderedLights.size, Constants.LIGHTING_ENHANCED_SHADER_LIGHTS);
         shadowShader.setUniformi("u_numLights", totalLights);
         
         // Log overflow warning if there are too many lights
-        if (orderedLights.size > 32) {
-            int overflowCount = orderedLights.size - 32;
+        if (orderedLights.size > Constants.LIGHTING_ENHANCED_SHADER_LIGHTS) {
+            int overflowCount = orderedLights.size - Constants.LIGHTING_ENHANCED_SHADER_LIGHTS;
             Log.warn("CubeShadowMapRenderer", "WARNING: " + overflowCount + 
                      " lights exceeded shader limit and will not be rendered. Consider using LightingManager with overflow handling.");
         }

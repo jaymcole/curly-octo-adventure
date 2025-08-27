@@ -6,6 +6,8 @@ import curly.octo.map.GameMap;
 import java.util.HashMap;
 import java.util.Random;
 
+import static curly.octo.Constants.MAP_GENERATION_SEED;
+
 /**
  * Host-specific game world that handles server-side game logic.
  * Optimized for network coordination without graphics overhead.
@@ -31,8 +33,7 @@ public class HostGameWorld extends GameWorld {
             int size = 50;
             int height = 10;
 
-            GameMap map = new GameMap(1, true); // true = server-only
-//            GameMap map = new GameMap(System.currentTimeMillis(), true); // true = server-only
+            GameMap map = new GameMap(MAP_GENERATION_SEED, true);
             Log.info("HostGameWorld", "Created host map ("+size+"x"+height+"x"+size+" = " + (size*height*size) + " tiles) - no rendering, no physics");
 
             // Set the map without renderer initialization

@@ -1,5 +1,6 @@
 package curly.octo.network;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.math.Quaternion;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
@@ -60,7 +61,7 @@ public class GameClient {
     public GameClient(String host) {
         this.host = host;
         // Small buffers for fast network operations - maps will be transferred in chunks
-        this.client = new Client(16384, 16384); // 16KB read/write buffers
+        this.client = new Client(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE); // 16KB read/write buffers
 
         // Register all network classes
         Network.register(client);

@@ -15,6 +15,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.Constants;
 import curly.octo.game.GameObjectManager;
 import curly.octo.map.ChunkDebugger;
 import curly.octo.map.enums.MapTileFillType;
@@ -158,7 +159,6 @@ public class GameMapRenderer implements Disposable {
 
             // Render opaque geometry with shadows
             Vector3 ambientLight = getAmbientLight(environment);
-            // TEMPORARY: Use original method to test if our changes broke rendering
             Log.info("GameMapRenderer", "Using original rendering method for debugging");
             cubeShadowMapRenderer.renderWithMultipleCubeShadows(allInstances, camera, significantLights, pointLights.lights, ambientLight);
 
@@ -451,7 +451,7 @@ public class GameMapRenderer implements Disposable {
             BaseLight light = new BaseLight(environment, objectManager, lightHint.entityId, lightHint.color_r, lightHint.color_g, lightHint.color_b, lightHint.intensity, null, lightHint.flicker);
             MapTile tile = map.getTile(hint.tileLookupKey);
             if (tile != null) {
-                light.setPosition(new Vector3(tile.x + MapTile.TILE_SIZE / 2f, tile.y + MapTile.TILE_SIZE / 2f, tile.z + MapTile.TILE_SIZE / 2f));
+                light.setPosition(new Vector3(tile.x + Constants.MAP_TILE_SIZE / 2f, tile.y + Constants.MAP_TILE_SIZE / 2f, tile.z + Constants.MAP_TILE_SIZE / 2f));
             } else {
                 Log.error("extractLightsFromMap", "We registered a light for a tile that does not exist somehow");
             }

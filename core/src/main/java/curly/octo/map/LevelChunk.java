@@ -1,5 +1,6 @@
 package curly.octo.map;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.math.Vector3;
 
 import java.util.HashMap;
@@ -16,7 +17,7 @@ import java.util.Map;
  */
 public class LevelChunk {
 
-    public static final int CHUNK_SIZE = 16;
+    public static final int CHUNK_SIZE = Constants.MAP_CHUNK_SIZE;
 
     private final MapTile[][][] tiles;
     private final Vector3 chunkCoordinates;
@@ -35,9 +36,9 @@ public class LevelChunk {
         this.tiles = new MapTile[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
         this.chunkCoordinates = new Vector3(chunkX, chunkY, chunkZ);
         this.worldOffset = new Vector3(
-            chunkX * CHUNK_SIZE * MapTile.TILE_SIZE,
-            chunkY * CHUNK_SIZE * MapTile.TILE_SIZE,
-            chunkZ * CHUNK_SIZE * MapTile.TILE_SIZE
+            chunkX * CHUNK_SIZE * Constants.MAP_TILE_SIZE,
+            chunkY * CHUNK_SIZE * Constants.MAP_TILE_SIZE,
+            chunkZ * CHUNK_SIZE * Constants.MAP_TILE_SIZE
         );
         this.hasContent = false;
         this.solidTileCount = 0;

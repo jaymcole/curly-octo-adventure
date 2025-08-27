@@ -1,5 +1,6 @@
 package curly.octo.gameobjects;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.VertexAttributes;
@@ -18,10 +19,10 @@ import curly.octo.map.enums.MapTileFillType;
 
 public class PlayerObject extends WorldObject {
 
-    private static final float PLAYER_HEIGHT = 2.5f;
-    private static final float PLAYER_SPEED = 0.3f;
-    private static final String PLAYER_MODEL_PATH = "models/character/test_scale.obj";
-    private static final float PLAYER_MODEL_SCALE = 0.1f;
+    private static final float PLAYER_HEIGHT = Constants.PLAYER_HEIGHT;
+    private static final float PLAYER_SPEED = Constants.PLAYER_MOVEMENT_SPEED;
+    private static final String PLAYER_MODEL_PATH = Constants.PLAYER_MODEL_PATH;
+    private static final float PLAYER_MODEL_SCALE = Constants.PLAYER_MODEL_SCALE;
 
     private transient GameMap gameMap;
     private transient btKinematicCharacterController characterController;
@@ -36,14 +37,14 @@ public class PlayerObject extends WorldObject {
     private boolean possessed = false;
 
     // Physics constants (matching old PlayerController behavior)
-    private static final float JUMP_FORCE = 25f;
+    private static final float JUMP_FORCE = Constants.PLAYER_JUMP_FORCE;
     private boolean onGround = false;
 
     // Camera angles for smooth movement
     private float yaw = 0f;
     private float pitch = 0f;
-    private static final float MAX_PITCH = 89f;
-    private static final float MIN_PITCH = -89f;
+    private static final float MAX_PITCH = Constants.PLAYER_CAMERA_MAX_PITCH;
+    private static final float MIN_PITCH = Constants.PLAYER_CAMERA_MIN_PITCH;
 
     // No-arg constructor for Kryo serialization
     public PlayerObject() {

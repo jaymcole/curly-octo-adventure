@@ -1,5 +1,6 @@
 package curly.octo.network;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
@@ -39,7 +40,7 @@ public class GameServer {
     private final Set<Integer> readyClients = new HashSet<>(); // Track clients that have received map and assignment
     
     // Chunked map transfer support
-    private static final int CHUNK_SIZE = 8192; // 8KB chunks
+    private static final int CHUNK_SIZE = Constants.NETWORK_CHUNK_SIZE; // 8KB chunks
     private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
 
     public GameServer(Random random, GameMap map, List<PlayerObject> players, GameWorld gameWorld) {
@@ -47,7 +48,7 @@ public class GameServer {
         this.players = players;
         this.gameWorld = gameWorld;
         // Small buffers for fast network operations - maps will be transferred in chunks
-        this.server = new Server(16384, 16384); // 16KB read/write buffers
+        this.server = new Server(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE); // 16KB read/write buffers
         this.networkListener = new NetworkListener(server);
 
         // Register all network classes

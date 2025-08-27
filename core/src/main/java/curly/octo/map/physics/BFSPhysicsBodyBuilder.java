@@ -3,6 +3,7 @@ package curly.octo.map.physics;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.collision.btTriangleMesh;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.Constants;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.Direction;
@@ -90,9 +91,9 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
             int[] dz = {0, 0, 0, 0, -1, 1};
 
             for (int i = 0; i < 6; i++) {
-                int nx = (int)(current.x / MapTile.TILE_SIZE) + dx[i];
-                int ny = (int)(current.y / MapTile.TILE_SIZE) + dy[i];
-                int nz = (int)(current.z / MapTile.TILE_SIZE) + dz[i];
+                int nx = (int)(current.x / Constants.MAP_TILE_SIZE) + dx[i];
+                int ny = (int)(current.y / Constants.MAP_TILE_SIZE) + dy[i];
+                int nz = (int)(current.z / Constants.MAP_TILE_SIZE) + dz[i];
 
                 MapTile neighbor = gameMap.getTile(nx, ny, nz);
 
@@ -111,9 +112,9 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
 
         // Check all reachable empty tiles for solid neighbors
         for (MapTile emptyTile : reachableTiles) {
-            int tileX = (int)(emptyTile.x / MapTile.TILE_SIZE);
-            int tileY = (int)(emptyTile.y / MapTile.TILE_SIZE);
-            int tileZ = (int)(emptyTile.z / MapTile.TILE_SIZE);
+            int tileX = (int)(emptyTile.x / Constants.MAP_TILE_SIZE);
+            int tileY = (int)(emptyTile.y / Constants.MAP_TILE_SIZE);
+            int tileZ = (int)(emptyTile.z / Constants.MAP_TILE_SIZE);
 
             // Check all 6 neighbors of this empty tile
             int[] dx = {-1, 1, 0, 0, 0, 0};
@@ -145,7 +146,7 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
         float x = tile.x;
         float y = tile.y;
         float z = tile.z;
-        float size = MapTile.TILE_SIZE;
+        float size = Constants.MAP_TILE_SIZE;
 
         int tileX = (int)(x / size);
         int tileY = (int)(y / size);

@@ -1,5 +1,6 @@
 package curly.octo.network;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.esotericsoftware.kryo.Kryo;
@@ -34,8 +35,8 @@ import java.util.ArrayList;
  */
 public class Network {
     // This is the TCP and UDP port that the server will listen on.
-    public static final int TCP_PORT = 54555;
-    public static final int UDP_PORT = 54777;
+    public static final int TCP_PORT = Constants.NETWORK_TCP_PORT;
+    public static final int UDP_PORT = Constants.NETWORK_UDP_PORT;
     private static GatewayDevice activeGateway = null;
 
     // This registers objects that will be sent over the network.

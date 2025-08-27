@@ -15,6 +15,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.Constants;
 import curly.octo.map.ChunkManager;
 import curly.octo.map.GameMap;
 import curly.octo.map.LevelChunk;
@@ -26,10 +27,10 @@ import curly.octo.map.hints.MapHint;
 import java.util.*;
 
 /**
- * Map model builder that creates separate ModelInstances for each chunk, enabling 
+ * Map model builder that creates separate ModelInstances for each chunk, enabling
  * dynamic chunk-based rendering. Each chunk gets its own Model and ModelInstance,
  * allowing the renderer to selectively display only chunks near the player position.
- * 
+ *
  * This approach provides:
  * - True dynamic chunk loading/unloading based on player position
  * - Efficient frustum culling at the chunk level
@@ -41,7 +42,7 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
     private ChunkManager chunkManager;
     private Set<LevelChunk> populatedChunks;
     private Map<LevelChunk, ChunkFaceInfo> chunkFaceVisibility;
-    
+
     // Chunk-based rendering system
     private Map<LevelChunk, ChunkModelData> chunkModels;
     private Array<ModelInstance> allChunkInstances;
@@ -53,7 +54,7 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
         this.chunkModels = new HashMap<>();
         this.allChunkInstances = new Array<>();
     }
-    
+
     /**
      * Get all chunk ModelInstances for rendering.
      * @return Array of all chunk ModelInstances
@@ -61,7 +62,7 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
     public Array<ModelInstance> getAllChunkInstances() {
         return allChunkInstances;
     }
-    
+
     /**
      * Get chunk ModelInstances within a certain distance of a position.
      * @param position Center position (typically player/camera position)
@@ -70,21 +71,21 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
      */
     public Array<ModelInstance> getChunksNearPosition(Vector3 position, float maxDistance) {
         Array<ModelInstance> nearbyInstances = new Array<>();
-        
+
         for (Map.Entry<LevelChunk, ChunkModelData> entry : chunkModels.entrySet()) {
             LevelChunk chunk = entry.getKey();
             ChunkModelData modelData = entry.getValue();
-            
+
             // Calculate distance from position to chunk center
             Vector3 chunkCenter = chunk.getWorldOffset().cpy();
-            chunkCenter.add(LevelChunk.CHUNK_SIZE * MapTile.TILE_SIZE / 2f); // Center of chunk
-            
+            chunkCenter.add(LevelChunk.CHUNK_SIZE * Constants.MAP_TILE_SIZE / 2f); // Center of chunk
+
             float distance = chunkCenter.dst(position);
             if (distance <= maxDistance) {
                 nearbyInstances.add(modelData.instance);
             }
         }
-        
+
         return nearbyInstances;
     }
 
@@ -95,7 +96,7 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
                             Material waterMaterial) {
         // Clear previous models
         dispose();
-        
+
         totalFacesBuilt = 0;
         totalTilesProcessed = 0;
 
@@ -107,52 +108,52 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
         calculateChunkFaceVisibility();
 
         // Build individual models for each chunk
-        buildIndividualChunkModels(stoneMaterial, dirtMaterial, grassMaterial, 
+        buildIndividualChunkModels(stoneMaterial, dirtMaterial, grassMaterial,
                                  spawnMaterial, wallMaterial, waterMaterial);
 
         Log.info("ChunkedMapModelBuilder", String.format(
             "Created %d chunk models with %d total faces and %d tiles",
             chunkModels.size(), totalFacesBuilt, totalTilesProcessed));
     }
-    
+
     /**
      * Build separate Model and ModelInstance for each chunk.
      */
     private void buildIndividualChunkModels(Material stoneMaterial, Material dirtMaterial,
-                                          Material grassMaterial, Material spawnMaterial, 
+                                          Material grassMaterial, Material spawnMaterial,
                                           Material wallMaterial, Material waterMaterial) {
         for (LevelChunk chunk : populatedChunks) {
             // Skip chunks with no solid tiles
             if (chunk.getSolidTileCount() == 0) {
                 continue;
             }
-            
+
             // Create a ModelBuilder for this chunk
             ModelBuilder chunkBuilder = new ModelBuilder();
             chunkBuilder.begin();
-            
-            boolean hasGeometry = buildSingleChunkGeometry(chunkBuilder, chunk, stoneMaterial, 
-                                                         dirtMaterial, grassMaterial, spawnMaterial, 
+
+            boolean hasGeometry = buildSingleChunkGeometry(chunkBuilder, chunk, stoneMaterial,
+                                                         dirtMaterial, grassMaterial, spawnMaterial,
                                                          wallMaterial, waterMaterial);
-            
+
             if (hasGeometry) {
                 // Finish the model
                 Model chunkModel = chunkBuilder.end();
                 ModelInstance chunkInstance = new ModelInstance(chunkModel);
-                
+
                 // Store the chunk model data
                 ChunkModelData modelData = new ChunkModelData(chunk, chunkModel, chunkInstance);
                 chunkModels.put(chunk, modelData);
                 allChunkInstances.add(chunkInstance);
-                
+
                 Log.debug("ChunkedMapModelBuilder", String.format(
                     "Created model for chunk (%d,%d,%d) with %d tiles",
-                    (int)chunk.getChunkCoordinates().x, (int)chunk.getChunkCoordinates().y, 
+                    (int)chunk.getChunkCoordinates().x, (int)chunk.getChunkCoordinates().y,
                     (int)chunk.getChunkCoordinates().z, chunk.getSolidTileCount()));
             }
         }
     }
-    
+
     /**
      * Build geometry for a single chunk.
      * @return true if any geometry was built, false if chunk is empty
@@ -161,15 +162,15 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
                                            Material stoneMaterial, Material dirtMaterial,
                                            Material grassMaterial, Material spawnMaterial,
                                            Material wallMaterial, Material waterMaterial) {
-        
+
         Map<String, MapTile> chunkTiles = chunk.getAllTiles();
         ChunkFaceInfo faceInfo = chunkFaceVisibility.get(chunk);
         boolean hasGeometry = false;
-        
+
         // Create mesh parts for each material
         MeshPartBuilder stoneBuilder = null, dirtBuilder = null, grassBuilder = null;
         MeshPartBuilder spawnBuilder = null, wallBuilder = null, waterBuilder = null;
-        
+
         // Build tiles in this chunk
         for (MapTile tile : chunkTiles.values()) {
             // Add spawn markers
@@ -263,10 +264,10 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
                 }
             }
         }
-        
+
         return hasGeometry;
     }
-    
+
     @Override
     public void dispose() {
         // Dispose all chunk models
@@ -510,7 +511,7 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
 
         return visibleFaces;
     }
-    
+
 
     /**
      * Build geometry for the specified chunks.
@@ -687,7 +688,7 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
         float x = tile.x;
         float y = tile.y;
         float z = tile.z;
-        float size = MapTile.TILE_SIZE;
+        float size = Constants.MAP_TILE_SIZE;
 
         Vector3[] vertices = {
             new Vector3(x, y, z),           // 0
@@ -713,7 +714,7 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
         float x = tile.x;
         float y = tile.y;
         float z = tile.z;
-        float size = MapTile.TILE_SIZE;
+        float size = Constants.MAP_TILE_SIZE;
         float halfHeight = size / 2f;
 
         Vector3[] vertices = {
@@ -736,22 +737,22 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
     }
 
     private void buildFullTile(MeshPartBuilder builder, MapTile tile) {
-        BoxShapeBuilder.build(builder, tile.x, tile.y, tile.z, MapTile.TILE_SIZE, MapTile.TILE_SIZE, MapTile.TILE_SIZE);
+        BoxShapeBuilder.build(builder, tile.x, tile.y, tile.z, Constants.MAP_TILE_SIZE, Constants.MAP_TILE_SIZE, Constants.MAP_TILE_SIZE);
     }
 
     private void buildHalfTile(MeshPartBuilder builder, MapTile tile) {
-        BoxShapeBuilder.build(builder, tile.x, tile.y, tile.z, MapTile.TILE_SIZE, MapTile.TILE_SIZE / 2f, MapTile.TILE_SIZE);
+        BoxShapeBuilder.build(builder, tile.x, tile.y, tile.z, Constants.MAP_TILE_SIZE, Constants.MAP_TILE_SIZE / 2f, Constants.MAP_TILE_SIZE);
     }
 
     private void buildSlant(MeshPartBuilder builder, MapTile tile) {
-        float vertexOffset = MapTile.TILE_SIZE / 2.0f;
+        float vertexOffset = Constants.MAP_TILE_SIZE / 2.0f;
 
-        float minX = tile.x + MapTile.TILE_SIZE / 2.0f - vertexOffset;
-        float maxX = tile.x + MapTile.TILE_SIZE / 2.0f + vertexOffset;
-        float minY = tile.y + MapTile.TILE_SIZE / 2.0f - vertexOffset;
-        float maxY = tile.y + MapTile.TILE_SIZE / 2.0f + vertexOffset;
-        float minZ = tile.z + MapTile.TILE_SIZE / 2.0f - vertexOffset;
-        float maxZ = tile.z + MapTile.TILE_SIZE / 2.0f + vertexOffset;
+        float minX = tile.x + Constants.MAP_TILE_SIZE / 2.0f - vertexOffset;
+        float maxX = tile.x + Constants.MAP_TILE_SIZE / 2.0f + vertexOffset;
+        float minY = tile.y + Constants.MAP_TILE_SIZE / 2.0f - vertexOffset;
+        float maxY = tile.y + Constants.MAP_TILE_SIZE / 2.0f + vertexOffset;
+        float minZ = tile.z + Constants.MAP_TILE_SIZE / 2.0f - vertexOffset;
+        float maxZ = tile.z + Constants.MAP_TILE_SIZE / 2.0f + vertexOffset;
 
         if (tile.geometryType == MapTileGeometryType.HALF_SLANT) {
             maxY -= (vertexOffset);
@@ -813,22 +814,22 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
     // Surface building methods for transparent materials
 
     private void buildWaterSurface(MeshPartBuilder builder, MapTile tile) {
-        buildSurface(builder, tile, MapTile.TILE_SIZE / 2f);
+        buildSurface(builder, tile, Constants.MAP_TILE_SIZE / 2f);
     }
 
     private void buildLavaSurface(MeshPartBuilder builder, MapTile tile) {
-        buildSurface(builder, tile, MapTile.TILE_SIZE / 2f);
+        buildSurface(builder, tile, Constants.MAP_TILE_SIZE / 2f);
     }
 
     private void buildFogSurface(MeshPartBuilder builder, MapTile tile) {
-        buildSurface(builder, tile, MapTile.TILE_SIZE / 4f);
+        buildSurface(builder, tile, Constants.MAP_TILE_SIZE / 4f);
     }
 
     private void buildSurface(MeshPartBuilder builder, MapTile tile, float heightOffset) {
         float x = tile.x;
         float y = tile.y + heightOffset;
         float z = tile.z;
-        float size = MapTile.TILE_SIZE;
+        float size = Constants.MAP_TILE_SIZE;
 
         Vector3 v00 = new Vector3(x, y, z);
         Vector3 v01 = new Vector3(x, y, z + size);
@@ -858,9 +859,9 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
     // Utility methods
 
     private Vector3 getTileCoordinates(MapTile tile) {
-        int tileX = (int)(tile.x / MapTile.TILE_SIZE);
-        int tileY = (int)(tile.y / MapTile.TILE_SIZE);
-        int tileZ = (int)(tile.z / MapTile.TILE_SIZE);
+        int tileX = (int)(tile.x / Constants.MAP_TILE_SIZE);
+        int tileY = (int)(tile.y / Constants.MAP_TILE_SIZE);
+        int tileZ = (int)(tile.z / Constants.MAP_TILE_SIZE);
         return new Vector3(tileX, tileY, tileZ);
     }
 
@@ -900,7 +901,7 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
         }
         return populatedChunks;
     }
-    
+
     /**
      * Helper class to store chunk model data.
      */
@@ -908,7 +909,7 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
         final LevelChunk chunk;
         final Model model;
         final ModelInstance instance;
-        
+
         ChunkModelData(LevelChunk chunk, Model model, ModelInstance instance) {
             this.chunk = chunk;
             this.model = model;

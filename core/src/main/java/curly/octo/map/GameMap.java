@@ -1,5 +1,6 @@
 package curly.octo.map;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Camera;
 import com.badlogic.gdx.graphics.GL20;
@@ -137,9 +138,9 @@ public class GameMap {
             newBasicTile.geometryType = MapTileGeometryType.EMPTY;
             newBasicTile.fillType = MapTileFillType.AIR;
             // Set world coordinates based on tile index and tile size
-            newBasicTile.x = x * MapTile.TILE_SIZE;
-            newBasicTile.y = y * MapTile.TILE_SIZE;
-            newBasicTile.z = z * MapTile.TILE_SIZE;
+            newBasicTile.x = x * Constants.MAP_TILE_SIZE;
+            newBasicTile.y = y * Constants.MAP_TILE_SIZE;
+            newBasicTile.z = z * Constants.MAP_TILE_SIZE;
             map.put(constructKeyFromIndexCoordinates(x, y, z), newBasicTile);
             return newBasicTile;
         }
@@ -147,9 +148,9 @@ public class GameMap {
     }
 
     public MapTile getTileFromWorldCoordinates(float worldX, float worldY, float worldZ) {
-        int xIndex = (int)(worldX / MapTile.TILE_SIZE);
-        int yIndex = (int)(worldY / MapTile.TILE_SIZE);
-        int zIndex = (int)(worldZ / MapTile.TILE_SIZE);
+        int xIndex = (int)(worldX / Constants.MAP_TILE_SIZE);
+        int yIndex = (int)(worldY / Constants.MAP_TILE_SIZE);
+        int zIndex = (int)(worldZ / Constants.MAP_TILE_SIZE);
         return getTile(xIndex, yIndex, zIndex);
     }
 
@@ -166,9 +167,9 @@ public class GameMap {
     }
 
     public long constructKeyFromWorldCoordinates(float worldX, float worldY, float worldZ) {
-        int xIndex = (int)(worldX / MapTile.TILE_SIZE);
-        int yIndex = (int)(worldY / MapTile.TILE_SIZE);
-        int zIndex = (int)(worldZ / MapTile.TILE_SIZE);
+        int xIndex = (int)(worldX / Constants.MAP_TILE_SIZE);
+        int yIndex = (int)(worldY / Constants.MAP_TILE_SIZE);
+        int zIndex = (int)(worldZ / Constants.MAP_TILE_SIZE);
         return constructKeyFromIndexCoordinates(xIndex, yIndex, zIndex);
     }
 
@@ -196,7 +197,7 @@ public class GameMap {
         broadphase = new btDbvtBroadphase();
         solver = new btSequentialImpulseConstraintSolver();
         dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfig);
-        dynamicsWorld.setGravity(new Vector3(0, -50f, 0));
+        dynamicsWorld.setGravity(new Vector3(0, Constants.PHYSICS_GRAVITY, 0));
 
         // Don't create DebugDrawer here - it needs OpenGL context
         // It will be created later when needed on the OpenGL thread
@@ -396,8 +397,8 @@ public class GameMap {
         playerGhostObject.setCollisionFlags(playerGhostObject.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_CHARACTER_OBJECT);
 
         playerController = new btKinematicCharacterController(playerGhostObject, capsule, 1.0f);
-        playerController.setGravity(new Vector3(0, -50f, 0));
-        playerController.setMaxSlope((float)Math.toRadians(60));
+        playerController.setGravity(new Vector3(0, Constants.PHYSICS_GRAVITY, 0));
+        playerController.setMaxSlope((float)Math.toRadians(Constants.PHYSICS_MAX_SLOPE_DEGREES));
         playerController.setJumpSpeed(15f);
         playerController.setMaxJumpHeight(4f);
         playerController.setUseGhostSweepTest(false);
@@ -417,7 +418,7 @@ public class GameMap {
             // Use dynamic timestep with reasonable constraints
             // maxSubSteps = 10 to prevent spiral of death at very low FPS
             // fixedTimeStep = 1f/120f for smoother physics at high FPS
-            dynamicsWorld.stepSimulation(deltaTime, 10, 1f/120f);
+            dynamicsWorld.stepSimulation(deltaTime, Constants.PHYSICS_MAX_SUBSTEPS, Constants.PHYSICS_FIXED_TIME_STEP);
         }
     }
 

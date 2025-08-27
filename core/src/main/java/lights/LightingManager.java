@@ -1,5 +1,6 @@
 package lights;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.graphics.Camera;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.environment.PointLight;
@@ -31,8 +32,8 @@ import lights.LightConverter;
 public class LightingManager implements Disposable {
     
     // Configuration constants
-    private static final int MAX_SHADOW_LIGHTS = 8;     // Hardware shader limit (unchanged)
-    private static final int MAX_TOTAL_LIGHTS = 256;    // Dramatically increased fallback light support
+    private static final int MAX_SHADOW_LIGHTS = Constants.LIGHTING_MAX_SHADOW_LIGHTS;     // Hardware shader limit (unchanged)
+    private static final int MAX_TOTAL_LIGHTS = Constants.LIGHTING_MAX_FALLBACK_LIGHTS;    // Dramatically increased fallback light support
     private static final float LIGHT_CULL_DISTANCE = 75.0f;  // Increased culling distance for more lights
     private static final boolean ENABLE_DEBUG_LOGGING = false; // Performance logging
     
@@ -46,7 +47,7 @@ public class LightingManager implements Disposable {
     
     // Performance tracking
     private int framesSinceLastCull = 0;                    // Culling optimization timer
-    private static final int CULL_FREQUENCY = 60;          // Cull every 60 frames (1 second at 60fps)
+    private static final int CULL_FREQUENCY = Constants.GAME_TARGET_FPS;          // Cull every 60 frames (1 second at 60fps)
     private int totalLightsRenderedLastFrame = 0;
     private int shadowLightsRenderedLastFrame = 0;
     

@@ -1,5 +1,6 @@
 package curly.octo.rendering;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g3d.*;
@@ -41,11 +42,11 @@ import lights.FallbackLight;
 public class HybridLightingRenderer implements Disposable {
     
     // Configuration constants
-    private static final int MAX_SHADOW_LIGHTS = 8;        // Hardware shader limit (unchanged)
-    private static final int MAX_FALLBACK_LIGHTS = 256;    // Dramatically increased shader array limit
+    private static final int MAX_SHADOW_LIGHTS = Constants.LIGHTING_MAX_SHADOW_LIGHTS;        // Hardware shader limit (unchanged)
+    private static final int MAX_FALLBACK_LIGHTS = Constants.LIGHTING_MAX_FALLBACK_LIGHTS;    // Dramatically increased shader array limit
     private static final boolean ENABLE_PERFORMANCE_MONITORING = true;
     private static final boolean ENABLE_DISTANCE_CULLING = true;
-    private static final float DISTANCE_CULL_THRESHOLD = 100.0f; // Increased for more lights
+    private static final float DISTANCE_CULL_THRESHOLD = Constants.LIGHTING_CULL_DISTANCE; // Increased for more lights
     
     // Quality presets (inherited from original CubeShadowMapRenderer)
     public static final int QUALITY_LOW = 256;
@@ -87,7 +88,7 @@ public class HybridLightingRenderer implements Disposable {
     // Fallback light culling cache (for performance)
     private final Array<FallbackLight> visibleFallbackLights;
     private long lastCullTime = 0;
-    private static final long CULL_INTERVAL_MS = 100; // Cull every 100ms
+    private static final long CULL_INTERVAL_MS = Constants.LIGHTING_CULL_INTERVAL_MS; // Cull every 100ms
     
     private boolean disposed = false;
     
@@ -181,9 +182,9 @@ public class HybridLightingRenderer implements Disposable {
         lightViewProjections = new Matrix4[6];
         
         for (int i = 0; i < 6; i++) {
-            lightCameras[i] = new PerspectiveCamera(90f, shadowMapSize, shadowMapSize);
-            lightCameras[i].near = 0.1f;
-            lightCameras[i].far = 60f; // Extended range for better shadow coverage
+            lightCameras[i] = new PerspectiveCamera(Constants.CUBE_SHADOW_CAMERA_FOV, shadowMapSize, shadowMapSize);
+            lightCameras[i].near = Constants.SHADOW_LIGHT_CAMERA_NEAR;
+            lightCameras[i].far = Constants.SHADOW_CAMERA_FAR_RANGE; // Extended range for better shadow coverage
             lightViewProjections[i] = new Matrix4();
         }
         
@@ -563,7 +564,7 @@ public class HybridLightingRenderer implements Disposable {
         }
         
         // Log performance statistics periodically
-        if (frameCount % 300 == 0) { // Every 5 seconds at 60fps
+        if (frameCount % Constants.RENDERING_PERFORMANCE_REPORT_FRAMES == 0) { // Every 5 seconds at 60fps
             Log.info("HybridLightingRenderer", String.format(
                 "Performance Stats - Frame: %.1fms, Shadow Lights: %d, Fallback Lights: %d, Draw Calls: %d",
                 averageFrameTime, shadowLightsRendered, fallbackLightsRendered, totalDrawCalls

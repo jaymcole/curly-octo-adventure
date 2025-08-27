@@ -1,5 +1,6 @@
 package curly.octo.rendering;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g3d.utils.CameraInputController;
@@ -22,7 +23,7 @@ import com.esotericsoftware.minlog.Log;
  */
 public class ShadowMapRenderer implements Disposable {
 
-    private final int SHADOW_MAP_SIZE = 1024;
+    private final int SHADOW_MAP_SIZE = Constants.SHADOW_MAP_SIZE;
 
     private FrameBuffer shadowFrameBuffer;
     private ShaderProgram depthShader;
@@ -70,9 +71,9 @@ public class ShadowMapRenderer implements Disposable {
 
     private void setupMatrices() {
         // Use wider perspective projection to capture more of the scene
-        lightCamera = new PerspectiveCamera(120f, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
-        lightCamera.near = 0.1f;
-        lightCamera.far = 40f;
+        lightCamera = new PerspectiveCamera(Constants.SHADOW_LIGHT_CAMERA_FOV, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+        lightCamera.near = Constants.SHADOW_LIGHT_CAMERA_NEAR;
+        lightCamera.far = Constants.SHADOW_LIGHT_CAMERA_FAR;
 
         lightViewProjection = new Matrix4();
 

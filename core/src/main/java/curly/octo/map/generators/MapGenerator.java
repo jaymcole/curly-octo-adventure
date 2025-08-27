@@ -1,6 +1,7 @@
 package curly.octo.map.generators;
 
 import com.badlogic.gdx.math.Vector3;
+import curly.octo.Constants;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
@@ -24,10 +25,10 @@ public abstract class MapGenerator {
         for(MapTile tile : currentTiles) {
             if (tile.geometryType != MapTileGeometryType.FULL) {
                 // Convert world coordinates back to tile indices
-                int tileX = (int)(tile.x / MapTile.TILE_SIZE);
-                int tileY = (int)(tile.y / MapTile.TILE_SIZE);
-                int tileZ = (int)(tile.z / MapTile.TILE_SIZE);
-                
+                int tileX = (int)(tile.x / Constants.MAP_TILE_SIZE);
+                int tileY = (int)(tile.y / Constants.MAP_TILE_SIZE);
+                int tileZ = (int)(tile.z / Constants.MAP_TILE_SIZE);
+
                 // Close neighboring tiles
                 closeTile(tileX, tileY+1, tileZ);
                 closeTile(tileX, tileY-1, tileZ);

@@ -1,5 +1,6 @@
 package curly.octo.game;
 
+import curly.octo.Constants;
 import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.esotericsoftware.minlog.Log;
@@ -20,8 +21,8 @@ public class ThreadedHostedGameMode implements GameMode {
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private volatile Exception initializationException = null;
 
-    private static final int TARGET_FPS = 60;
-    private static final long FRAME_TIME_NS = 1_000_000_000L / TARGET_FPS;
+    private static final int TARGET_FPS = Constants.GAME_TARGET_FPS;
+    private static final long FRAME_TIME_NS = Constants.GAME_FRAME_TIME_NS;
 
     public ThreadedHostedGameMode(java.util.Random random) {
         this.hostedGameMode = new HostedGameMode(random);
