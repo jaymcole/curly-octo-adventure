@@ -134,6 +134,14 @@ public class LobbyUI {
         Gdx.input.setInputProcessor(stage);
     }
 
+    /**
+     * Get the stage for input processing.
+     * Used by the input multiplexer to handle UI input.
+     */
+    public Stage getStage() {
+        return stage;
+    }
+
     public void disableInputs() {
         if (startServerButton != null) startServerButton.setDisabled(true);
         if (connectButton != null) connectButton.setDisabled(true);

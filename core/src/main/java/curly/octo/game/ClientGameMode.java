@@ -353,7 +353,8 @@ public class ClientGameMode implements GameMode {
 
             inputController.setPossessionTarget(existingPlayer);
             if (inputController instanceof com.badlogic.gdx.InputProcessor) {
-                Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
+                // Don't override input processor - let main class handle multiplexer
+                Log.info("ClientGameMode", "Would set input processor to inputController (reused player)");
             }
 
             Log.info("ClientGameMode", "Successfully reused existing player as local player ID: " + localPlayerId);
@@ -377,7 +378,8 @@ public class ClientGameMode implements GameMode {
                 }
                 inputController.setPossessionTarget(localPlayer);
                 if (inputController instanceof com.badlogic.gdx.InputProcessor) {
-                    Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
+                    // Don't override input processor - let main class handle multiplexer
+                    Log.info("ClientGameMode", "Would set input processor to inputController (fresh player)");
                 }
                 Log.info("ClientGameMode", "Successfully created and set local player ID to: " + localPlayerId);
             } else {
@@ -398,7 +400,8 @@ public class ClientGameMode implements GameMode {
                 if (gameWorld.getGameObjectManager().localPlayer != null) {
                     inputController.setPossessionTarget(gameWorld.getGameObjectManager().localPlayer);
                     if (inputController instanceof com.badlogic.gdx.InputProcessor) {
-                        Gdx.input.setInputProcessor((com.badlogic.gdx.InputProcessor) inputController);
+                        // Don't override input processor - let main class handle multiplexer
+                        Log.info("ClientGameMode", "Would set input processor to inputController (checkReady)");
                     }
                     Log.info("ClientGameMode", "Client mode activated successfully");
                 } else {
@@ -541,6 +544,15 @@ public class ClientGameMode implements GameMode {
     @Override
     public GameWorld getGameWorld() {
         return gameWorld;
+    }
+
+    /**
+     * Get the input processor for this game mode.
+     * Used by the input multiplexer to handle both UI and game input.
+     */
+    public com.badlogic.gdx.InputProcessor getInputProcessor() {
+        return inputController instanceof com.badlogic.gdx.InputProcessor ? 
+               (com.badlogic.gdx.InputProcessor) inputController : null;
     }
 
     private void sendPositionUpdate() {

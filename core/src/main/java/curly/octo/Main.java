@@ -3,6 +3,7 @@ package curly.octo;
 import com.badlogic.gdx.*;
 import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g3d.*;
+import com.badlogic.gdx.InputMultiplexer;
 
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
@@ -91,8 +92,20 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             // Set debug listener
             debugUI.setDebugListener(this);
 
-            // Set input processor to lobby
-            lobbyUI.setInputProcessor();
+            // Set up input multiplexer to handle both game and UI input
+            InputMultiplexer multiplexer = new InputMultiplexer();
+            multiplexer.addProcessor(debugUI.getStage());
+            multiplexer.addProcessor(lobbyUI.getStage()); // Add lobby UI stage to multiplexer
+            Gdx.input.setInputProcessor(multiplexer);
+            
+            // Debug: Log input processor setup
+            Log.info("Main", "Set up input multiplexer with debug UI stage and lobby UI stage");
+            Log.info("Main", "Debug UI stage: " + (debugUI.getStage() != null ? "created" : "null"));
+            Log.info("Main", "Lobby UI stage: " + (lobbyUI.getStage() != null ? "created" : "null"));
+            Log.info("Main", "Input processor set: " + (Gdx.input.getInputProcessor() != null ? "yes" : "no"));
+            
+            // Don't let lobby UI override our input processor setup
+            // lobbyUI.setInputProcessor(); // REMOVED - this was overriding our multiplexer
 
             Log.info("Main", "Initialized successfully");
         } catch (Exception e) {
@@ -175,6 +188,19 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
 
         if (clientGameMode != null) {
             clientGameMode.resize(width, height);
+            
+            // Update input processor to include both game and UI input
+            if (clientGameMode.isActive()) {
+                InputMultiplexer multiplexer = new InputMultiplexer();
+                // Always add debug UI first so it gets input events
+                multiplexer.addProcessor(debugUI.getStage());
+                // Add client game mode input processor
+                if (clientGameMode.getInputProcessor() != null) {
+                    multiplexer.addProcessor(clientGameMode.getInputProcessor());
+                }
+                Gdx.input.setInputProcessor(multiplexer);
+                Log.info("Main", "Updated input multiplexer for active client game mode");
+            }
         }
     }
 
