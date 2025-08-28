@@ -26,6 +26,8 @@ public class GameClient {
     private PlayerRosterListener playerRosterListener;
     private PlayerUpdateListener playerUpdateListener;
     private PlayerDisconnectListener playerDisconnectListener;
+    private MapRegenerationStartListener mapRegenerationStartListener;
+    private PlayerResetListener playerResetListener;
     
     // Chunked map transfer support
     private final ConcurrentHashMap<String, MapTransferState> activeTransfers = new ConcurrentHashMap<>();
@@ -102,6 +104,19 @@ public class GameClient {
         networkListener.setPlayerDisconnectListener(playerDisconnect -> {
             if (this.playerDisconnectListener != null) {
                 this.playerDisconnectListener.onPlayerDisconnected(playerDisconnect);
+            }
+        });
+
+        // Map regeneration listeners
+        networkListener.setMapRegenerationStartListener(mapRegenerationStart -> {
+            if (this.mapRegenerationStartListener != null) {
+                this.mapRegenerationStartListener.onMapRegenerationStart(mapRegenerationStart);
+            }
+        });
+        
+        networkListener.setPlayerResetListener(playerReset -> {
+            if (this.playerResetListener != null) {
+                this.playerResetListener.onPlayerReset(playerReset);
             }
         });
 
@@ -281,6 +296,16 @@ public class GameClient {
     public void setPlayerDisconnectListener(PlayerDisconnectListener listener) {
         this.playerDisconnectListener = listener;
         this.networkListener.setPlayerDisconnectListener(listener);
+    }
+
+    public void setMapRegenerationStartListener(MapRegenerationStartListener listener) {
+        this.mapRegenerationStartListener = listener;
+        this.networkListener.setMapRegenerationStartListener(listener);
+    }
+
+    public void setPlayerResetListener(PlayerResetListener listener) {
+        this.playerResetListener = listener;
+        this.networkListener.setPlayerResetListener(listener);
     }
     
     /**

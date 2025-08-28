@@ -26,6 +26,7 @@ public class DebugUI {
     private Label playerPositionLabel;
     private Label debugClientIPAddressLabel;
     private TextButton mapSeedButton;
+    private TextButton mapRegenerateButton;
     private long currentMapSeed;
     private Label lightsLabel;
     private Label shadowLightsLabel;
@@ -36,6 +37,7 @@ public class DebugUI {
     public interface DebugListener {
         void onTogglePhysicsDebug();
         void onTogglePhysicsStrategy();
+        void onRegenerateMap();
     }
     private DebugListener debugListener;
 
@@ -148,6 +150,40 @@ public class DebugUI {
         // Debug: Log button addition to table
         Log.info("DebugUI", "Adding map seed button to debug table");
         debugTable.add(mapSeedButton).size(200, 50).pad(10).row();
+
+        // Map Regeneration Button
+        mapRegenerateButton = new TextButton("Regenerate Map", skin);
+        mapRegenerateButton.addListener(new ClickListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                Log.info("DebugUI", "Map regeneration button clicked!");
+                
+                // Trigger regeneration
+                if (debugListener != null) {
+                    debugListener.onRegenerateMap();
+                } else {
+                    Log.warn("DebugUI", "No debug listener set for map regeneration");
+                }
+                
+                // Show feedback to user
+                final String originalText = mapRegenerateButton.getText().toString();
+                mapRegenerateButton.setText("Regenerating...");
+                
+                // Revert text after delay
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(3000);
+                        Gdx.app.postRunnable(() -> mapRegenerateButton.setText(originalText));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }).start();
+                
+                return super.touchDown(event, x, y, pointer, button);
+            }
+        });
+        
+        debugTable.add(mapRegenerateButton).size(200, 50).pad(10).row();
 
         // Lighting System Limits
         Label lightingLimitsLabel = new Label("Lighting: " + Constants.LIGHTING_ENHANCED_SHADER_LIGHTS + "/" +

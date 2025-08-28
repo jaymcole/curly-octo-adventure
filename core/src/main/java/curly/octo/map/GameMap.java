@@ -187,11 +187,22 @@ public class GameMap {
         return allHints;
     }
 
+    // Static flag to ensure Bullet.init() is only called once per application
+    private static boolean bulletInitialized = false;
+    
     // Physics initialization
     public void initializePhysics() {
         if (physicsInitialized) return;
 
-        Bullet.init();
+        // Only initialize Bullet once per application to prevent crashes
+        if (!bulletInitialized) {
+            Log.info("GameMap", "Initializing Bullet Physics (first time)");
+            Bullet.init();
+            bulletInitialized = true;
+        } else {
+            Log.info("GameMap", "Bullet Physics already initialized, skipping Bullet.init()");
+        }
+        
         collisionConfig = new btDefaultCollisionConfiguration();
         dispatcher = new btCollisionDispatcher(collisionConfig);
         broadphase = new btDbvtBroadphase();
@@ -203,6 +214,7 @@ public class GameMap {
         // It will be created later when needed on the OpenGL thread
 
         physicsInitialized = true;
+        Log.info("GameMap", "Physics initialization completed");
     }
 
 

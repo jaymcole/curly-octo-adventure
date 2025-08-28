@@ -174,4 +174,30 @@ public class ThreadedHostedGameMode implements GameMode {
         }
         return hostedGameMode.getClientGameMode();
     }
+    
+    /**
+     * Triggers map regeneration with a random seed.
+     * This is a debug/admin function for testing map regeneration.
+     */
+    public void debugRegenerateMap() {
+        if (!initialized.get()) {
+            Log.warn("ThreadedHostedGameMode", "Cannot regenerate map - not initialized");
+            return;
+        }
+        hostedGameMode.debugRegenerateMap();
+    }
+    
+    /**
+     * Triggers map regeneration with a specific seed.
+     * 
+     * @param seed The seed for the new map
+     * @param reason Optional reason for regeneration
+     */
+    public void regenerateMapWithSeed(long seed, String reason) {
+        if (!initialized.get()) {
+            Log.warn("ThreadedHostedGameMode", "Cannot regenerate map - not initialized");
+            return;
+        }
+        hostedGameMode.regenerateMapWithSeed(seed, reason);
+    }
 }

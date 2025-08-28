@@ -133,4 +133,32 @@ public class HostedGameMode implements GameMode {
     public ClientGameMode getClientGameMode() {
         return clientGameMode;
     }
+    
+    /**
+     * Triggers map regeneration with a random seed.
+     * This is a debug/admin function for testing map regeneration.
+     */
+    public void debugRegenerateMap() {
+        if (gameServer != null) {
+            Log.info("HostedGameMode", "Triggering debug map regeneration");
+            gameServer.debugRegenerateMap();
+        } else {
+            Log.error("HostedGameMode", "Cannot regenerate map - game server is null");
+        }
+    }
+    
+    /**
+     * Triggers map regeneration with a specific seed.
+     * 
+     * @param seed The seed for the new map
+     * @param reason Optional reason for regeneration
+     */
+    public void regenerateMapWithSeed(long seed, String reason) {
+        if (gameServer != null) {
+            Log.info("HostedGameMode", "Triggering map regeneration with seed: " + seed);
+            gameServer.regenerateMap(seed, reason);
+        } else {
+            Log.error("HostedGameMode", "Cannot regenerate map - game server is null");
+        }
+    }
 }

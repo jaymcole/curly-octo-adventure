@@ -6,7 +6,8 @@
       "Bash(rm:*)",
       "Bash(.gradlew lwjgl3:jar)",
       "Bash(./gradlew:*)",
-      "Bash(gradlew.bat lwjgl3:jar:*)"
+      "Bash(gradlew.bat lwjgl3:jar:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

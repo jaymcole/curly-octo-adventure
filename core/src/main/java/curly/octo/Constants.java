@@ -33,7 +33,7 @@ public class Constants {
     public static final int MAP_CHUNK_SIZE = 16;
 
     /** Default seed for procedural map generation */
-    public static final long MAP_GENERATION_SEED = 43;
+    public static final long MAP_GENERATION_SEED = 1756347946230L;
 
 
     // =========================

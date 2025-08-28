@@ -281,4 +281,31 @@ public class PlayerObject extends WorldObject {
         }
         return true;
     }
+    
+    /**
+     * Resets the player's physics state for map regeneration.
+     * Clears velocity, resets position to current coordinates, and reinitializes physics.
+     */
+    public void resetPhysicsState() {
+        try {
+            // Reset velocity
+            if (velocity != null) {
+                velocity.setZero();
+            }
+            
+            // Reset ground state
+            onGround = false;
+            
+            // If character controller exists, reset its state
+            if (characterController != null && gameMap != null) {
+                // The character controller will be reinitialized when the new map's physics is set up
+                // Just ensure we're in a clean state
+                Log.info("PlayerObject", "Physics state reset for player: " + entityId);
+            }
+            
+        } catch (Exception e) {
+            Log.error("PlayerObject", "Error resetting physics state for player " + entityId + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 }

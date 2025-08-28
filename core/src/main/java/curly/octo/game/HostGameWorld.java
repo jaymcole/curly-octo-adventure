@@ -63,4 +63,32 @@ public class HostGameWorld extends GameWorld {
         // Keep position update timer for network sync timing
         incrementPositionUpdateTimer(deltaTime);
     }
+    
+    @Override
+    public void regenerateMap(long newSeed) {
+        Log.info("HostGameWorld", "Regenerating host map with seed: " + newSeed);
+        
+        try {
+            // Dispose current map if it exists
+            if (mapManager != null) {
+                mapManager.dispose();
+                Log.info("HostGameWorld", "Disposed old map");
+            }
+            
+            // Create new map with new seed (server-only mode)
+            GameMap newMap = new GameMap(newSeed, true);
+            Log.info("HostGameWorld", "Generated new host map with seed: " + newSeed);
+            Log.info("HostGameWorld", "New map has " + newMap.getAllTiles().size() + " tiles, hash: " + newMap.hashCode());
+            
+            // Set the new map
+            setMapManager(newMap);
+            
+            Log.info("HostGameWorld", "Host map regeneration completed successfully");
+            
+        } catch (Exception e) {
+            Log.error("HostGameWorld", "Failed to regenerate host map: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Host map regeneration failed", e);
+        }
+    }
 }

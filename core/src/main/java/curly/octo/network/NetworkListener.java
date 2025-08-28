@@ -27,6 +27,8 @@ public class NetworkListener implements Listener {
     private PlayerRosterListener playerRosterListener;
     private PlayerUpdateListener playerUpdateListener;
     private PlayerDisconnectListener playerDisconnectListener;
+    private MapRegenerationStartListener mapRegenerationStartListener;
+    private PlayerResetListener playerResetListener;
 
     private Server server;
     private Client client;
@@ -69,6 +71,15 @@ public class NetworkListener implements Listener {
     public void setMapTransferCompleteListener(MapTransferCompleteListener listener) {
         this.mapTransferCompleteListener = listener;
     }
+    
+    public void setMapRegenerationStartListener(MapRegenerationStartListener listener) {
+        this.mapRegenerationStartListener = listener;
+    }
+    
+    public void setPlayerResetListener(PlayerResetListener listener) {
+        this.playerResetListener = listener;
+    }
+    
     /**
      * Called when a connection is received from a client (server-side)
      * or when connected to a server (client-side).
@@ -149,6 +160,24 @@ public class NetworkListener implements Listener {
                 playerDisconnectListener.onPlayerDisconnected(update);
             } else {
                 Log.warn("Network", "No player disconnect listener set");
+            }
+        } else if (object instanceof MapRegenerationStartMessage) {
+            MapRegenerationStartMessage message = (MapRegenerationStartMessage) object;
+            Log.info("Network", "Received map regeneration start with seed: " + message.newMapSeed + 
+                     " (Reason: " + message.reason + ")");
+            if (mapRegenerationStartListener != null) {
+                mapRegenerationStartListener.onMapRegenerationStart(message);
+            } else {
+                Log.warn("Network", "No map regeneration start listener set");
+            }
+        } else if (object instanceof PlayerResetMessage) {
+            PlayerResetMessage message = (PlayerResetMessage) object;
+            Log.info("Network", "Received player reset for player " + message.playerId + 
+                     " to position (" + message.spawnX + ", " + message.spawnY + ", " + message.spawnZ + ")");
+            if (playerResetListener != null) {
+                playerResetListener.onPlayerReset(message);
+            } else {
+                Log.warn("Network", "No player reset listener set");
             }
         }
     }

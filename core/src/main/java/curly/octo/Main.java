@@ -19,7 +19,7 @@ import java.util.Random;
  * Main game class with network setup UI.
  * Delegates game logic to specific game modes (Server/Client).
  */
-public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, DebugUI.DebugListener {
+public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, DebugUI.DebugListener, ClientGameMode.MapRegenerationListener {
 
     public static Random random = new Random();
     private ModelBatch modelBatch;
@@ -59,6 +59,11 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         // In hosted mode, we get the client mode directly for rendering
         // The server runs in its own thread, but client runs on main thread
         clientGameMode = hostedGameMode.getClientGameMode();
+        
+        // Set the regeneration listener on the client mode
+        if (clientGameMode != null) {
+            clientGameMode.setMapRegenerationListener(this);
+        }
 
         lobbyUI.setStatus("Server started on port " + Network.TCP_PORT);
         lobbyUI.disableInputs();
@@ -70,6 +75,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         disposePreviousGameModes();
 
         clientGameMode = new ClientGameMode(host, random);
+        clientGameMode.setMapRegenerationListener(this); // Set ourselves as the listener
         clientGameMode.initialize();
 
         lobbyUI.setStatus("Connected to " + host);
@@ -286,6 +292,38 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             GameWorld clientGameWorld = clientGameMode.getGameWorld();
             clientGameWorld.togglePhysicsStrategy();
             Log.info("Main", "Physics strategy switched to: " + clientGameWorld.getPhysicsStrategyInfo());
+        }
+    }
+
+    @Override
+    public void onRegenerateMap() {
+        Log.info("Main", "Map regeneration triggered from debug UI");
+        
+        // Only allow regeneration if we're hosting a server
+        if (hostedGameMode != null) {
+            try {
+                Log.info("Main", "Triggering map regeneration via hosted game mode");
+                hostedGameMode.debugRegenerateMap();
+                Log.info("Main", "Map regeneration command sent successfully");
+            } catch (Exception e) {
+                Log.error("Main", "Failed to regenerate map: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } else {
+            Log.warn("Main", "Map regeneration not available - not hosting a server");
+            Log.warn("Main", "Only the server host can regenerate the map");
+        }
+    }
+
+    // ClientGameMode.MapRegenerationListener implementation
+    @Override
+    public void onMapSeedChanged(long newSeed) {
+        Log.info("Main", "Map seed changed to: " + newSeed + ", updating debug UI");
+        if (debugUI != null) {
+            debugUI.setMapSeed(newSeed);
+            Log.info("Main", "Debug UI updated with new map seed: " + newSeed);
+        } else {
+            Log.warn("Main", "Cannot update debug UI - debugUI is null");
         }
     }
 }

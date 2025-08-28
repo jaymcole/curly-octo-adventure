@@ -23,6 +23,11 @@ import java.util.HashSet;
  * Client game mode that handles connecting to server and receiving updates.
  */
 public class ClientGameMode implements GameMode {
+    
+    // Callback interface for communicating with parent (Main)
+    public interface MapRegenerationListener {
+        void onMapSeedChanged(long newSeed);
+    }
 
     private final ClientGameWorld gameWorld;
     private final String host;
@@ -30,6 +35,9 @@ public class ClientGameMode implements GameMode {
     private boolean active = false;
     private boolean mapReceived = false;
     private boolean playerAssigned = false;
+    
+    // Map regeneration listener
+    private MapRegenerationListener mapRegenerationListener;
 
     // New input system (optional migration)
     private InputController inputController;
@@ -188,8 +196,18 @@ public class ClientGameMode implements GameMode {
         // Map received listener
         gameClient.setMapReceivedListener(receivedMap -> {
             Gdx.app.postRunnable(() -> {
+                Log.info("ClientGameMode", "Map received from server - processing new map data");
                 long startTime = System.currentTimeMillis();
+                
+                // Set the new map (this recreates renderer, physics, etc.)
                 gameWorld.setMap(receivedMap);
+                
+                // Reinitialize player physics with the new map (important for map regeneration)
+                if (gameWorld instanceof ClientGameWorld) {
+                    Log.info("ClientGameMode", "Reinitializing players for new map");
+                    ((ClientGameWorld) gameWorld).reinitializePlayersAfterMapRegeneration();
+                }
+                
                 long endTime = System.currentTimeMillis();
 
                 Log.info("ClientGameMode", "Map setup completed in " + (endTime - startTime) + "ms");
@@ -281,6 +299,62 @@ public class ClientGameMode implements GameMode {
                 targetPlayer.setPosition(new Vector3(playerUpdate.x, playerUpdate.y, playerUpdate.z));
                 targetPlayer.setYaw(playerUpdate.yaw);
                 targetPlayer.setPitch(playerUpdate.pitch);
+            });
+        });
+        
+        // Map regeneration start listener
+        gameClient.setMapRegenerationStartListener(mapRegenerationStart -> {
+            Gdx.app.postRunnable(() -> {
+                Log.info("ClientGameMode", "Map regeneration starting - preparing for cleanup");
+                Log.info("ClientGameMode", "New map seed: " + mapRegenerationStart.newMapSeed + 
+                         ", Reason: " + mapRegenerationStart.reason);
+                
+                // Update debug UI with new seed via callback
+                if (mapRegenerationListener != null) {
+                    mapRegenerationListener.onMapSeedChanged(mapRegenerationStart.newMapSeed);
+                    Log.info("ClientGameMode", "Notified main of seed change to: " + mapRegenerationStart.newMapSeed);
+                }
+                
+                // Perform complete resource cleanup
+                if (gameWorld instanceof ClientGameWorld) {
+                    ((ClientGameWorld) gameWorld).cleanupForMapRegeneration();
+                }
+                
+                Log.info("ClientGameMode", "Resource cleanup completed, ready for new map");
+            });
+        });
+        
+        // Player reset listener  
+        gameClient.setPlayerResetListener(playerReset -> {
+            Gdx.app.postRunnable(() -> {
+                Log.info("ClientGameMode", "Received player reset for: " + playerReset.playerId);
+                
+                // Check if this is for our local player
+                String localId = getLocalPlayerId();
+                if (localId != null && localId.equals(playerReset.playerId)) {
+                    Log.info("ClientGameMode", "Resetting local player to new spawn position");
+                    
+                    if (gameWorld instanceof ClientGameWorld) {
+                        ClientGameWorld clientWorld = (ClientGameWorld) gameWorld;
+                        clientWorld.resetLocalPlayerToSpawn(
+                            playerReset.getSpawnPosition(), 
+                            playerReset.spawnYaw
+                        );
+                    }
+                } else {
+                    Log.info("ClientGameMode", "Player reset for remote player: " + playerReset.playerId);
+                    
+                    // Find and reset remote player
+                    for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
+                        if (player.entityId.equals(playerReset.playerId)) {
+                            player.setPosition(playerReset.getSpawnPosition());
+                            player.setYaw(playerReset.spawnYaw);
+                            player.resetPhysicsState();
+                            Log.info("ClientGameMode", "Reset remote player " + playerReset.playerId);
+                            break;
+                        }
+                    }
+                }
             });
         });
     }
@@ -617,5 +691,12 @@ public class ClientGameMode implements GameMode {
                 Log.warn("ClientGameMode", "Could not check network status: " + e.getMessage());
             }
         }
+    }
+    
+    /**
+     * Set the map regeneration listener to notify about seed changes.
+     */
+    public void setMapRegenerationListener(MapRegenerationListener listener) {
+        this.mapRegenerationListener = listener;
     }
 }

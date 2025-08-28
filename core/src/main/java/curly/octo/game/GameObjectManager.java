@@ -3,6 +3,7 @@ package curly.octo.game;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
+import com.esotericsoftware.minlog.Log;
 import curly.octo.gameobjects.GameObject;
 import curly.octo.gameobjects.ModelAssetManager;
 import curly.octo.gameobjects.PhysicsProperties;
@@ -127,14 +128,50 @@ public class GameObjectManager implements Disposable {
     public Array<ModelInstance> getRenderQueue() {
         return renderQueue;
     }
+    
+    /**
+     * Disposes and clears all lights. Used during map regeneration to remove old map lights.
+     */
+    public void clearAllLights() {
+        Log.info("GameObjectManager", "Disposing " + gameLights.size() + " lights");
+        
+        // Dispose all lights
+        for (BaseLight light : gameLights) {
+            if (light != null) {
+                try {
+                    light.destroy(); // Remove from environment
+                    // Remove from ID map
+                    idToGameObjectMap.remove(light.entityId);
+                } catch (Exception e) {
+                    Log.error("GameObjectManager", "Error disposing light " + light.entityId + ": " + e.getMessage());
+                }
+            }
+        }
+        
+        // Clear all light collections
+        gameLights.clear();
+        gameLightsToBeRemoved.clear();
+        
+        Log.info("GameObjectManager", "All lights cleared and disposed");
+    }
 
     @Override
     public void dispose() {
+        // Dispose all game objects
         for (GameObject object : gameObjects) {
             if (object instanceof WorldObject) {
                 ((WorldObject) object).dispose();
             }
         }
+        
+        // Dispose all lights
+        for (BaseLight light : gameLights) {
+            if (light != null) {
+                light.destroy(); // Remove from environment
+            }
+        }
+        gameLights.clear();
+        
         modelAssetManager.dispose();
     }
 }

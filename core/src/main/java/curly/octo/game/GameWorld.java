@@ -165,4 +165,13 @@ public abstract class GameWorld {
         disposed = true;
         Log.info("GameWorld", "Game world disposed");
     }
+    
+    /**
+     * Regenerates the game map with a new seed.
+     * This is an abstract method that must be implemented by subclasses
+     * to handle server-side vs client-side map regeneration differently.
+     * 
+     * @param newSeed The seed for new map generation
+     */
+    public abstract void regenerateMap(long newSeed);
 }

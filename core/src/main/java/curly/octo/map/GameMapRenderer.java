@@ -345,12 +345,27 @@ public class GameMapRenderer implements Disposable {
 
     public void updateMap(GameMap map, Environment environment) {
         long startTime = System.currentTimeMillis();
+        
+        Log.info("GameMapRenderer", "=== UPDATING MAP ===");
+        Log.info("GameMapRenderer", "Map has " + map.getAllTiles().size() + " tiles");
+        Log.info("GameMapRenderer", "Map hash code: " + map.hashCode());
+        
+        // Log some tile positions to verify map is actually different
+        java.util.List<curly.octo.map.MapTile> tiles = map.getAllTiles();
+        if (tiles.size() > 0) {
+            Log.info("GameMapRenderer", "First 3 tile positions:");
+            for (int i = 0; i < Math.min(3, tiles.size()); i++) {
+                curly.octo.map.MapTile tile = tiles.get(i);
+                Log.info("GameMapRenderer", "  Tile " + i + ": (" + tile.x + ", " + tile.y + ", " + tile.z + ") " + tile.fillType);
+            }
+        }
 
         // Clear previous model and lights
         dispose();
 
         // Extract lights from map tiles with LightHints
         extractLightsFromMap(map, environment);
+        Log.info("GameMapRenderer", "Extracted lights from new map");
 
         // Create materials
         Material stoneMaterial = createMaterial(Color.GRAY, 0.2f, 8f);

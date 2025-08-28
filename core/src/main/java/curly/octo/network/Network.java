@@ -20,6 +20,8 @@ import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.MapChunkMessage;
 import curly.octo.network.messages.MapTransferStartMessage;
 import curly.octo.network.messages.MapTransferCompleteMessage;
+import curly.octo.network.messages.MapRegenerationStartMessage;
+import curly.octo.network.messages.PlayerResetMessage;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerDisconnectUpdate;
 import curly.octo.network.messages.PlayerObjectRosterUpdate;
@@ -84,6 +86,8 @@ public class Network {
         kryo.register(MapChunkMessage.class);
         kryo.register(MapTransferStartMessage.class);
         kryo.register(MapTransferCompleteMessage.class);
+        kryo.register(MapRegenerationStartMessage.class);
+        kryo.register(PlayerResetMessage.class);
         kryo.register(PlayerUpdate.class);
         kryo.register(PlayerDisconnectUpdate.class);
 
