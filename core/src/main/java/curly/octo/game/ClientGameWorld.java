@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.graphics.GL20;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
@@ -68,11 +69,82 @@ public class ClientGameWorld extends GameWorld {
         physicsDisabled = false;
         Log.info("ClientGameWorld", "Physics RE-ENABLED after map setup");
         
-        // Additional verification
+        // Additional verification and recovery
         if (mapRenderer != null && mapManager != null) {
             Log.info("ClientGameWorld", "Map regeneration successful - renderer and manager ready");
+            
+            // CRITICAL: Verify renderer is properly initialized for rendering
+            try {
+                // Force renderer to prepare for first render to catch any initialization issues
+                if (mapRenderer.getBloomFrameBuffer() == null) {
+                    Log.warn("ClientGameWorld", "Renderer bloom buffer null, forcing re-initialization");
+                    // Trigger renderer resize to ensure proper OpenGL resource creation
+                    com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                        if (mapRenderer != null) {
+                            int width = com.badlogic.gdx.Gdx.graphics.getWidth();
+                            int height = com.badlogic.gdx.Gdx.graphics.getHeight();
+                            Log.info("ClientGameWorld", "Forcing renderer resize to fix initialization: " + width + "x" + height);
+                            mapRenderer.resize(width, height);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                Log.error("ClientGameWorld", "Error verifying renderer state: " + e.getMessage());
+                e.printStackTrace();
+            }
+            
         } else {
             Log.error("ClientGameWorld", "Map regeneration failed - missing components");
+            Log.error("ClientGameWorld", "MapRenderer: " + (mapRenderer != null ? "OK" : "NULL"));
+            Log.error("ClientGameWorld", "MapManager: " + (mapManager != null ? "OK" : "NULL"));
+            
+            // CRITICAL: Attempt recovery by forcing re-initialization
+            if (mapRenderer == null && mapManager != null) {
+                Log.warn("ClientGameWorld", "Attempting to recover missing renderer");
+                try {
+                    // Force renderer creation on OpenGL thread
+                    com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                        try {
+                            Log.info("ClientGameWorld", "Creating emergency renderer for map recovery");
+                            
+                            // Manually create renderer since automatic creation failed
+                            mapRenderer = new curly.octo.map.GameMapRenderer(gameObjectManager);
+                            Log.info("ClientGameWorld", "Emergency renderer created manually");
+                            
+                            if (mapRenderer != null) {
+                                Log.info("ClientGameWorld", "Emergency renderer creation successful");
+                                
+                                // CRITICAL: Ensure proper initialization on OpenGL thread
+                                int width = com.badlogic.gdx.Gdx.graphics.getWidth();
+                                int height = com.badlogic.gdx.Gdx.graphics.getHeight();
+                                Log.info("ClientGameWorld", "Initializing emergency renderer: " + width + "x" + height);
+                                mapRenderer.resize(width, height);
+                                
+                                // Additional initialization steps to prevent black screen
+                                try {
+                                    // Force OpenGL state reset by clearing screen
+                                    com.badlogic.gdx.Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
+                                    
+                                    // Reset viewport to ensure proper rendering area
+                                    com.badlogic.gdx.Gdx.gl.glViewport(0, 0, width, height);
+                                    
+                                    Log.info("ClientGameWorld", "Emergency renderer OpenGL state reset");
+                                } catch (Exception e) {
+                                    Log.warn("ClientGameWorld", "Could not reset OpenGL state: " + e.getMessage());
+                                }
+                                
+                            } else {
+                                Log.error("ClientGameWorld", "Emergency renderer creation failed");
+                            }
+                        } catch (Exception e) {
+                            Log.error("ClientGameWorld", "Error in emergency renderer creation: " + e.getMessage());
+                            e.printStackTrace();
+                        }
+                    });
+                } catch (Exception e) {
+                    Log.error("ClientGameWorld", "Error scheduling emergency renderer creation: " + e.getMessage());
+                }
+            }
         }
     }
 
@@ -267,8 +339,35 @@ public class ClientGameWorld extends GameWorld {
             // Step 4: Clean up map renderer (textures, models, shaders, etc.)
             if (mapRenderer != null) {
                 Log.info("ClientGameWorld", "Disposing map renderer");
-                mapRenderer.disposeAll();
-                mapRenderer = null;
+                try {
+                    // CRITICAL: Ensure renderer disposal happens on OpenGL thread
+                    final curly.octo.map.GameMapRenderer rendererToDispose = mapRenderer;
+                    mapRenderer = null; // Clear reference first to prevent use during disposal
+                    
+                    // Dispose on OpenGL thread to prevent rendering issues
+                    com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                        try {
+                            Log.info("ClientGameWorld", "Disposing renderer on OpenGL thread");
+                            rendererToDispose.disposeAll();
+                            
+                            // Force OpenGL state cleanup after disposal
+                            com.badlogic.gdx.Gdx.gl.glFlush();
+                            com.badlogic.gdx.Gdx.gl.glFinish();
+                            
+                            Log.info("ClientGameWorld", "Renderer disposal completed successfully");
+                        } catch (Exception e) {
+                            Log.error("ClientGameWorld", "Error disposing renderer on OpenGL thread: " + e.getMessage());
+                            e.printStackTrace();
+                        }
+                    });
+                    
+                    // Small delay to ensure disposal completes before continuing
+                    Thread.sleep(100);
+                    
+                } catch (Exception e) {
+                    Log.error("ClientGameWorld", "Error during renderer disposal: " + e.getMessage());
+                    e.printStackTrace();
+                }
             }
             
             // Step 5: CRITICAL DELAY - Allow physics to settle before disposal
@@ -338,12 +437,45 @@ public class ClientGameWorld extends GameWorld {
         
         try {
             if (gameObjectManager != null && gameObjectManager.localPlayer != null) {
-                // Reset player position
-                gameObjectManager.localPlayer.setPosition(spawnPosition);
-                gameObjectManager.localPlayer.setYaw(spawnYaw);
+                PlayerObject localPlayer = gameObjectManager.localPlayer;
                 
-                // Reset player state (velocity, etc.)
-                gameObjectManager.localPlayer.resetPhysicsState();
+                // CRITICAL: Always recreate physics body to ensure clean state
+                if (mapManager != null) {
+                    try {
+                        // Get current physics position for logging
+                        Vector3 currentPhysicsPos = new Vector3(0, 0, 0);
+                        if (mapManager.getPlayerController() != null) {
+                            currentPhysicsPos = mapManager.getPlayerPosition();
+                        }
+                        Log.info("ClientGameWorld", "Current physics position: " + currentPhysicsPos + ", target spawn: " + spawnPosition);
+                        
+                        // Always recreate physics body at spawn position for clean state
+                        // addPlayer() automatically removes old player physics first
+                        Log.info("ClientGameWorld", "Recreating physics body to ensure clean state");
+                        
+                        float playerRadius = 1.0f;
+                        float playerHeight = 5.0f;
+                        float playerMass = 10.0f;
+                        
+                        // This will clean up old physics and create new at spawn position
+                        mapManager.addPlayer(spawnPosition.x, spawnPosition.y, spawnPosition.z, 
+                                           playerRadius, playerHeight, playerMass);
+                        
+                        // Relink character controller
+                        localPlayer.setCharacterController(mapManager.getPlayerController());
+                        
+                        Log.info("ClientGameWorld", "Recreated physics body at spawn position");
+                        
+                    } catch (Exception e) {
+                        Log.error("ClientGameWorld", "Error recreating physics body: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                }
+                
+                // Reset PlayerObject position and state
+                localPlayer.setPosition(spawnPosition);
+                localPlayer.setYaw(spawnYaw);
+                localPlayer.resetPhysicsState();
                 
                 Log.info("ClientGameWorld", "Local player reset to spawn successfully");
             } else {
@@ -364,6 +496,13 @@ public class ClientGameWorld extends GameWorld {
         Log.info("ClientGameWorld", "Reinitializing player physics for new map");
         
         try {
+            // IMPORTANT: Give physics world time to fully initialize collision geometry
+            try {
+                Thread.sleep(200); // Allow collision geometry to settle
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            
             // Reinitialize local player physics with new map
             if (gameObjectManager != null && gameObjectManager.localPlayer != null && mapManager != null) {
                 PlayerObject localPlayer = gameObjectManager.localPlayer;
@@ -374,12 +513,17 @@ public class ClientGameWorld extends GameWorld {
                     float playerHeight = 5.0f;
                     float playerMass = 10.0f;
                     
-                    // Get current player position to maintain their location
-                    Vector3 currentPos = localPlayer.getPosition();
-                    Log.info("ClientGameWorld", "Recreating player physics body at position: " + currentPos);
+                    // Use a safe spawn position instead of current position (which might be falling)
+                    Vector3 safeSpawnPos = getSafeSpawnPosition();
+                    Log.info("ClientGameWorld", "Recreating player physics body at safe spawn position: " + safeSpawnPos);
                     
                     // Create new physics body in the new physics world
-                    mapManager.addPlayer(currentPos.x, currentPos.y, currentPos.z, playerRadius, playerHeight, playerMass);
+                    mapManager.addPlayer(safeSpawnPos.x, safeSpawnPos.y, safeSpawnPos.z, playerRadius, playerHeight, playerMass);
+                    
+                    // CRITICAL: Reset player state to prevent falling/invalid physics state
+                    localPlayer.resetPhysicsState();
+                    localPlayer.setPosition(safeSpawnPos);
+                    
                     Log.info("ClientGameWorld", "Created new player physics body for: " + localPlayer.entityId);
                 } else {
                     Log.info("ClientGameWorld", "Player controller already exists, reusing existing physics body");
@@ -388,6 +532,12 @@ public class ClientGameWorld extends GameWorld {
                 // Link the PlayerObject to the physics character controller  
                 localPlayer.setGameMap(mapManager);
                 localPlayer.setCharacterController(mapManager.getPlayerController());
+                
+                // Additional safety: Step physics once to ensure proper initialization
+                if (mapManager != null) {
+                    mapManager.stepPhysics(0.016f); // One frame step
+                }
+                
                 Log.info("ClientGameWorld", "Reinitialized local player physics: " + localPlayer.entityId);
             }
             
@@ -412,5 +562,31 @@ public class ClientGameWorld extends GameWorld {
             Log.error("ClientGameWorld", "Error during player physics reinitialization: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+    
+    /**
+     * Gets a safe spawn position for player reinitialization.
+     * Uses spawn hints if available, otherwise a high fallback position.
+     */
+    private Vector3 getSafeSpawnPosition() {
+        Vector3 safePos = new Vector3(15, 25, 15); // High fallback position
+        
+        if (mapManager != null) {
+            try {
+                ArrayList<MapHint> spawnHints = mapManager.getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
+                if (!spawnHints.isEmpty()) {
+                    MapTile spawnTile = mapManager.getTile(spawnHints.get(0).tileLookupKey);
+                    if (spawnTile != null) {
+                        // Use spawn position well above the tile
+                        safePos = new Vector3(spawnTile.x, spawnTile.y + 8f, spawnTile.z); // Extra height for safety
+                        Log.info("ClientGameWorld", "Using spawn hint position: " + safePos);
+                    }
+                }
+            } catch (Exception e) {
+                Log.warn("ClientGameWorld", "Could not get spawn hint, using fallback position: " + e.getMessage());
+            }
+        }
+        
+        return safePos;
     }
 }
