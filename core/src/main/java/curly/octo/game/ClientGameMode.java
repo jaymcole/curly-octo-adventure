@@ -403,7 +403,7 @@ public class ClientGameMode implements GameMode {
                         MapTile spawnTile = gameWorld.getMapManager().getTile(spawnHints.get(0).tileLookupKey);
                         if (spawnTile != null) {
                             // Spawn above the tile, not at the tile position
-                            playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+                            playerStart = new Vector3(spawnTile.x, spawnTile.y + 5f, spawnTile.z);
                         }
                     }
                     gameWorld.getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
@@ -419,7 +419,7 @@ public class ClientGameMode implements GameMode {
                 if (!spawnHints.isEmpty()) {
                     MapTile spawnTile = gameWorld.getMapManager().getTile(spawnHints.get(0).tileLookupKey);
                     if (spawnTile != null) {
-                        playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+                        playerStart = new Vector3(spawnTile.x, spawnTile.y + 5f, spawnTile.z);
                     }
                 }
                 existingPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));

@@ -102,7 +102,7 @@ public class ClientGameWorld extends GameWorld {
                     MapTile spawnTile = getMapManager().getTile(spawnHints.get(0).tileLookupKey);
                     if (spawnTile != null) {
                         // Spawn above the tile, not at the tile position
-                        playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+                        playerStart = new Vector3(spawnTile.x, spawnTile.y + 5f, spawnTile.z);
                     }
                 }
 
@@ -119,7 +119,7 @@ public class ClientGameWorld extends GameWorld {
             if (!spawnHints.isEmpty()) {
                 MapTile spawnTile = getMapManager().getTile(spawnHints.get(0).tileLookupKey);
                 if (spawnTile != null) {
-                    playerStart = new Vector3(spawnTile.x, spawnTile.y + 3, spawnTile.z);
+                    playerStart = new Vector3(spawnTile.x, spawnTile.y + 5f, spawnTile.z);
                 }
             }
             getGameObjectManager().localPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
@@ -367,20 +367,39 @@ public class ClientGameWorld extends GameWorld {
             // Reinitialize local player physics with new map
             if (gameObjectManager != null && gameObjectManager.localPlayer != null && mapManager != null) {
                 PlayerObject localPlayer = gameObjectManager.localPlayer;
+                
+                // CRITICAL: Recreate the physics body in the new physics world
+                if (mapManager.getPlayerController() == null) {
+                    float playerRadius = 1.0f;
+                    float playerHeight = 5.0f;
+                    float playerMass = 10.0f;
+                    
+                    // Get current player position to maintain their location
+                    Vector3 currentPos = localPlayer.getPosition();
+                    Log.info("ClientGameWorld", "Recreating player physics body at position: " + currentPos);
+                    
+                    // Create new physics body in the new physics world
+                    mapManager.addPlayer(currentPos.x, currentPos.y, currentPos.z, playerRadius, playerHeight, playerMass);
+                    Log.info("ClientGameWorld", "Created new player physics body for: " + localPlayer.entityId);
+                } else {
+                    Log.info("ClientGameWorld", "Player controller already exists, reusing existing physics body");
+                }
+                
+                // Link the PlayerObject to the physics character controller  
                 localPlayer.setGameMap(mapManager);
                 localPlayer.setCharacterController(mapManager.getPlayerController());
                 Log.info("ClientGameWorld", "Reinitialized local player physics: " + localPlayer.entityId);
             }
             
-            // Reinitialize all active players with new map physics
+            // For remote players, just link them to the map (they don't need physics bodies on client)
             if (players != null && mapManager != null) {
                 for (PlayerObject player : players) {
                     try {
-                        player.setGameMap(mapManager);
-                        if (player == gameObjectManager.localPlayer) {
-                            player.setCharacterController(mapManager.getPlayerController());
+                        if (player != gameObjectManager.localPlayer) {
+                            // Remote players only need map reference, not physics bodies
+                            player.setGameMap(mapManager);
+                            Log.info("ClientGameWorld", "Reinitialized remote player map reference: " + player.entityId);
                         }
-                        Log.info("ClientGameWorld", "Reinitialized player physics: " + player.entityId);
                     } catch (Exception e) {
                         Log.error("ClientGameWorld", "Error reinitializing player " + player.entityId + ": " + e.getMessage());
                     }
