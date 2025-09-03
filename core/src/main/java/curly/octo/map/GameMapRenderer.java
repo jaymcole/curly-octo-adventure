@@ -70,20 +70,6 @@ public class GameMapRenderer implements Disposable {
         Log.info("GameMapRenderer", "Initialized bloom post-processing for realistic lava glow");
     }
 
-    /**
-     * Set the maximum number of shadow-casting lights (performance tuning)
-     * @param maxLights Number of closest lights that will cast shadows (1-4 recommended)
-     */
-    public void setMaxShadowCastingLights(int maxLights) {
-        if (maxLights < 1 || maxLights > 8) {
-            Log.warn("GameMapRenderer", "Max shadow-casting lights should be between 1-8, got: " + maxLights);
-            return;
-        }
-        this.maxShadowCastingLights = maxLights;
-        Log.info("GameMapRenderer", "Set max shadow-casting lights to: " + maxLights);
-    }
-
-
     public void render(PerspectiveCamera camera, Environment environment) {
         render(camera, environment, null);
     }
@@ -287,35 +273,6 @@ public class GameMapRenderer implements Disposable {
         return result;
     }
 
-//    private Array<PointLight> getMostSignificantLights(PointLightsAttribute pointLights, int maxLights) {
-//        Array<PointLight> result = new Array<>();
-//
-//        if (pointLights == null || pointLights.lights.size == 0) {
-//            return result;
-//        }
-//
-//        // Create array of lights with significance scores (intensity-based)
-//        Array<LightSignificance> lightScores = new Array<>();
-//        for (PointLight light : pointLights.lights) {
-//            // Score based on light intensity (brighter lights are more significant)
-//            float significance = light.intensity;
-//            lightScores.add(new LightSignificance(light, significance));
-//        }
-//
-//        // Sort by significance (highest first)
-//        lightScores.sort((a, b) -> Float.compare(b.significance, a.significance));
-//
-//        // Take the N most significant lights
-//        int numLights = Math.min(maxLights, lightScores.size);
-//        for (int i = 0; i < numLights; i++) {
-//            result.add(lightScores.get(i).light);
-//        }
-//
-//        Log.info("GameMapRenderer", "Selected " + result.size + " most significant lights for shadow casting out of " + lightScores.size + " total lights");
-//
-//        return result;
-//    }
-
     // Helper class for sorting lights by significance
     private static class LightSignificance {
         final PointLight light;
@@ -345,11 +302,11 @@ public class GameMapRenderer implements Disposable {
 
     public void updateMap(GameMap map, Environment environment) {
         long startTime = System.currentTimeMillis();
-        
+
         Log.info("GameMapRenderer", "=== UPDATING MAP ===");
         Log.info("GameMapRenderer", "Map has " + map.getAllTiles().size() + " tiles");
         Log.info("GameMapRenderer", "Map hash code: " + map.hashCode());
-        
+
         // Log some tile positions to verify map is actually different
         java.util.List<curly.octo.map.MapTile> tiles = map.getAllTiles();
         if (tiles.size() > 0) {

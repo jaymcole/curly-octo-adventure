@@ -90,7 +90,7 @@ public class Constants {
     public static final float CAMERA_NEAR_PLANE = 0.1f;
 
     /** Main camera far clipping plane */
-    public static final float CAMERA_FAR_PLANE = 300f;
+    public static final float CAMERA_FAR_PLANE = 3000f;
 
     /** Render fog start distance */
     public static final float RENDER_FOG_START = 150f;

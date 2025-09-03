@@ -5,7 +5,6 @@ import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.Direction;
 import curly.octo.map.enums.MapTileGeometryType;
-import curly.octo.map.enums.Turn;
 import curly.octo.map.generators.snails.*;
 import curly.octo.map.hints.SpawnPointHint;
 import curly.octo.map.hints.LightHint;
