@@ -21,12 +21,14 @@ public class TemplateManager {
     public ArrayList<TemplateRoom> roomTemplates;
     public ArrayList<TemplateRoom> connectorTemplates;
     private final HashMap<String, ArrayList<TemplateRoom>> validRoomCache;
+    private final HashMap<String, ArrayList<TemplateRoom>> validConnectorCache;
 
 
     public TemplateManager(String[] templatePaths) {
         roomTemplates = new ArrayList<>();
         connectorTemplates = new ArrayList<>();
         validRoomCache = new HashMap<>();
+        validConnectorCache = new HashMap<>();
         for(String path : templatePaths) {
             // Known template files in the templates directory
             String[] templateFiles = {
@@ -86,7 +88,7 @@ public class TemplateManager {
             }
 
             int depth = imageWidth / imageHeight;
-            int[][][] walls = new int[imageHeight][imageHeight][depth];
+            int[][][] walls = new int[depth][imageHeight][imageHeight];
 
             for (int slice = 0; slice < depth; slice++) {
                 for (int x = 0; x < imageHeight; x++) {
@@ -122,27 +124,33 @@ public class TemplateManager {
     }
 
     public ArrayList<TemplateRoom> getValidRoomOptions(HashSet<Direction> enteringDirections) {
-        return getValidTemplateOptions(enteringDirections, roomTemplates);
-    }
-
-    public ArrayList<TemplateRoom> getValidConnectorOptions(HashSet<Direction> enteringDirections) {
-        return getValidTemplateOptions(enteringDirections, connectorTemplates);
-    }
-
-    private ArrayList<TemplateRoom> getValidTemplateOptions(HashSet<Direction> enteringDirections, ArrayList<TemplateRoom> templates) {
-        ArrayList<TemplateRoom> validRooms = new ArrayList<>();
         String cacheKey = constructValidRoomCacheKey(enteringDirections);
         if (validRoomCache.containsKey(cacheKey)) {
             return validRoomCache.get(cacheKey);
         }
-
-        for(TemplateRoom possibleRoomTemplate : templates) {
-            if (possibleRoomTemplate.isValidRoom(enteringDirections)) {
-                validRooms.add(possibleRoomTemplate);
-            }
-        }
+        ArrayList<TemplateRoom> validRooms =  getValidTemplateOptions(enteringDirections, roomTemplates);
         validRoomCache.put(cacheKey, validRooms);
         return validRooms;
+    }
+
+    public ArrayList<TemplateRoom> getValidConnectorOptions(HashSet<Direction> enteringDirections) {
+        String cacheKey = constructValidRoomCacheKey(enteringDirections);
+        if (validConnectorCache.containsKey(cacheKey)) {
+            return validConnectorCache.get(cacheKey);
+        }
+        ArrayList<TemplateRoom> validConnectors =  getValidTemplateOptions(enteringDirections, connectorTemplates);
+        validConnectorCache.put(cacheKey, validConnectors);
+        return validConnectors;
+    }
+
+    private ArrayList<TemplateRoom> getValidTemplateOptions(HashSet<Direction> enteringDirections, ArrayList<TemplateRoom> templates) {
+        ArrayList<TemplateRoom> validTemplates = new ArrayList<>();
+        for(TemplateRoom possibleRoomTemplate : templates) {
+            if (possibleRoomTemplate.isValidRoom(enteringDirections)) {
+                validTemplates.add(possibleRoomTemplate);
+            }
+        }
+        return validTemplates;
     }
 
     private String constructValidRoomCacheKey(HashSet<Direction> enteringDirections) {

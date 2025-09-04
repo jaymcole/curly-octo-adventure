@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 
+import static curly.octo.Constants.RENDER_SELF;
+
 public class GameObjectManager implements Disposable {
     public ArrayList<PlayerObject> activePlayers = new ArrayList<>();
     public PlayerObject localPlayer;
