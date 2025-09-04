@@ -57,6 +57,8 @@ public class Constants {
     // PLAYER CONFIGURATION
     // =========================
 
+    public static final boolean RENDER_SELF = true;
+
     /** Player character height in world units */
     public static final float PLAYER_HEIGHT = 2.5f;
 
@@ -73,7 +75,7 @@ public class Constants {
     public static final float PLAYER_CAMERA_MIN_PITCH = -89f;
 
     /** Path to player 3D model asset */
-    public static final String PLAYER_MODEL_PATH = "models/character/test_scale.obj";
+    public static final String PLAYER_MODEL_PATH = "models/character/crate.gltf";
 
     /** Scale factor for player model rendering */
     public static final float PLAYER_MODEL_SCALE = 0.1f;
