@@ -61,7 +61,7 @@ public enum Direction {
         return next;
     }
 
-    public static void advanceVector(Direction direction, Vector3 coordinate) {
+    public static Vector3 advanceVector(Direction direction, Vector3 coordinate) {
         switch (direction) {
             case NORTH:
                 coordinate.z++;
@@ -82,6 +82,7 @@ public enum Direction {
                 coordinate.y--;
                 break;
         }
+        return coordinate;
     }
 
 }

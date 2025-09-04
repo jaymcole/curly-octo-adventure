@@ -55,10 +55,10 @@ public class TemplateManager {
                     try {
                         TemplateRoom room = null;
                         if (templateName.startsWith(CONNECTOR_PREFIX)) {
-                            room = loadConnectorTemplate(templateFile);
+                            room = loadTemplate(templateFile);
                             connectorTemplates.add(room);
                         } else {
-                            room = loadTemplate(templateFile, ROOM_SIZE);
+                            room = loadTemplate(templateFile);
                             roomTemplates.add(room);
                         }
                         Gdx.app.log("Assets", "Loaded template: " + templateFile.path());
@@ -71,11 +71,7 @@ public class TemplateManager {
         }
     }
 
-    private TemplateRoom loadConnectorTemplate (FileHandle templateFile) {
-        return loadTemplate(templateFile, ROOM_SIZE + 2);
-    }
-
-    private TemplateRoom loadTemplate(FileHandle templateFile, int sliceWidth) {
+    private TemplateRoom loadTemplate(FileHandle templateFile) {
         Pixmap pixmap = null;
 
         try {
@@ -84,18 +80,18 @@ public class TemplateManager {
             int imageWidth = pixmap.getWidth();
             int imageHeight = pixmap.getHeight();
 
-            if (imageWidth % sliceWidth != 0) {
+            if (imageWidth % imageHeight != 0) {
                 throw new IllegalArgumentException("Image width (" + imageWidth +
-                    ") is not an even multiple of sliceWidth (" + sliceWidth + ")");
+                    ") is not an even multiple of sliceWidth (" + imageHeight + ")");
             }
 
-            int depth = imageWidth / sliceWidth;
-            int[][][] walls = new int[imageHeight][sliceWidth][depth];
+            int depth = imageWidth / imageHeight;
+            int[][][] walls = new int[imageHeight][imageHeight][depth];
 
             for (int slice = 0; slice < depth; slice++) {
-                for (int x = 0; x < sliceWidth; x++) {
-                    for (int z = 0; z < sliceWidth; z++) {
-                        int pixelX = x + (slice * sliceWidth);
+                for (int x = 0; x < imageHeight; x++) {
+                    for (int z = 0; z < imageHeight; z++) {
+                        int pixelX = x + (slice * imageHeight);
                         int pixel = pixmap.getPixel(pixelX, z);
                         int alpha = (pixel & 0x000000FF);
                         walls[slice][z][x] = (alpha == 0) ? 1 : 0;

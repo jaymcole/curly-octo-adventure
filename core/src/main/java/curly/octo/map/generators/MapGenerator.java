@@ -6,6 +6,9 @@ import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.hints.LightHint;
+import curly.octo.map.hints.SpawnPointHint;
+import lights.LightPresets;
 
 import java.util.ArrayList;
 import java.util.Random;
@@ -47,6 +50,27 @@ public abstract class MapGenerator {
             MapTile tile = map.touchTile(x, y, z);
             tile.geometryType = MapTileGeometryType.FULL;
         }
+    }
+
+    protected void addSpawn(Vector3 spawnPosition) {
+        map.touchTile(spawnPosition);
+        map.registerHint(new SpawnPointHint(map.constructKeyFromIndexCoordinates((int)spawnPosition.x,(int)spawnPosition.y,(int)spawnPosition.z)));
+    }
+
+    protected void addLight(Vector3 lightPos) {
+        // Ensure light tile exists
+        map.touchTile(lightPos);
+
+        // Create light hint at position
+        LightHint lightHint = new LightHint(map.constructKeyFromIndexCoordinates(
+            (int)lightPos.x, (int)lightPos.y, (int)lightPos.z));
+        lightHint.color_r = 0.8f;  // Warm white light
+        lightHint.color_g = 0.7f;
+        lightHint.color_b = 0.5f;
+        lightHint.intensity = 3f;  // Much lower intensity
+        lightHint.flicker = LightPresets.LIGHT_FLICKER_1;
+
+        map.registerHint(lightHint);
     }
 
 }
