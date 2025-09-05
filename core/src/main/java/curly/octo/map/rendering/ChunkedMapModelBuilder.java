@@ -22,6 +22,7 @@ import curly.octo.map.LevelChunk;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.exploration.TileExplorationManager;
 import curly.octo.map.hints.MapHint;
 
 import java.util.*;
@@ -355,59 +356,29 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
     }
 
     /**
-     * Find all empty tiles reachable from spawn points using BFS.
-     * This helps us cull faces that are exposed only to unreachable empty space.
+     * Find all empty tiles reachable using multi-pass BFS.
+     * This includes tiles reachable from spawn points AND tiles in isolated regions.
      */
     private Set<MapTile> findReachableEmptyTiles() {
+        TileExplorationManager explorationManager = new TileExplorationManager(gameMap);
+        List<Set<MapTile>> allRegions = explorationManager.exploreAllRegions();
+        
         Set<MapTile> reachableEmptyTiles = new HashSet<>();
-        Queue<MapTile> bfsQueue = new ArrayDeque<>();
-
-        // Start BFS from all spawn points
-        ArrayList<MapHint> spawnHints = gameMap.getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
-
-        if (!spawnHints.isEmpty()) {
-            for (curly.octo.map.hints.MapHint hint : spawnHints) {
-                MapTile spawnTile = gameMap.getTile(hint.tileLookupKey);
-                if (spawnTile != null && spawnTile.geometryType == MapTileGeometryType.EMPTY && !reachableEmptyTiles.contains(spawnTile)) {
-                    bfsQueue.offer(spawnTile);
-                    reachableEmptyTiles.add(spawnTile);
-                }
-            }
-        } else {
-            // Fallback: start from first empty tile found
-            for (MapTile tile : gameMap.getAllTiles()) {
+        
+        // Include empty tiles from all discovered regions (both connected and isolated)
+        for (Set<MapTile> region : allRegions) {
+            for (MapTile tile : region) {
                 if (tile.geometryType == MapTileGeometryType.EMPTY) {
-                    bfsQueue.offer(tile);
                     reachableEmptyTiles.add(tile);
-                    break;
                 }
             }
         }
-
-        // BFS to find all connected empty tiles
-        while (!bfsQueue.isEmpty()) {
-            MapTile current = bfsQueue.poll();
-            Vector3 currentCoords = getTileCoordinates(current);
-
-            // Check all 6 neighbors
-            int[] dx = {-1, 1, 0, 0, 0, 0};
-            int[] dy = {0, 0, -1, 1, 0, 0};
-            int[] dz = {0, 0, 0, 0, -1, 1};
-
-            for (int i = 0; i < 6; i++) {
-                int neighborX = (int)currentCoords.x + dx[i];
-                int neighborY = (int)currentCoords.y + dy[i];
-                int neighborZ = (int)currentCoords.z + dz[i];
-
-                MapTile neighbor = gameMap.getTile(neighborX, neighborY, neighborZ);
-
-                if (neighbor != null && neighbor.geometryType == MapTileGeometryType.EMPTY && !reachableEmptyTiles.contains(neighbor)) {
-                    reachableEmptyTiles.add(neighbor);
-                    bfsQueue.offer(neighbor);
-                }
-            }
-        }
-
+        
+        TileExplorationManager.ExplorationStats stats = explorationManager.getStats();
+        Log.info("ChunkedMapModelBuilder", String.format(
+            "Multi-pass BFS found %d reachable empty tiles across %d regions: %s", 
+            reachableEmptyTiles.size(), allRegions.size(), stats.toString()));
+        
         return reachableEmptyTiles;
     }
 

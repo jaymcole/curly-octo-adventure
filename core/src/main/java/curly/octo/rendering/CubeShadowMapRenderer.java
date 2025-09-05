@@ -60,7 +60,7 @@ public class CubeShadowMapRenderer implements Disposable {
 
     private boolean disposed = false;
     private boolean usingFallbackShader = false;  // Track which shader version we're using
-    
+
     // Overflow handling arrays (reused to reduce GC pressure)
     private final Array<PointLight> actualShadowLights;
     private final Array<FallbackLight> overflowFallbackLights;
@@ -69,12 +69,12 @@ public class CubeShadowMapRenderer implements Disposable {
     public CubeShadowMapRenderer(int quality, int maxLights) {
         SHADOW_MAP_SIZE = quality;
         MAX_LIGHTS = Math.max(1, Math.min(8, maxLights)); // Clamp between 1-8
-        
+
         // Initialize overflow handling arrays
         this.actualShadowLights = new Array<>(MAX_LIGHTS);
         this.overflowFallbackLights = new Array<>(128); // Much higher capacity for converted excess shadow lights
         this.combinedLightArray = new Array<>(256); // Higher capacity for final rendering with many lights
-        
+
         initializeFrameBuffers();
         loadShaders();
         setupCameras();
@@ -110,11 +110,11 @@ public class CubeShadowMapRenderer implements Disposable {
             Log.error("CubeShadowMapRenderer", "Enhanced shadow shader compilation failed: " + shadowShader.getLog());
             Log.info("CubeShadowMapRenderer", "GPU Info: " + Gdx.gl.glGetString(GL20.GL_RENDERER));
             Log.info("CubeShadowMapRenderer", "Attempting fallback to basic 8-light shader...");
-            
+
             // Try loading a more basic version
             shadowShader.dispose();
             shadowShader = createFallbackShader();
-            
+
             if (!shadowShader.isCompiled()) {
                 Log.error("CubeShadowMapRenderer", "Fallback shader also failed: " + shadowShader.getLog());
                 throw new RuntimeException("Both enhanced and fallback shaders failed to compile");
@@ -125,18 +125,18 @@ public class CubeShadowMapRenderer implements Disposable {
 
         Log.info("CubeShadowMapRenderer", "Cube shadow shaders loaded successfully");
     }
-    
+
     /**
      * Creates a fallback shader with basic 8-light support for GPU compatibility.
      * This method generates a shader programmatically with reduced limits.
      */
     private ShaderProgram createFallbackShader() {
         // Create a basic fallback fragment shader with 8-light limit
-        String fallbackFragmentShader = 
+        String fallbackFragmentShader =
             "#ifdef GL_ES\\n" +
             "precision mediump float;\\n" +
             "#endif\\n\\n" +
-            
+
             "// Basic fallback shader with 8-light limit\\n" +
             "uniform vec3 u_ambientLight;\\n" +
             "uniform vec3 u_diffuseColor;\\n" +
@@ -144,20 +144,20 @@ public class CubeShadowMapRenderer implements Disposable {
             "uniform sampler2D u_diffuseTexture;\\n" +
             "uniform int u_hasTexture;\\n" +
             "uniform float u_farPlane;\\n\\n" +
-            
+
             "// Basic 8-light arrays (guaranteed GPU compatibility)\\n" +
             "uniform int u_numLights;\\n" +
             "uniform vec3 u_lightPositions[8];\\n" +
             "uniform vec3 u_lightColors[8];\\n" +
             "uniform float u_lightIntensities[8];\\n\\n" +
-            
+
             "uniform int u_numShadowLights;\\n" +
             "uniform sampler2D u_cubeShadowMaps[48];\\n\\n" +
-            
+
             "varying vec3 v_worldPos;\\n" +
             "varying vec3 v_normal;\\n" +
             "varying vec2 v_texCoord;\\n\\n" +
-            
+
             "void main() {\\n" +
             "    vec3 normal = normalize(v_normal);\\n" +
             "    vec3 baseMaterial = u_diffuseColor;\\n" +
@@ -165,9 +165,9 @@ public class CubeShadowMapRenderer implements Disposable {
             "        vec4 texColor = texture2D(u_diffuseTexture, v_texCoord);\\n" +
             "        baseMaterial = texColor.rgb * u_diffuseColor;\\n" +
             "    }\\n\\n" +
-            
+
             "    vec3 totalLighting = u_ambientLight;\\n\\n" +
-            
+
             "    // Simple lighting calculation for 8 lights max\\n" +
             "    for (int i = 0; i < 8; i++) {\\n" +
             "        if (i >= u_numLights) break;\\n" +
@@ -181,19 +181,19 @@ public class CubeShadowMapRenderer implements Disposable {
             "        float diff = max(dot(normal, lightDir), 0.0);\\n" +
             "        totalLighting += diff * lightColor * attenuation;\\n" +
             "    }\\n\\n" +
-            
+
             "    vec3 finalColor = baseMaterial * totalLighting;\\n" +
             "    gl_FragColor = vec4(finalColor, u_diffuseAlpha);\\n" +
             "}";
-        
+
         String vertexShader = Gdx.files.internal("shaders/cube_shadow.vertex.glsl").readString();
         ShaderProgram fallbackShader = new ShaderProgram(vertexShader, fallbackFragmentShader);
-        
+
         if (fallbackShader.isCompiled()) {
             usingFallbackShader = true;
             Log.info("CubeShadowMapRenderer", "Fallback shader compiled successfully (8-light limit)");
         }
-        
+
         return fallbackShader;
     }
 
@@ -250,18 +250,18 @@ public class CubeShadowMapRenderer implements Disposable {
      * Renders scene with shadow overflow handling - NO LIGHTS WILL BE LOST.
      * This method automatically converts excess shadow lights to fallback lights,
      * ensuring all requested lights remain visible in the scene.
-     * 
+     *
      * @param instances Model instances to render
-     * @param camera Scene camera  
+     * @param camera Scene camera
      * @param requestedShadowLights All lights requested to cast shadows
      * @param additionalLights Additional non-shadow lights
      * @param ambientLight Ambient light color
      */
-    public void renderWithShadowOverflowHandling(Array<ModelInstance> instances, Camera camera, 
-                                                Array<PointLight> requestedShadowLights, 
-                                                Array<PointLight> additionalLights, 
+    public void renderWithShadowOverflowHandling(Array<ModelInstance> instances, Camera camera,
+                                                Array<PointLight> requestedShadowLights,
+                                                Array<PointLight> additionalLights,
                                                 Vector3 ambientLight) {
-        
+
         // Handle shadow light overflow - convert excess to fallback
         LightConverter.handleShadowLightOverflow(
             requestedShadowLights,    // All requested shadow lights
@@ -270,56 +270,56 @@ public class CubeShadowMapRenderer implements Disposable {
             actualShadowLights,       // Output: actual shadow lights (limited)
             overflowFallbackLights    // Output: excess lights converted to fallback
         );
-        
+
         // Generate shadow maps for actual shadow lights only
         resetLightIndex();
         for (PointLight shadowLight : actualShadowLights) {
             generateCubeShadowMap(instances, shadowLight);
         }
-        
+
         // Build combined light array for rendering
         combinedLightArray.clear();
-        
+
         // Add shadow lights first (these get shadows)
         for (PointLight shadowLight : actualShadowLights) {
             combinedLightArray.add(shadowLight);
         }
-        
+
         // Add additional non-shadow lights
         if (additionalLights != null) {
             for (PointLight additionalLight : additionalLights) {
                 combinedLightArray.add(additionalLight);
             }
         }
-        
+
         // Convert overflow fallback lights to PointLight format and add them
         for (FallbackLight fallbackLight : overflowFallbackLights) {
             if (fallbackLight.isReadyForRendering()) {
                 PointLight tempPointLight = new PointLight();
                 tempPointLight.setPosition(fallbackLight.getWorldPosition());
-                tempPointLight.setColor(fallbackLight.getLightColor().r, 
-                                      fallbackLight.getLightColor().g, 
+                tempPointLight.setColor(fallbackLight.getLightColor().r,
+                                      fallbackLight.getLightColor().g,
                                       fallbackLight.getLightColor().b, 1.0f);
                 tempPointLight.setIntensity(fallbackLight.getEffectiveIntensity());
                 combinedLightArray.add(tempPointLight);
             }
         }
-        
+
         // Render with the combined lights (capped at shader array limit)
         renderWithLightArray(instances, camera, actualShadowLights, combinedLightArray, ambientLight);
-        
+
         // Log the overflow handling results
         if (overflowFallbackLights.size > 0) {
-            Log.info("CubeShadowMapRenderer", "Shadow overflow handled: " + overflowFallbackLights.size + 
+            Log.info("CubeShadowMapRenderer", "Shadow overflow handled: " + overflowFallbackLights.size +
                      " excess shadow lights converted to fallback lights. ALL LIGHTS REMAIN VISIBLE.");
         }
     }
-    
+
     /**
      * Internal rendering method that handles the actual shader setup and rendering.
      */
-    private void renderWithLightArray(Array<ModelInstance> instances, Camera camera, 
-                                    Array<PointLight> shadowLights, Array<PointLight> allLights, 
+    private void renderWithLightArray(Array<ModelInstance> instances, Camera camera,
+                                    Array<PointLight> shadowLights, Array<PointLight> allLights,
                                     Vector3 ambientLight) {
         if (shadowLights.size == 0 && allLights.size == 0) {
             Log.warn("CubeShadowMapRenderer", "No lights to render");
@@ -347,17 +347,17 @@ public class CubeShadowMapRenderer implements Disposable {
         int maxLights = usingFallbackShader ? Constants.LIGHTING_FALLBACK_SHADER_LIGHTS : Constants.LIGHTING_ENHANCED_SHADER_LIGHTS;
         int totalLights = Math.min(allLights.size, maxLights);
         shadowShader.setUniformi("u_numLights", totalLights);
-        
+
         // Log overflow information for monitoring
         if (allLights.size > maxLights) {
             int overflowCount = allLights.size - maxLights;
             String shaderType = usingFallbackShader ? "fallback (" + Constants.LIGHTING_FALLBACK_SHADER_LIGHTS + "-light)" : "enhanced (" + Constants.LIGHTING_ENHANCED_SHADER_LIGHTS + "-light)";
-            Log.warn("CubeShadowMapRenderer", "Light overflow with " + shaderType + " shader: " + 
+            Log.warn("CubeShadowMapRenderer", "Light overflow with " + shaderType + " shader: " +
                      overflowCount + " lights not rendered (total: " + allLights.size + ", limit: " + maxLights + "). " +
                      "Consider using distance culling or reducing light density.");
         }
 
-        Log.debug("CubeShadowMapRenderer", "Rendering with overflow handling - Shadow lights: " + 
+        Log.debug("CubeShadowMapRenderer", "Rendering with overflow handling - Shadow lights: " +
                   numShadowLights + ", Total lights: " + totalLights + " (out of " + allLights.size + " requested)");
 
         for (int i = 0; i < totalLights; i++) {
@@ -383,29 +383,29 @@ public class CubeShadowMapRenderer implements Disposable {
             renderInstance(instance, shadowShader);
         }
     }
-    
+
     /**
      * Compatibility wrapper that maintains the original calling pattern but with overflow handling.
      * This method works exactly like renderWithMultipleCubeShadows but prevents lights from disappearing.
-     * 
+     *
      * @param instances Model instances to render
      * @param camera Scene camera
      * @param priorityShadowLights Lights that should get priority for shadows (subset of allLights)
      * @param allLights All lights in the scene (shadow + non-shadow)
      * @param ambientLight Ambient light color
      */
-    public void renderWithShadowOverflowHandlingCompatible(Array<ModelInstance> instances, Camera camera, 
-                                                          Array<PointLight> priorityShadowLights, 
-                                                          Array<PointLight> allLights, 
+    public void renderWithShadowOverflowHandlingCompatible(Array<ModelInstance> instances, Camera camera,
+                                                          Array<PointLight> priorityShadowLights,
+                                                          Array<PointLight> allLights,
                                                           Vector3 ambientLight) {
-        
+
         // Simple overflow handling: limit shadow generation but render all lights
         actualShadowLights.clear();
-        
+
         // Generate shadow maps for up to MAX_LIGHTS lights (priority to the priorityShadowLights first)
         resetLightIndex();
         int shadowCount = 0;
-        
+
         // First, add priority shadow lights
         for (PointLight light : priorityShadowLights) {
             if (shadowCount >= MAX_LIGHTS) break;
@@ -413,7 +413,7 @@ public class CubeShadowMapRenderer implements Disposable {
             generateCubeShadowMap(instances, light);
             shadowCount++;
         }
-        
+
         // If we have room for more shadows and there are other lights not in priority list
         if (shadowCount < MAX_LIGHTS) {
             for (PointLight light : allLights) {
@@ -425,27 +425,27 @@ public class CubeShadowMapRenderer implements Disposable {
                 }
             }
         }
-        
+
         // Build combined light array for rendering - ALL lights will be included
         combinedLightArray.clear();
         for (PointLight light : allLights) {
             combinedLightArray.add(light);
         }
-        
+
         // Render with all lights (no longer limited to 8 - increased to 256!)
         renderWithLightArray(instances, camera, actualShadowLights, combinedLightArray, ambientLight);
-        
+
         // Log the overflow handling results
         int overflowCount = allLights.size - shadowCount;
         if (overflowCount > 0) {
-            Log.info("CubeShadowMapRenderer", "Shadow overflow handled: " + overflowCount + 
+            Log.info("CubeShadowMapRenderer", "Shadow overflow handled: " + overflowCount +
                      " lights rendered without shadows. ALL " + allLights.size + " LIGHTS REMAIN VISIBLE.");
         }
-        
-        Log.info("CubeShadowMapRenderer", "Rendered " + shadowCount + " shadow lights + " + 
+
+        Log.info("CubeShadowMapRenderer", "Rendered " + shadowCount + " shadow lights + " +
                  (allLights.size - shadowCount) + " fallback lights = " + allLights.size + " total lights");
     }
-    
+
     public void renderWithMultipleCubeShadows(Array<ModelInstance> instances, Camera camera, Array<PointLight> shadowLights, Array<PointLight> allLights, Vector3 ambientLight) {
         if (shadowLights.size == 0) {
             Log.warn("CubeShadowMapRenderer", "No shadow-casting lights provided");
@@ -487,13 +487,6 @@ public class CubeShadowMapRenderer implements Disposable {
         // Send ordered lights to shader (limited by shader array size but with overflow handling)
         int totalLights = Math.min(orderedLights.size, Constants.LIGHTING_ENHANCED_SHADER_LIGHTS);
         shadowShader.setUniformi("u_numLights", totalLights);
-        
-        // Log overflow warning if there are too many lights
-        if (orderedLights.size > Constants.LIGHTING_ENHANCED_SHADER_LIGHTS) {
-            int overflowCount = orderedLights.size - Constants.LIGHTING_ENHANCED_SHADER_LIGHTS;
-            Log.warn("CubeShadowMapRenderer", "WARNING: " + overflowCount + 
-                     " lights exceeded shader limit and will not be rendered. Consider using LightingManager with overflow handling.");
-        }
 
         Log.debug("CubeShadowMapRenderer", "Sending " + totalLights + " lights to shader (" + numShadowLights + " with shadows):");
         for (int i = 0; i < totalLights; i++) {
@@ -680,7 +673,7 @@ public class CubeShadowMapRenderer implements Disposable {
             }
             Log.info("CubeShadowMapRenderer", "Cube shadow framebuffers disposed (" + (MAX_LIGHTS * 6) + " total)");
         }
-        
+
         // Clean up overflow handling arrays
         if (overflowFallbackLights != null) {
             LightConverter.cleanupOverflowFallbackLights(overflowFallbackLights);

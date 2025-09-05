@@ -3,9 +3,7 @@ package curly.octo.map;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.Constants;
-import curly.octo.map.enums.MapTileGeometryType;
-import curly.octo.map.hints.MapHint;
-import curly.octo.map.hints.SpawnPointHint;
+import curly.octo.map.exploration.TileExplorationManager;
 
 import java.util.*;
 
@@ -33,27 +31,41 @@ public class ChunkManager {
     }
 
     /**
-     * Organizes all tiles from the GameMap into chunks using BFS from spawn points.
-     * This method processes tiles in the order they are discovered during BFS,
-     * ensuring that reachable areas are prioritized.
+     * Organizes all tiles from the GameMap into chunks using multi-pass BFS.
+     * This method processes tiles discovered through multiple BFS passes,
+     * ensuring that both reachable and isolated areas are handled.
      *
      * @return A set of LevelChunks that contain tiles, organized by reachability
      */
     public Set<LevelChunk> organizeIntoChunks() {
-        Log.info("ChunkManager", "Starting chunk organization with BFS from spawn points");
+        Log.info("ChunkManager", "Starting chunk organization with multi-pass BFS");
 
         Set<LevelChunk> populatedChunks = new HashSet<>();
-        Set<MapTile> processedTiles = new HashSet<>();
 
-        // Step 1: Process reachable tiles using BFS from spawn points
-        processReachableTiles(populatedChunks, processedTiles);
+        // Use TileExplorationManager for multi-pass BFS
+        TileExplorationManager explorationManager = new TileExplorationManager(gameMap);
+        List<Set<MapTile>> allRegions = explorationManager.exploreAllRegions();
 
-        // Step 2: Process any remaining unvisited tiles (isolated areas)
-        processRemainingTiles(populatedChunks, processedTiles);
+        // Process tiles from all discovered regions
+        int regionNumber = 1;
+        for (Set<MapTile> region : allRegions) {
+            Log.info("ChunkManager", String.format("Processing region %d with %d tiles", regionNumber, region.size()));
 
-        Log.info("ChunkManager",
-            String.format("Chunk organization complete: %d populated chunks, %d total tiles processed",
-                populatedChunks.size(), processedTiles.size()));
+            for (MapTile tile : region) {
+                if (placeTileInChunk(tile)) {
+                    LevelChunk chunk = getChunkForTile(tile);
+                    if (chunk != null && chunk.hasContent()) {
+                        populatedChunks.add(chunk);
+                    }
+                }
+            }
+            regionNumber++;
+        }
+
+        TileExplorationManager.ExplorationStats stats = explorationManager.getStats();
+        Log.info("ChunkManager", String.format(
+            "Chunk organization complete: %d populated chunks, %s",
+            populatedChunks.size(), stats.toString()));
 
         // Log detailed placement statistics
         Log.info("ChunkManager", String.format(
@@ -64,108 +76,6 @@ public class ChunkManager {
         return populatedChunks;
     }
 
-    /**
-     * Processes tiles reachable from spawn points using BFS.
-     * This ensures that the main playable areas are processed first.
-     */
-    private void processReachableTiles(Set<LevelChunk> populatedChunks, Set<MapTile> processedTiles) {
-        Queue<MapTile> bfsQueue = new ArrayDeque<>();
-
-        // Find spawn points and start BFS from them
-        ArrayList<MapHint> spawnHints = gameMap.getAllHintsOfType(SpawnPointHint.class);
-        int spawnPointsFound = 0;
-
-        if (!spawnHints.isEmpty()) {
-            for (MapHint hint : spawnHints) {
-                MapTile spawnTile = gameMap.getTile(hint.tileLookupKey);
-                if (spawnTile != null && !processedTiles.contains(spawnTile)) {
-                    bfsQueue.offer(spawnTile);
-                    processedTiles.add(spawnTile);
-                    spawnPointsFound++;
-                }
-            }
-        } else {
-            // Fallback: start from first empty tile found
-            Log.warn("ChunkManager", "No spawn points found, starting BFS from first empty tile");
-            for (MapTile tile : gameMap.getAllTiles()) {
-                if (tile.geometryType == MapTileGeometryType.EMPTY) {
-                    bfsQueue.offer(tile);
-                    processedTiles.add(tile);
-                    spawnPointsFound = 1;
-                    break;
-                }
-            }
-        }
-
-        Log.info("ChunkManager", "Starting BFS from " + spawnPointsFound + " spawn points");
-
-        // Perform BFS to process all reachable tiles
-        int tilesProcessedByBFS = 0;
-        while (!bfsQueue.isEmpty()) {
-            MapTile currentTile = bfsQueue.poll();
-
-            // Place current tile in appropriate chunk
-            if (placeTileInChunk(currentTile)) {
-                LevelChunk chunk = getChunkForTile(currentTile);
-                if (chunk != null && chunk.hasContent()) {
-                    populatedChunks.add(chunk);
-                }
-            }
-            tilesProcessedByBFS++;
-
-            // Find and queue neighboring tiles
-            Vector3 tileCoords = getTileCoordinates(currentTile);
-            exploreNeighbors(tileCoords, bfsQueue, processedTiles);
-        }
-
-        Log.info("ChunkManager", "BFS processed " + tilesProcessedByBFS + " reachable tiles");
-    }
-
-    /**
-     * Processes any tiles that weren't reached by BFS (isolated areas).
-     */
-    private void processRemainingTiles(Set<LevelChunk> populatedChunks, Set<MapTile> processedTiles) {
-        int remainingTiles = 0;
-
-        for (MapTile tile : gameMap.getAllTiles()) {
-            if (!processedTiles.contains(tile)) {
-                if (placeTileInChunk(tile)) {
-                    LevelChunk chunk = getChunkForTile(tile);
-                    if (chunk != null && chunk.hasContent()) {
-                        populatedChunks.add(chunk);
-                    }
-                }
-                remainingTiles++;
-            }
-        }
-
-        if (remainingTiles > 0) {
-            Log.info("ChunkManager", "Processed " + remainingTiles + " isolated tiles not reachable from spawn points");
-        }
-    }
-
-    /**
-     * Explores the 6 neighboring positions around a tile and adds unvisited tiles to the BFS queue.
-     */
-    private void exploreNeighbors(Vector3 tileCoords, Queue<MapTile> bfsQueue, Set<MapTile> processedTiles) {
-        // Check all 6 directions (3D neighbors)
-        int[] dx = {-1, 1, 0, 0, 0, 0};
-        int[] dy = {0, 0, -1, 1, 0, 0};
-        int[] dz = {0, 0, 0, 0, -1, 1};
-
-        for (int i = 0; i < 6; i++) {
-            int neighborX = (int)tileCoords.x + dx[i];
-            int neighborY = (int)tileCoords.y + dy[i];
-            int neighborZ = (int)tileCoords.z + dz[i];
-
-            MapTile neighbor = gameMap.getTile(neighborX, neighborY, neighborZ);
-
-            if (neighbor != null && !processedTiles.contains(neighbor)) {
-                bfsQueue.offer(neighbor);
-                processedTiles.add(neighbor);
-            }
-        }
-    }
 
     /**
      * Places a tile in the appropriate chunk based on its world coordinates.
@@ -174,10 +84,7 @@ public class ChunkManager {
      * @return true if the tile was successfully placed, false otherwise
      */
     // Counters for debugging
-    private int placeTileFailureCount = 0;
     private int placeTileSuccessCount = 0;
-    private int boundsFailureCount = 0;
-    private int chunkNotFoundCount = 0;
     private int setTileFailureCount = 0;
 
     private boolean placeTileInChunk(MapTile tile) {

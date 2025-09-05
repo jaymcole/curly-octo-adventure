@@ -8,14 +8,16 @@ import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.Direction;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.exploration.TileExplorationManager;
 import curly.octo.map.hints.MapHint;
 
 import java.util.*;
 
 /**
- * Physics body builder that uses BFS from spawn points to only create collision
- * triangles for the "inside" surfaces of reachable areas. This potentially reduces
- * physics bodies significantly for maps with large solid interiors.
+ * Physics body builder that uses multi-pass BFS to create collision triangles 
+ * for surfaces exposed to reachable areas. This includes both areas reachable 
+ * from spawn points and isolated regions, ensuring complete physics coverage
+ * for all map areas while optimizing by only building boundary surfaces.
  */
 public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
 
@@ -31,8 +33,8 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
         btTriangleMesh triangleMesh = new btTriangleMesh();
         totalTriangleCount = 0;
 
-        // Step 1: Find all reachable empty tiles from spawn points
-        findReachableAreas();
+        // Step 1: Find all reachable empty tiles using multi-pass BFS
+        findAllReachableAreas();
 
         // Step 2: Find boundary tiles (solid tiles adjacent to reachable empty space)
         findBoundaryTiles();
@@ -56,55 +58,30 @@ public class BFSPhysicsBodyBuilder extends PhysicsBodyBuilder {
 
     @Override
     public String getStrategyDescription() {
-        return String.format("BFS Strategy - builds collision only for %d boundary tiles (vs %d total occupied tiles)",
-            boundaryTiles.size(), getTotalOccupiedTiles());
+        return String.format("Multi-pass BFS Strategy - builds collision for %d boundary tiles from %d reachable areas (vs %d total occupied tiles)",
+            boundaryTiles.size(), reachableTiles.size(), getTotalOccupiedTiles());
     }
 
-    private void findReachableAreas() {
+    private void findAllReachableAreas() {
         reachableTiles.clear();
-
-        // Start BFS from all spawn points
-        Queue<MapTile> queue = new ArrayDeque<>();
-
-        // Get spawn tiles from hints
-        ArrayList<MapHint> spawnHints = gameMap.getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
-
-        if (!spawnHints.isEmpty()) {
-            for (MapHint hint : spawnHints) {
-                MapTile spawnTile = gameMap.getTile(hint.tileLookupKey);
-                if (spawnTile != null && spawnTile.geometryType == MapTileGeometryType.EMPTY && !reachableTiles.contains(spawnTile)) {
-                    queue.offer(spawnTile);
-                    reachableTiles.add(spawnTile);
+        
+        // Use TileExplorationManager for multi-pass BFS
+        TileExplorationManager explorationManager = new TileExplorationManager(gameMap);
+        List<Set<MapTile>> allRegions = explorationManager.exploreAllRegions();
+        
+        // Include empty tiles from all discovered regions (both connected and isolated)
+        for (Set<MapTile> region : allRegions) {
+            for (MapTile tile : region) {
+                if (tile.geometryType == MapTileGeometryType.EMPTY) {
+                    reachableTiles.add(tile);
                 }
             }
-        } else {
-            Log.warn("BFSPhysicsBodyBuilder", "No spawn tiles found, using first empty tile as start");
         }
-
-        // BFS to find all connected empty tiles
-        while (!queue.isEmpty()) {
-            MapTile current = queue.poll();
-
-            // Check all 6 neighbors
-            int[] dx = {-1, 1, 0, 0, 0, 0};
-            int[] dy = {0, 0, -1, 1, 0, 0};
-            int[] dz = {0, 0, 0, 0, -1, 1};
-
-            for (int i = 0; i < 6; i++) {
-                int nx = (int)(current.x / Constants.MAP_TILE_SIZE) + dx[i];
-                int ny = (int)(current.y / Constants.MAP_TILE_SIZE) + dy[i];
-                int nz = (int)(current.z / Constants.MAP_TILE_SIZE) + dz[i];
-
-                MapTile neighbor = gameMap.getTile(nx, ny, nz);
-
-                // If neighbor exists, is empty and not yet visited, add to reachable set
-                if (neighbor != null && neighbor.geometryType == MapTileGeometryType.EMPTY && !reachableTiles.contains(neighbor)) {
-                    reachableTiles.add(neighbor);
-                    queue.offer(neighbor);
-                }
-
-            }
-        }
+        
+        TileExplorationManager.ExplorationStats stats = explorationManager.getStats();
+        Log.info("BFSPhysicsBodyBuilder", String.format(
+            "Multi-pass BFS found %d reachable empty tiles across %d regions: %s", 
+            reachableTiles.size(), allRegions.size(), stats.toString()));
     }
 
     private void findBoundaryTiles() {

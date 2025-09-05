@@ -14,7 +14,7 @@ import com.badlogic.gdx.physics.bullet.linearmath.btDefaultMotionState;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
-import curly.octo.map.generators.SnailMapGenerator;
+import curly.octo.map.generators.TemplateGenerator;
 import curly.octo.map.hints.MapHint;
 import curly.octo.map.physics.AllTilesPhysicsBodyBuilder;
 import curly.octo.map.physics.BFSPhysicsBodyBuilder;
@@ -107,7 +107,8 @@ public class GameMap {
     public void generateDungeon() {
         Log.info("GameMap.generateDungeon", "Generating tiles");
 
-        SnailMapGenerator generator = new SnailMapGenerator(random, this);
+//        SnailMapGenerator generator = new SnailMapGenerator(random, this);
+        TemplateGenerator generator = new TemplateGenerator(random, this);
         generator.generate();
 
 
@@ -124,7 +125,8 @@ public class GameMap {
     public void generateDungeonServerOnly() {
         Log.info("GameMap.generateDungeonServerOnly", "Generating tiles (server-only)");
 
-        SnailMapGenerator generator = new SnailMapGenerator(random, this);
+//        SnailMapGenerator generator = new SnailMapGenerator(random, this);
+        TemplateGenerator generator = new TemplateGenerator(random, this);
         generator.generate();
     }
 
@@ -189,7 +191,7 @@ public class GameMap {
 
     // Static flag to ensure Bullet.init() is only called once per application
     private static boolean bulletInitialized = false;
-    
+
     // Physics initialization
     public void initializePhysics() {
         if (physicsInitialized) return;
@@ -202,7 +204,7 @@ public class GameMap {
         } else {
             Log.info("GameMap", "Bullet Physics already initialized, skipping Bullet.init()");
         }
-        
+
         collisionConfig = new btDefaultCollisionConfiguration();
         dispatcher = new btCollisionDispatcher(collisionConfig);
         broadphase = new btDbvtBroadphase();
