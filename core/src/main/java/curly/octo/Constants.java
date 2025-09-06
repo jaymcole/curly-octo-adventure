@@ -103,6 +103,9 @@ public class Constants {
     /** Render fog end distance */
     public static final float RENDER_FOG_END = 300f;
 
+    /** Distance for chunk rendering around player */
+    public static final float CHUNK_RENDER_DISTANCE = 3000f;
+
 
     // =========================
     // SHADOW MAPPING

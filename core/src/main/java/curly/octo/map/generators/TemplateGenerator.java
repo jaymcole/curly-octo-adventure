@@ -14,7 +14,7 @@ import static curly.octo.map.generators.templated.TemplateManager.*;
 
 public class TemplateGenerator extends MapGenerator {
 
-    private static final int MAX_ROOMS = 100;
+    private static final int MAX_ROOMS = 1000;
     private static final String CONNECTION_KEY_DELIMITER = "beans";
     private final TemplateManager manager;
 
@@ -133,6 +133,9 @@ public class TemplateGenerator extends MapGenerator {
             }
         }
 
+        replaceInvalidRooms();
+//        replaceDeadends();
+
         copyRoomTemplates();
         copyConnectorTemplates();
         closeMap();
@@ -205,5 +208,77 @@ public class TemplateGenerator extends MapGenerator {
                 }
             }
         }
+    }
+
+    private void replaceInvalidRooms() {
+        Log.info("replaceInvalidRooms", "Starting room connection validation");
+
+        int invalidRooms = 0;
+        int fixedRooms = 0;
+
+        // Create a copy of the entry set to avoid concurrent modification
+        Set<Map.Entry<String, TemplateRoom>> roomEntries = new HashSet<>(rooms.entrySet());
+        
+        for (Map.Entry<String, TemplateRoom> roomEntry : roomEntries) {
+            String roomKey = roomEntry.getKey();
+            TemplateRoom currentRoom = roomEntry.getValue();
+
+            // Skip spawn room - it's always valid
+            if (currentRoom.template_name.startsWith("spawn")) {
+                continue;
+            }
+
+            // Determine what connections this room actually needs
+            HashSet<Direction> requiredConnections = gatherValidRoomEntranceRequirements(roomKey);
+
+            // Check if current room exactly matches the requirements (no more, no less)
+            boolean isValid = currentRoom.entrances.equals(requiredConnections);
+
+            if (!isValid) {
+                Log.info("replaceInvalidRooms", "Room " + roomKey + " (" + currentRoom.template_name + ") is invalid");
+                Log.info("replaceInvalidRooms", "  Required: [" + requiredConnections.stream()
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", ")) + "]");
+                Log.info("replaceInvalidRooms", "  Has entrances: [" + currentRoom.entrances.stream()
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", ")) + "]");
+
+                invalidRooms++;
+
+                // Find a better matching room that has EXACTLY the required connections
+                List<TemplateRoom> allOptions = manager.getValidRoomOptions(requiredConnections);
+                List<TemplateRoom> exactOptions = allOptions.stream()
+                    .filter(room -> room.entrances.equals(requiredConnections))
+                    .collect(Collectors.toList());
+
+                if (!exactOptions.isEmpty()) {
+                    // Replace in-place with an exact match
+                    TemplateRoom replacement = exactOptions.get(random.nextInt(exactOptions.size()));
+                    rooms.put(roomKey, replacement);
+                    Log.info("replaceInvalidRooms", "  Replaced with: " + replacement.template_name +
+                        " (entrances: [" + replacement.entrances.stream()
+                            .map(Object::toString)
+                            .collect(Collectors.joining(", ")) + "])");
+                    fixedRooms++;
+                } else if (!allOptions.isEmpty()) {
+                    // Fall back to any valid option if no exact match
+                    TemplateRoom replacement = allOptions.get(random.nextInt(allOptions.size()));
+                    rooms.put(roomKey, replacement);
+                    Log.info("replaceInvalidRooms", "  Replaced with (fallback): " + replacement.template_name +
+                        " (entrances: [" + replacement.entrances.stream()
+                            .map(Object::toString)
+                            .collect(Collectors.joining(", ")) + "])");
+                    fixedRooms++;
+                } else {
+                    Log.warn("replaceInvalidRooms", "  No valid replacement found for required connections: [" +
+                        requiredConnections.stream()
+                            .map(Object::toString)
+                            .collect(Collectors.joining(", ")) + "]");
+                }
+            }
+        }
+
+        Log.info("replaceInvalidRooms", "Validation complete: " + invalidRooms + " invalid rooms found, " +
+            fixedRooms + " successfully replaced");
     }
 }

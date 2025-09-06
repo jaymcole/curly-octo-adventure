@@ -71,7 +71,7 @@ public class TemplateManager {
                 "connector_nesw_three.png",
 //                "connector_nesw_five.png",
 //                "stairs_es_es.png",
-                "open_nesw.png",
+//                "open_nesw.png",
                 "spawn_nesw.png"
             };
 

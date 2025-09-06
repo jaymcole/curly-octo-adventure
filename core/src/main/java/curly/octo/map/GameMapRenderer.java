@@ -116,8 +116,7 @@ public class GameMapRenderer implements Disposable {
             Array<ModelInstance> mapInstances;
             if (chunkModelBuilder != null) {
                 // For chunked strategy, get only chunks near camera
-                float renderDistance = 200f; // Render chunks within 200 units of camera
-                mapInstances = chunkModelBuilder.getChunksNearPosition(camera.position, renderDistance);
+                mapInstances = chunkModelBuilder.getChunksNearPosition(camera.position, Constants.CHUNK_RENDER_DISTANCE);
                 Log.debug("GameMapRenderer", String.format("Rendering %d chunks near camera position (%.1f, %.1f, %.1f)",
                     mapInstances.size, camera.position.x, camera.position.y, camera.position.z));
             } else {
