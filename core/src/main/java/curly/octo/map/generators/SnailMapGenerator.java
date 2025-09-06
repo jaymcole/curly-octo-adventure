@@ -48,14 +48,16 @@ public class SnailMapGenerator extends MapGenerator {
         Vector3 startPos = new Vector3(0, 0, 0);  // Y=0 is floor level for snails
 
         // Create initial spawn room
-        RoomSnail startRoom = new RoomSnail(map, startPos, Direction.NORTH, random, 7, 4, 7);
+        RoomSnail startRoom = new RoomSnail(map, startPos, Direction.NORTH, random, 70, 40, 70);
         executeSnailWithNodes(startRoom);
 
         // Generate expansion-based dungeon
         generateExpansionBasedMap();
 
         // Add spawn point at origin
-        addSpawnPoint(startPos);
+        Vector3 spawn = startPos.cpy();
+        spawn.y = spawn.y + (35);
+        addSpawn(spawn);
 
         // Add a light at spawn point (above player head)
         addLight(new Vector3(startPos.x, startPos.y + 1, startPos.z));
@@ -201,14 +203,6 @@ public class SnailMapGenerator extends MapGenerator {
         return hasOptionalNodes && underMaxSize;
     }
 
-    private void addSpawnPoint(Vector3 startPos) {
-        // Player spawns at standing height (1 tile above floor)
-        Vector3 spawnPos = new Vector3(startPos.x, startPos.y + 1, startPos.z);
-        map.registerHint(new SpawnPointHint(map.constructKeyFromIndexCoordinates((int)spawnPos.x,(int)spawnPos.y,(int)spawnPos.z)));
-
-        System.out.println("SnailMapGenerator: Added spawn point at " + spawnPos + " (1 tile above floor)");
-    }
-
     /**
      * Inject expansion nodes at promising wall locations when the map is too small
      */
@@ -316,21 +310,5 @@ public class SnailMapGenerator extends MapGenerator {
 
         // Return a random valid direction
         return validDirections.get(random.nextInt(validDirections.size()));
-    }
-
-    private void addLight(Vector3 lightPos) {
-        // Ensure light tile exists
-        map.touchTile(lightPos);
-
-        // Create light hint at position
-        LightHint lightHint = new LightHint(map.constructKeyFromIndexCoordinates(
-            (int)lightPos.x, (int)lightPos.y, (int)lightPos.z));
-        lightHint.color_r = 0.8f;  // Warm white light
-        lightHint.color_g = 0.7f;
-        lightHint.color_b = 0.5f;
-        lightHint.intensity = 3f;  // Much lower intensity
-        lightHint.flicker = LightPresets.LIGHT_FLICKER_1;
-
-        map.registerHint(lightHint);
     }
 }

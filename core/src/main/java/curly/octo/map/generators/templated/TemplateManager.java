@@ -9,13 +9,17 @@ import curly.octo.map.enums.Direction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 
 public class TemplateManager {
 
     public static final String CONNECTOR_PREFIX = "connector";
     public static int ROOM_SIZE = 7;
-    public static final String OPEN_ROOM = "room_nesw";
+    public static final String SPAWN_ROOM = "spawn_nesw";
+
+    public static final String NORTH_END = "corridor_n";
+    public static final String EAST_END = "corridor_e";
+    public static final String SOUTH_END = "corridor_s";
+    public static final String WEST_END = "corridor_w";
 
 
     public ArrayList<TemplateRoom> roomTemplates;
@@ -32,23 +36,43 @@ public class TemplateManager {
         for(String path : templatePaths) {
             // Known template files in the templates directory
             String[] templateFiles = {
-                "corridor_e.png", "corridor_n.png", "corridor_s.png", "corridor_w.png",
-                "corridor_es.png", "corridor_ew.png", "corridor_ne.png", "corridor_ns.png",
-                "corridor_nw.png", "corridor_sw.png", "corridor_nes.png", "corridor_new.png",
-                "corridor_nsw.png", "corridor_esw.png", "corridor_nesw.png",
-                "connector_e_five.png",
-                "connector_e_four.png",
-                "connector_e_seven.png",
-                "connector_n_five.png",
-                "connector_n_four.png",
-                "connector_n_seven.png",
-                "connector_s_five.png",
-                "connector_s_four.png",
-                "connector_s_seven.png",
-                "connector_w_five.png",
-                "connector_w_four.png",
-                "connector_w_seven.png",
-                "stairs_es_es.png", "room_nesw.png"
+//                "corridor_e.png",
+//                "corridor_n.png",
+//                "corridor_s.png",
+//                "corridor_w.png",
+
+                "corridor_sw.png",
+                "corridor_es.png",
+                "corridor_ew.png",
+                "corridor_ne.png",
+                "corridor_ns.png",
+                "corridor_sw.png",
+
+                "corridor_esw.png",
+                "corridor_nes.png",
+                "corridor_nsw.png",
+//                "corridor_new.png", // Broken
+
+                "corridor_nesw.png",
+
+
+//                "connector_e_five.png",
+//                "connector_e_four.png",
+//                "connector_e_seven.png",
+//                "connector_n_five.png",
+//                "connector_n_four.png",
+//                "connector_n_seven.png",
+//                "connector_s_five.png",
+//                "connector_s_four.png",
+//                "connector_s_seven.png",
+//                "connector_w_five.png",
+//                "connector_w_four.png",
+//                "connector_w_seven.png",
+                "connector_nesw_three.png",
+//                "connector_nesw_five.png",
+//                "stairs_es_es.png",
+                "open_nesw.png",
+                "spawn_nesw.png"
             };
 
             for (String templateName : templateFiles) {
@@ -62,6 +86,7 @@ public class TemplateManager {
                         } else {
                             room = loadTemplate(templateFile);
                             roomTemplates.add(room);
+
                         }
                         Gdx.app.log("Assets", "Loaded template: " + templateFile.path());
                     } catch (Exception e) {

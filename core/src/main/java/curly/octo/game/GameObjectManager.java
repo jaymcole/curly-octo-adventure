@@ -57,7 +57,7 @@ public class GameObjectManager implements Disposable {
             if (!gameObjectsToBeRemoved.contains(object) && object instanceof WorldObject) {
                 WorldObject worldObject = (WorldObject) object;
                 ModelInstance instance = worldObject.getModelInstance();
-                if (instance != null && !object.entityId.equals(localPlayer.entityId)) {
+                if (!RENDER_SELF && instance != null && !object.entityId.equals(localPlayer.entityId)) {
                     renderQueue.add(instance);
                 }
             }
@@ -130,13 +130,13 @@ public class GameObjectManager implements Disposable {
     public Array<ModelInstance> getRenderQueue() {
         return renderQueue;
     }
-    
+
     /**
      * Disposes and clears all lights. Used during map regeneration to remove old map lights.
      */
     public void clearAllLights() {
         Log.info("GameObjectManager", "Disposing " + gameLights.size() + " lights");
-        
+
         // Dispose all lights
         for (BaseLight light : gameLights) {
             if (light != null) {
@@ -149,11 +149,11 @@ public class GameObjectManager implements Disposable {
                 }
             }
         }
-        
+
         // Clear all light collections
         gameLights.clear();
         gameLightsToBeRemoved.clear();
-        
+
         Log.info("GameObjectManager", "All lights cleared and disposed");
     }
 
@@ -165,7 +165,7 @@ public class GameObjectManager implements Disposable {
                 ((WorldObject) object).dispose();
             }
         }
-        
+
         // Dispose all lights
         for (BaseLight light : gameLights) {
             if (light != null) {
@@ -173,7 +173,7 @@ public class GameObjectManager implements Disposable {
             }
         }
         gameLights.clear();
-        
+
         modelAssetManager.dispose();
     }
 }

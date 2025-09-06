@@ -7,7 +7,11 @@
       "Bash(.gradlew lwjgl3:jar)",
       "Bash(./gradlew:*)",
       "Bash(gradlew.bat lwjgl3:jar:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Read(/C:\\Users\\jaymc\\IdeaProjects\\curly-octo-adventure\\core\\src\\main\\java\\curly\\octo\\player/**)",
+      "Read(/C:\\Users\\jaymc\\IdeaProjects\\curly-octo-adventure\\core\\src\\main\\java\\curly\\octo\\map\\generators\\snails/**)",
+      "Read(/C:\\Users\\jaymc\\IdeaProjects\\curly-octo-adventure\\core\\src\\main\\java\\curly\\octo\\player/**)",
+      "Read(/C:\\Users\\jaymc\\IdeaProjects\\curly-octo-adventure\\core\\src\\main\\java\\curly\\octo\\player/**)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

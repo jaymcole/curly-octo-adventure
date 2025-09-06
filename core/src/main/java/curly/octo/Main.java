@@ -99,9 +99,10 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             debugUI.setDebugListener(this);
 
             // Set up input multiplexer to handle both game and UI input
+            // Initially just UI since no game is running yet
             InputMultiplexer multiplexer = new InputMultiplexer();
+            multiplexer.addProcessor(lobbyUI.getStage()); // Add lobby UI stage first (needs input for buttons)
             multiplexer.addProcessor(debugUI.getStage());
-            multiplexer.addProcessor(lobbyUI.getStage()); // Add lobby UI stage to multiplexer
             Gdx.input.setInputProcessor(multiplexer);
             
             // Debug: Log input processor setup
@@ -198,14 +199,14 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             // Update input processor to include both game and UI input
             if (clientGameMode.isActive()) {
                 InputMultiplexer multiplexer = new InputMultiplexer();
-                // Always add debug UI first so it gets input events
-                multiplexer.addProcessor(debugUI.getStage());
-                // Add client game mode input processor
+                // Add client game mode input processor FIRST so it gets keyboard events (WASD, F, etc.)
                 if (clientGameMode.getInputProcessor() != null) {
                     multiplexer.addProcessor(clientGameMode.getInputProcessor());
                 }
+                // Add debug UI second so it gets mouse events for UI but doesn't consume keyboard
+                multiplexer.addProcessor(debugUI.getStage());
                 Gdx.input.setInputProcessor(multiplexer);
-                Log.info("Main", "Updated input multiplexer for active client game mode");
+                Log.info("Main", "Updated input multiplexer for active client game mode (game input first)");
             }
         }
     }

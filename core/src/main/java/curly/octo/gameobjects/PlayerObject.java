@@ -38,6 +38,12 @@ public class PlayerObject extends WorldObject {
     private Vector3 velocity = new Vector3();
     private Vector3 tempVector = new Vector3();
     private boolean possessed = false;
+    
+    // Fly mode state
+    private boolean flyModeEnabled = false;
+    private Vector3 flyVelocity = new Vector3();
+    private static final float FLY_SPEED = Constants.PLAYER_FLY_SPEED;
+    private static final float FLY_SPEED_FAST = FLY_SPEED * 3f; // Even faster when shift is held
 
     // Physics constants (matching old PlayerController behavior)
     private static final float JUMP_FORCE = Constants.PLAYER_JUMP_FORCE;
@@ -195,7 +201,7 @@ public class PlayerObject extends WorldObject {
             graphicsInitialized = true;
 
             // Apply current position to the newly created model instance
-            if (getPosition() != null) {
+            if (position != null) {
                 updateModelTransform();
             }
 
@@ -212,6 +218,37 @@ public class PlayerObject extends WorldObject {
         // Update current tile information
         updateCurrentTile();
 
+        if (flyModeEnabled) {
+            // Fly mode: direct position updates without physics
+            updateFlyMode(delta);
+            
+            // CRITICAL: Ensure physics doesn't override our fly position
+            // Force the character controller to match our current position
+            if (characterController != null && position != null) {
+                com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4();
+                transform.setToTranslation(position);
+                characterController.getGhostObject().setWorldTransform(transform);
+                // Stop any physics movement
+                characterController.setWalkDirection(tempVector.set(0, 0, 0));
+            }
+        } else {
+            // Normal physics-based movement
+            updatePhysicsMode(delta);
+        }
+    }
+    
+    private void updateFlyMode(float delta) {
+        // Apply fly velocity directly to position
+        if (flyVelocity.len2() > 0 && position != null) {
+            position.add(tempVector.set(flyVelocity).scl(delta));
+            updateModelTransform();
+        }
+        
+        // Light damping to gradually stop movement when no input
+        flyVelocity.scl(0.95f);
+    }
+    
+    private void updatePhysicsMode(float delta) {
         // Use character controller for physics-based movement
         if (characterController != null) {
             // Apply horizontal movement via character controller
@@ -229,19 +266,16 @@ public class PlayerObject extends WorldObject {
             }
 
             // Sync position from physics
-            if (getPosition() != null) {
-
-                getPosition().set(characterController.getGhostObject().getWorldTransform().getTranslation(tempVector));
-
-                // Update ModelInstance position using consistent transform logic
+            if (position != null) {
+                position.set(characterController.getGhostObject().getWorldTransform().getTranslation(tempVector));
                 updateModelTransform();
             }
         }
     }
 
     private void updateCurrentTile() {
-        if (gameMap != null && getPosition() != null) {
-            currentTile = gameMap.getTileFromWorldCoordinates(getPosition().x, getPosition().y, getPosition().z);
+        if (gameMap != null && position != null) {
+            currentTile = gameMap.getTileFromWorldCoordinates(position.x, position.y, position.z);
             if (currentTile != null) {
                 currentTileFillType = currentTile.fillType;
             } else {
@@ -254,22 +288,57 @@ public class PlayerObject extends WorldObject {
     // Implementation of Possessable movement interface
     @Override
     public void move(Vector3 direction) {
-        // Set horizontal velocity based on movement direction
-        this.velocity.x = direction.x * PLAYER_SPEED;
-        this.velocity.z = direction.z * PLAYER_SPEED;
+        if (flyModeEnabled) {
+            // In fly mode, convert the input direction to 3D camera-relative movement
+            Vector3 cameraDir = getCameraDirection();
+            Vector3 cameraRight = new Vector3(cameraDir).crs(0, 1, 0).nor();
+            
+            // Build 3D movement vector from camera-relative directions
+            Vector3 movement = new Vector3();
+            
+            // direction.z = forward/backward (W=1, S=-1)
+            if (direction.z != 0) {
+                movement.add(new Vector3(cameraDir).scl(direction.z));
+            }
+            // direction.x = left/right (A=-1, D=1)  
+            if (direction.x != 0) {
+                movement.add(new Vector3(cameraRight).scl(direction.x));
+            }
+            
+            float currentFlySpeed = getFlySpeed();
+            if (movement.len2() > 0) {
+                flyVelocity.set(movement.nor().scl(currentFlySpeed));
+            } else {
+                flyVelocity.setZero();
+            }
+        } else {
+            // Normal ground-based movement
+            this.velocity.x = direction.x * PLAYER_SPEED;
+            this.velocity.z = direction.z * PLAYER_SPEED;
+        }
     }
 
     @Override
     public void jump() {
-        // Set jump velocity - will be applied in update() if on ground
-        this.velocity.y = JUMP_FORCE;
+        if (flyModeEnabled) {
+            // In fly mode, jump means move directly up (world Y axis)
+            flyVelocity.y = getFlySpeed();
+        } else {
+            // Set jump velocity - will be applied in update() if on ground
+            this.velocity.y = JUMP_FORCE;
+        }
     }
 
     @Override
     public void stopMovement() {
-        // Stop horizontal movement
-        this.velocity.x = 0;
-        this.velocity.z = 0;
+        if (flyModeEnabled) {
+            // In fly mode, stop all movement
+            flyVelocity.setZero();
+        } else {
+            // Stop horizontal movement only
+            this.velocity.x = 0;
+            this.velocity.z = 0;
+        }
     }
 
     @Override
@@ -297,8 +366,8 @@ public class PlayerObject extends WorldObject {
 
     @Override
     public Vector3 getCameraPosition() {
-        if (getPosition() != null) {
-            return tempVector.set(getPosition()).add(0, PLAYER_HEIGHT, 0).cpy();
+        if (position != null) {
+            return tempVector.set(position).add(0, PLAYER_HEIGHT, 0).cpy();
         }
         return new Vector3(0, PLAYER_HEIGHT, 0);
     }
@@ -317,7 +386,7 @@ public class PlayerObject extends WorldObject {
     }
 
     private void updateModelTransform() {
-        if (getModelInstance() != null && getPosition() != null) {
+        if (getModelInstance() != null && position != null) {
             if (PLAYER_MODEL_PATH.endsWith(".gltf") || PLAYER_MODEL_PATH.endsWith(".glb")) {
                 // For GLTF models, use simple positioning that respects the original model positions
                 updateGltfModelPosition();
@@ -331,7 +400,7 @@ public class PlayerObject extends WorldObject {
     private void updateGltfModelPosition() {
         // Simple positioning for GLTF models that preserves their original positions
         getModelInstance().transform.idt();
-        getModelInstance().transform.setToTranslation(getPosition());
+        getModelInstance().transform.setToTranslation(position);
         getModelInstance().transform.scl(PLAYER_MODEL_SCALE);
         getModelInstance().transform.rotate(Vector3.Y, yaw);
     }
@@ -406,6 +475,11 @@ public class PlayerObject extends WorldObject {
             if (velocity != null) {
                 velocity.setZero();
             }
+            
+            // Reset fly velocity
+            if (flyVelocity != null) {
+                flyVelocity.setZero();
+            }
 
             // Reset ground state
             onGround = false;
@@ -420,6 +494,112 @@ public class PlayerObject extends WorldObject {
         } catch (Exception e) {
             Log.error("PlayerObject", "Error resetting physics state for player " + entityId + ": " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+    
+    // Fly mode controls
+    
+    /**
+     * Toggles fly mode on/off for debugging purposes.
+     */
+    public void toggleFlyMode() {
+        flyModeEnabled = !flyModeEnabled;
+        
+        if (flyModeEnabled) {
+            // Stop all physics movement when entering fly mode
+            velocity.setZero();
+            flyVelocity.setZero();
+            
+            // Disable character controller physics influence
+            if (characterController != null) {
+                characterController.setWalkDirection(tempVector.set(0, 0, 0));
+                // Sync our position with the current physics position before disabling
+                position.set(characterController.getGhostObject().getWorldTransform().getTranslation(tempVector));
+                updateModelTransform();
+            }
+            
+            Log.info("PlayerObject", "Fly mode ENABLED for player: " + entityId);
+        } else {
+            // Stop all fly movement when exiting fly mode
+            flyVelocity.setZero();
+            
+            // Re-sync character controller position with our current position
+            if (characterController != null && position != null) {
+                // Update physics body to match our current fly position
+                com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4();
+                transform.setToTranslation(position);
+                characterController.getGhostObject().setWorldTransform(transform);
+            }
+            
+            Log.info("PlayerObject", "Fly mode DISABLED for player: " + entityId);
+        }
+    }
+    
+    /**
+     * Enables fly mode.
+     */
+    public void enableFlyMode() {
+        if (!flyModeEnabled) {
+            toggleFlyMode();
+        }
+    }
+    
+    /**
+     * Disables fly mode.
+     */
+    public void disableFlyMode() {
+        if (flyModeEnabled) {
+            toggleFlyMode();
+        }
+    }
+    
+    /**
+     * Checks if fly mode is currently enabled.
+     */
+    public boolean isFlyModeEnabled() {
+        return flyModeEnabled;
+    }
+    
+    /**
+     * Moves down in fly mode (directly down on world Y axis).
+     */
+    public void flyDown() {
+        if (flyModeEnabled) {
+            flyVelocity.y = -getFlySpeed();
+        }
+    }
+    
+    /**
+     * Gets the current fly speed, accounting for speed boost modifiers.
+     */
+    public float getFlySpeed() {
+        // Check if shift is held for fast flying (handled in input controller)
+        return FLY_SPEED;
+    }
+    
+    /**
+     * Sets the vertical component of fly velocity directly.
+     * Used for continuous vertical movement while keys are held.
+     */
+    public void setVerticalFlyVelocity(float verticalVelocity) {
+        if (flyModeEnabled) {
+            flyVelocity.y = verticalVelocity;
+        }
+    }
+    
+    /**
+     * Gets the fast fly speed for when shift is held.
+     */
+    public float getFastFlySpeed() {
+        return FLY_SPEED_FAST;
+    }
+    
+    /**
+     * Sets fly speed multiplier for fast flying.
+     */
+    public void setFlySpeedMultiplier(float multiplier) {
+        if (flyModeEnabled) {
+            flyVelocity.scl(multiplier / FLY_SPEED * getFlySpeed());
         }
     }
 }

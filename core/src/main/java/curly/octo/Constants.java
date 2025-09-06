@@ -80,6 +80,9 @@ public class Constants {
     /** Scale factor for player model rendering */
     public static final float PLAYER_MODEL_SCALE = 0.1f;
 
+    /** Fly mode movement speed multiplier (for debugging) */
+    public static final float PLAYER_FLY_SPEED = 50f;
+
 
     // =========================
     // CAMERA AND RENDERING
