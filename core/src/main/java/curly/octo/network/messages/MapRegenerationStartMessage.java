@@ -28,4 +28,11 @@ public class MapRegenerationStartMessage {
         this.reason = reason != null ? reason : "Server triggered";
         this.timestamp = this.regenerationId;
     }
+    
+    public MapRegenerationStartMessage(long regenerationId, long newMapSeed, String reason) {
+        this.regenerationId = regenerationId;
+        this.newMapSeed = newMapSeed;
+        this.reason = reason != null ? reason : "Server triggered";
+        this.timestamp = regenerationId;
+    }
 }

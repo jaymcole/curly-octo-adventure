@@ -388,7 +388,7 @@ public class GameServer {
         regenerationThread = new Thread(() -> {
             try {
                 // Step 1: Notify all clients that map regeneration is starting
-                MapRegenerationStartMessage startMessage = new MapRegenerationStartMessage(newSeed, reason);
+                MapRegenerationStartMessage startMessage = new MapRegenerationStartMessage(currentRegenerationId, newSeed, reason);
                 server.sendToAllTCP(startMessage);
                 Log.info("GameServer", "Sent regeneration start message to all clients, waiting for readiness confirmations...");
                 

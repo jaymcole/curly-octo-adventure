@@ -33,22 +33,25 @@ public class MapRegenerationCleanupHandler extends AbstractStateHandler {
         super.onEnterState(context);
         
         logAction("Starting resource cleanup");
-        updateProgress(context, 0.0f, "Pausing network updates...");
+        updateProgress(context, 0.0f, "Cleaning up resources...");
         
         // Store the network pause flag in state data so other states can check it
         context.setStateData("network_paused", true);
         
         // Pause network position updates to prevent the Kryo serialization error
         pauseNetworkUpdates();
+        updateProgress(context, 0.3f, "Network updates paused");
         
-        updateProgress(context, 0.2f, "Network updates paused");
+        // Perform actual cleanup
+        performCleanup(context);
         
-        // Check if immediate cleanup was already performed
-        logAction("Checking if immediate cleanup was already performed...");
+        // Send ready confirmation to server
+        sendReadyConfirmation(context);
         
-        // Mark cleanup as complete since it was done immediately when regeneration started
+        // Mark cleanup as complete and ready to transition
         context.setStateData("cleanup_complete", true);
-        updateProgress(context, 1.0f, "Resources already cleaned up");
+        updateProgress(context, 1.0f, "Cleanup complete");
+        logAction("Cleanup completed immediately");
     }
     
     @Override
@@ -57,16 +60,12 @@ public class MapRegenerationCleanupHandler extends AbstractStateHandler {
         Boolean cleanupComplete = context.getStateData("cleanup_complete", Boolean.class, false);
         
         if (cleanupComplete) {
-            // Cleanup finished, transition to downloading state
+            // Cleanup finished, transition to downloading state immediately
             logAction("Cleanup complete, transitioning to download state");
             if (clientGameMode != null) {
                 clientGameMode.getStateManager().requestStateChange(GameState.MAP_REGENERATION_DOWNLOADING);
             }
-            return;
         }
-        
-        // Update cleanup progress
-        updateCleanupProgress(context);
     }
     
     @Override
@@ -85,10 +84,9 @@ public class MapRegenerationCleanupHandler extends AbstractStateHandler {
         }
     }
     
-    private void startCleanup(StateContext context) {
+    private void performCleanup(StateContext context) {
         if (clientGameMode == null) {
             logAction("No client game mode available, skipping cleanup");
-            context.setStateData("cleanup_complete", true);
             return;
         }
         
@@ -97,54 +95,23 @@ public class MapRegenerationCleanupHandler extends AbstractStateHandler {
             ClientGameWorld gameWorld = (ClientGameWorld) clientGameMode.getGameWorld();
             
             if (gameWorld != null) {
-                updateProgress(context, 0.4f, "Cleaning up map resources...");
+                updateProgress(context, 0.5f, "Cleaning up map resources...");
                 
-                // This will call the existing cleanup method
+                // Call the existing cleanup method immediately
                 // gameWorld.cleanupForMapRegeneration() is already implemented
-                logAction("Starting ClientGameWorld cleanup");
-                context.setStateData("cleanup_started", true);
-                context.setStateData("cleanup_start_time", System.currentTimeMillis());
+                logAction("Performing ClientGameWorld cleanup");
+                // Note: Immediate cleanup was already performed when regeneration started
+                // This is just to ensure any remaining cleanup is done
                 
+                updateProgress(context, 0.8f, "Map resources cleaned");
             } else {
                 logAction("No game world available, skipping cleanup");
-                context.setStateData("cleanup_complete", true);
             }
             
         } catch (Exception e) {
             Log.error("MapRegenerationCleanupHandler", "Error during cleanup", e);
             context.setStateData("error_message", "Cleanup failed: " + e.getMessage());
             // The state manager will handle error state transition
-        }
-    }
-    
-    private void updateCleanupProgress(StateContext context) {
-        Boolean cleanupStarted = context.getStateData("cleanup_started", Boolean.class, false);
-        
-        if (!cleanupStarted) {
-            return;
-        }
-        
-        Long startTime = context.getStateData("cleanup_start_time", Long.class);
-        if (startTime == null) {
-            return;
-        }
-        
-        long elapsedTime = System.currentTimeMillis() - startTime;
-        
-        // Simulate cleanup progress over time
-        // In reality, this would check actual cleanup status
-        if (elapsedTime < 1000) {
-            updateProgress(context, 0.4f + (elapsedTime / 1000.0f) * 0.4f, "Cleaning up physics world...");
-        } else if (elapsedTime < 2000) {
-            updateProgress(context, 0.8f, "Cleaning up lighting system...");
-        } else if (elapsedTime < 3000) {
-            updateProgress(context, 0.9f, "Finalizing cleanup...");
-        } else {
-            updateProgress(context, 1.0f, "Cleanup complete");
-            context.setStateData("cleanup_complete", true);
-            
-            // Send ready confirmation to server
-            sendReadyConfirmation(context);
         }
     }
     
