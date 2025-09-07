@@ -64,10 +64,13 @@ public abstract class MapGenerator {
         // Create light hint at position
         LightHint lightHint = new LightHint(map.constructKeyFromIndexCoordinates(
             (int)lightPos.x, (int)lightPos.y, (int)lightPos.z));
-        lightHint.color_r = 0.8f;  // Warm white light
-        lightHint.color_g = 0.7f;
-        lightHint.color_b = 0.5f;
-        lightHint.intensity = 3f;  // Much lower intensity
+//        lightHint.color_r = 0.8f;  // Warm white light
+//        lightHint.color_g = 0.7f;
+//        lightHint.color_b = 0.5f;
+        lightHint.color_r = random.nextFloat();  // Warm white light
+        lightHint.color_g = random.nextFloat();
+        lightHint.color_b = random.nextFloat();
+        lightHint.intensity = random.nextInt(9) + 1;  // Much lower intensity
         lightHint.flicker = LightPresets.LIGHT_FLICKER_1;
 
         map.registerHint(lightHint);

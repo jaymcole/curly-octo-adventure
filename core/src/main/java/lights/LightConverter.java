@@ -145,25 +145,40 @@ public class LightConverter {
      * @param overflowFallbackLights Array of fallback lights created from overflow
      * @param maxTotalLights Maximum total lights supported by shader (now much higher)
      * @param outAllFallbackLights Output array containing all fallback lights for rendering
+     * @param cameraPosition Current camera position for distance-based sorting
      */
     public static void createHybridLightArray(Array<PointLight> shadowLights,
                                             Array<FallbackLight> existingFallbackLights,
                                             Array<FallbackLight> overflowFallbackLights,
                                             int maxTotalLights,
+                                            com.badlogic.gdx.math.Vector3 cameraPosition,
                                             Array<FallbackLight> outAllFallbackLights) {
         
         outAllFallbackLights.clear();
         
-        // Add existing fallback lights first (they have priority)
+        // Create temporary combined array of all fallback lights
+        Array<FallbackLight> allFallbackLights = new Array<>(
+            existingFallbackLights.size + overflowFallbackLights.size);
+        
+        // Add all existing fallback lights
         for (FallbackLight existingLight : existingFallbackLights) {
-            if (outAllFallbackLights.size >= maxTotalLights) break;
-            outAllFallbackLights.add(existingLight);
+            allFallbackLights.add(existingLight);
         }
         
-        // Add overflow fallback lights (converted from excess shadow lights)
+        // Add all overflow fallback lights (converted from excess shadow lights)
         for (FallbackLight overflowLight : overflowFallbackLights) {
+            allFallbackLights.add(overflowLight);
+        }
+        
+        // Sort ALL fallback lights by distance/importance (only if camera position is provided)
+        if (cameraPosition != null) {
+            sortFallbackLightsByImportance(allFallbackLights, cameraPosition);
+        }
+        
+        // Add the closest/brightest fallback lights up to the limit
+        for (FallbackLight fallbackLight : allFallbackLights) {
             if (outAllFallbackLights.size >= maxTotalLights) break;
-            outAllFallbackLights.add(overflowLight);
+            outAllFallbackLights.add(fallbackLight);
         }
         
         int totalLightCount = shadowLights.size + outAllFallbackLights.size;
@@ -177,7 +192,7 @@ public class LightConverter {
         
         System.out.println("Hybrid light array created:");
         System.out.println("  - Shadow lights: " + shadowLights.size);
-        System.out.println("  - Fallback lights: " + outAllFallbackLights.size);
+        System.out.println("  - Fallback lights: " + outAllFallbackLights.size + " (sorted by distance)");
         System.out.println("  - Total lights: " + totalLightCount + "/" + maxTotalLights + " limit");
         
         // Performance tip for very high light counts
@@ -185,6 +200,28 @@ public class LightConverter {
             System.out.println("  - Performance tip: With " + totalLightCount + 
                              " lights, consider enabling distance culling for better performance");
         }
+    }
+    
+    /**
+     * Legacy version of createHybridLightArray without camera position sorting.
+     * This method is deprecated and should not be used for new code.
+     * It exists for backward compatibility only.
+     * 
+     * @deprecated Use createHybridLightArray with cameraPosition parameter instead
+     */
+    @Deprecated
+    public static void createHybridLightArray(Array<PointLight> shadowLights,
+                                            Array<FallbackLight> existingFallbackLights,
+                                            Array<FallbackLight> overflowFallbackLights,
+                                            int maxTotalLights,
+                                            Array<FallbackLight> outAllFallbackLights) {
+        
+        // Call the new version with null camera position (no sorting)
+        createHybridLightArray(shadowLights, existingFallbackLights, overflowFallbackLights, 
+                             maxTotalLights, null, outAllFallbackLights);
+        
+        System.out.println("Warning: Using deprecated createHybridLightArray without camera position. " +
+                         "Fallback lights will NOT be sorted by distance.");
     }
     
     /**
@@ -221,6 +258,37 @@ public class LightConverter {
         });
         
         System.out.println("Sorted " + lights.size + " lights by importance (intensity/distance²)");
+    }
+    
+    /**
+     * Sorts FallbackLight arrays by importance for optimal fallback light allocation.
+     * This method ensures the closest and brightest fallback lights are used first
+     * when there are more fallback lights than available slots.
+     * 
+     * @param fallbackLights Array of fallback lights to sort (modified in-place)
+     * @param cameraPosition Current camera position for distance calculations
+     */
+    public static void sortFallbackLightsByImportance(Array<FallbackLight> fallbackLights, 
+                                                     com.badlogic.gdx.math.Vector3 cameraPosition) {
+        if (fallbackLights == null || fallbackLights.size <= 1 || cameraPosition == null) {
+            return;
+        }
+        
+        // Sort by combined importance score (intensity / distance²)
+        fallbackLights.sort((light1, light2) -> {
+            float distance1 = light1.getWorldPosition().dst(cameraPosition);
+            float distance2 = light2.getWorldPosition().dst(cameraPosition);
+            
+            // Calculate importance scores (intensity / distance²)
+            // Add small epsilon to prevent division by zero
+            float importance1 = light1.getEffectiveIntensity() / Math.max(distance1 * distance1, 0.01f);
+            float importance2 = light2.getEffectiveIntensity() / Math.max(distance2 * distance2, 0.01f);
+            
+            // Sort in descending order (most important first)
+            return Float.compare(importance2, importance1);
+        });
+        
+        System.out.println("Sorted " + fallbackLights.size + " fallback lights by importance (intensity/distance²)");
     }
     
     /**

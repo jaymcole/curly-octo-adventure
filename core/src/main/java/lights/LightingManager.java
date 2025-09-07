@@ -208,23 +208,30 @@ public class LightingManager implements Disposable {
      * Handles shadow light overflow by converting excess shadow lights to fallback lights.
      * This ensures all requested lights remain visible even when exceeding shadow limits.
      * This method is called automatically during rendering.
+     * 
+     * @param cameraPosition Current camera position for distance-based light sorting
      */
-    private void handleShadowLightOverflow() {
+    private void handleShadowLightOverflow(Vector3 cameraPosition) {
+        // Sort shadow lights by importance (distance + intensity) before overflow handling
+        // This ensures the closest/brightest lights get shadow casting priority
+        LightConverter.sortLightsByImportance(shadowCastingLights, cameraPosition);
+        
         // Handle overflow using the LightConverter utility
         LightConverter.handleShadowLightOverflow(
-            shadowCastingLights,      // All requested shadow lights
+            shadowCastingLights,      // All requested shadow lights (now sorted by importance)
             MAX_SHADOW_LIGHTS,        // Maximum shadow lights allowed
             null,                     // No game object manager needed for overflow lights
             actualShadowLights,       // Output: actual shadow lights (limited)
             overflowFallbackLights    // Output: excess lights converted to fallback
         );
         
-        // Combine all fallback lights (existing + overflow)
+        // Combine all fallback lights (existing + overflow) with distance-based sorting
         LightConverter.createHybridLightArray(
             actualShadowLights,       // Shadow lights (limited quantity)
             fallbackLights,           // Existing fallback lights
             overflowFallbackLights,   // Overflow fallback lights
             MAX_TOTAL_LIGHTS,         // Maximum total lights for shader
+            cameraPosition,           // Current camera position for distance sorting
             allActiveFallbackLights   // Output: all active fallback lights
         );
     }
@@ -245,7 +252,7 @@ public class LightingManager implements Disposable {
         }
         
         // Handle shadow light overflow (converts excess to fallback)
-        handleShadowLightOverflow();
+        handleShadowLightOverflow(camera.position);
         
         // Clear temporary arrays
         tempShadowLights.clear();

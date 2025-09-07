@@ -134,7 +134,7 @@ public class TemplateGenerator extends MapGenerator {
         }
 
         replaceInvalidRooms();
-//        replaceDeadends();
+        replaceDeadends();
 
         copyRoomTemplates();
         copyConnectorTemplates();
@@ -175,7 +175,9 @@ public class TemplateGenerator extends MapGenerator {
                     }
                 }
             }
-            addLight(new Vector3(baseZ + 5,baseY + 6,  baseX + 5));
+            if (random.nextBoolean()) {
+                addLight(new Vector3(baseZ + 5,baseY + 6,  baseX + 5));
+            }
         }
     }
 
@@ -218,7 +220,7 @@ public class TemplateGenerator extends MapGenerator {
 
         // Create a copy of the entry set to avoid concurrent modification
         Set<Map.Entry<String, TemplateRoom>> roomEntries = new HashSet<>(rooms.entrySet());
-        
+
         for (Map.Entry<String, TemplateRoom> roomEntry : roomEntries) {
             String roomKey = roomEntry.getKey();
             TemplateRoom currentRoom = roomEntry.getValue();
@@ -279,6 +281,100 @@ public class TemplateGenerator extends MapGenerator {
         }
 
         Log.info("replaceInvalidRooms", "Validation complete: " + invalidRooms + " invalid rooms found, " +
+            fixedRooms + " successfully replaced");
+    }
+
+    private void replaceDeadends() {
+        Log.info("replaceDeadends", "Starting deadend connection cleanup");
+
+        int deadendRooms = 0;
+        int fixedRooms = 0;
+
+        // Create a copy of the entry set to avoid concurrent modification
+        Set<Map.Entry<String, TemplateRoom>> roomEntries = new HashSet<>(rooms.entrySet());
+
+        for (Map.Entry<String, TemplateRoom> roomEntry : roomEntries) {
+            String roomKey = roomEntry.getKey();
+            TemplateRoom currentRoom = roomEntry.getValue();
+            Vector3 roomCoords = extractCoordinatesFromRoomKey(roomKey);
+
+            // Skip spawn room - it's always valid
+            if (currentRoom.template_name.startsWith("spawn")) {
+                continue;
+            }
+
+            // Check which exits lead to empty spaces (no neighboring room)
+            HashSet<Direction> exitsToEmpty = new HashSet<>();
+            for (Direction exitDir : currentRoom.exits) {
+                Vector3 neighborCoords = Direction.advanceVector(exitDir, roomCoords.cpy());
+                String neighborKey = constructRoomKey(neighborCoords);
+                if (!rooms.containsKey(neighborKey)) {
+                    exitsToEmpty.add(exitDir);
+                }
+            }
+
+            if (!exitsToEmpty.isEmpty()) {
+                // This room has exits that lead to empty space - it's a deadend candidate
+                Log.info("replaceDeadends", "Room " + roomKey + " (" + currentRoom.template_name + ") has deadend exits");
+                Log.info("replaceDeadends", "  Exits to empty: [" + exitsToEmpty.stream()
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", ")) + "]");
+                Log.info("replaceDeadends", "  All exits: [" + currentRoom.exits.stream()
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", ")) + "]");
+
+                deadendRooms++;
+
+                // Calculate what connections this room should actually have
+                // (connections to existing neighboring rooms only - no exits to empty space)
+                HashSet<Direction> requiredConnections = gatherValidRoomEntranceRequirements(roomKey);
+
+                // Find rooms that match the required connections exactly (no deadend exits)
+                List<TemplateRoom> allOptions = manager.getValidRoomOptions(requiredConnections);
+                List<TemplateRoom> exactOptions = allOptions.stream()
+                    .filter(room -> {
+                        // Room must have exactly the required connections and no extras
+                        return room.entrances.equals(requiredConnections) && room.exits.equals(requiredConnections);
+                    })
+                    .collect(Collectors.toList());
+
+                if (!exactOptions.isEmpty()) {
+                    // Replace in-place with an exact match that won't have deadend exits
+                    TemplateRoom replacement = exactOptions.get(random.nextInt(exactOptions.size()));
+                    rooms.put(roomKey, replacement);
+                    Log.info("replaceDeadends", "  Replaced with: " + replacement.template_name +
+                        " (exits: [" + replacement.exits.stream()
+                            .map(Object::toString)
+                            .collect(Collectors.joining(", ")) + "])");
+                    fixedRooms++;
+                } else {
+                    // Try to find rooms with fewer total exits to minimize deadends
+                    List<TemplateRoom> betterOptions = allOptions.stream()
+                        .filter(room -> {
+                            // Only consider rooms that have the required connections
+                            // and ideally fewer total exits than current room
+                            return room.entrances.containsAll(requiredConnections) &&
+                                   room.exits.size() <= currentRoom.exits.size();
+                        })
+                        .sorted((a, b) -> Integer.compare(a.exits.size(), b.exits.size())) // Prefer rooms with fewer exits
+                        .collect(Collectors.toList());
+
+                    if (!betterOptions.isEmpty()) {
+                        TemplateRoom replacement = betterOptions.get(0); // Use the one with fewest exits
+                        rooms.put(roomKey, replacement);
+                        Log.info("replaceDeadends", "  Replaced with (reduced exits): " + replacement.template_name +
+                            " (exits: [" + replacement.exits.stream()
+                                .map(Object::toString)
+                                .collect(Collectors.joining(", ")) + "])");
+                        fixedRooms++;
+                    } else {
+                        Log.warn("replaceDeadends", "  No better replacement found - keeping current room");
+                    }
+                }
+            }
+        }
+
+        Log.info("replaceDeadends", "Deadend cleanup complete: " + deadendRooms + " deadend rooms found, " +
             fixedRooms + " successfully replaced");
     }
 }

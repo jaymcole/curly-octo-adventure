@@ -262,9 +262,13 @@ public class CubeShadowMapRenderer implements Disposable {
                                                 Array<PointLight> additionalLights,
                                                 Vector3 ambientLight) {
 
+        // Sort lights by importance before overflow handling
+        // This ensures closest/brightest lights get shadow casting priority
+        LightConverter.sortLightsByImportance(requestedShadowLights, camera.position);
+        
         // Handle shadow light overflow - convert excess to fallback
         LightConverter.handleShadowLightOverflow(
-            requestedShadowLights,    // All requested shadow lights
+            requestedShadowLights,    // All requested shadow lights (now sorted by importance)
             MAX_LIGHTS,               // Maximum shadow lights allowed
             null,                     // No game object manager needed for temp lights
             actualShadowLights,       // Output: actual shadow lights (limited)
@@ -477,12 +481,23 @@ public class CubeShadowMapRenderer implements Disposable {
             orderedLights.add(shadowLight);
         }
 
-        // Add remaining non-shadow lights
+        // Add remaining non-shadow lights, sorted by distance from camera
+        Array<PointLight> nonShadowLights = new Array<>();
         for (PointLight light : allLights) {
             if (!shadowLights.contains(light, true)) {
-                orderedLights.add(light);
+                nonShadowLights.add(light);
             }
         }
+        
+        // Sort non-shadow lights by distance from camera (closest first)
+        nonShadowLights.sort((light1, light2) -> {
+            float distance1 = light1.position.dst(camera.position);
+            float distance2 = light2.position.dst(camera.position);
+            return Float.compare(distance1, distance2);
+        });
+        
+        // Add sorted non-shadow lights to the final array
+        orderedLights.addAll(nonShadowLights);
 
         // Send ordered lights to shader (limited by shader array size but with overflow handling)
         int totalLights = Math.min(orderedLights.size, Constants.LIGHTING_ENHANCED_SHADER_LIGHTS);
