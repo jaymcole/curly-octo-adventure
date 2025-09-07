@@ -39,9 +39,6 @@ public class TemplateGenerator extends MapGenerator {
         Vector3 start = new Vector3(x,y,z);
         rooms.put(constructRoomKey(start), room);
         roomsPlaced++;
-        Log.info("placeRoom", "Adding expansion keys around " + room.template_name  +" [" + room.exits.stream()
-            .map(Object::toString)
-            .collect(Collectors.joining(", ")) + "]");
         for(Direction dir : room.exits) {
             String key = constructRoomKey(Direction.advanceVector(dir, start.cpy()));
             if (!rooms.containsKey(key)) {
@@ -145,13 +142,10 @@ public class TemplateGenerator extends MapGenerator {
         String roomKey = constructRoomKey(roomCoordinates);
         String neighborKey = constructRoomKey(Direction.advanceVector(exitDirection, roomCoordinates.cpy()));
         if (!connectors.containsKey(constructConnectionKey(roomKey, neighborKey)) && !connectors.containsKey(constructConnectionKey(neighborKey, roomKey))) {
-            Log.info("Placing connection on : " + constructConnectionKey(roomKey, neighborKey) + " going " + exitDirection);
             HashSet<Direction> requiredDirections = new HashSet<>();
             requiredDirections.add(exitDirection);
             ArrayList<TemplateRoom> connectorOptions = manager.getValidConnectorOptions(requiredDirections);
             connectors.put(constructConnectionKey(roomKey, neighborKey), connectorOptions.get(random.nextInt(connectorOptions.size())));
-        } else {
-            Log.info("Skipping connection as we already have one here: " + constructConnectionKey(roomKey, neighborKey) + ", ", constructConnectionKey(neighborKey, roomKey));
         }
     }
 
@@ -213,8 +207,6 @@ public class TemplateGenerator extends MapGenerator {
     }
 
     private void replaceInvalidRooms() {
-        Log.info("replaceInvalidRooms", "Starting room connection validation");
-
         int invalidRooms = 0;
         int fixedRooms = 0;
 
@@ -237,14 +229,6 @@ public class TemplateGenerator extends MapGenerator {
             boolean isValid = currentRoom.entrances.equals(requiredConnections);
 
             if (!isValid) {
-                Log.info("replaceInvalidRooms", "Room " + roomKey + " (" + currentRoom.template_name + ") is invalid");
-                Log.info("replaceInvalidRooms", "  Required: [" + requiredConnections.stream()
-                    .map(Object::toString)
-                    .collect(Collectors.joining(", ")) + "]");
-                Log.info("replaceInvalidRooms", "  Has entrances: [" + currentRoom.entrances.stream()
-                    .map(Object::toString)
-                    .collect(Collectors.joining(", ")) + "]");
-
                 invalidRooms++;
 
                 // Find a better matching room that has EXACTLY the required connections
@@ -257,36 +241,18 @@ public class TemplateGenerator extends MapGenerator {
                     // Replace in-place with an exact match
                     TemplateRoom replacement = exactOptions.get(random.nextInt(exactOptions.size()));
                     rooms.put(roomKey, replacement);
-                    Log.info("replaceInvalidRooms", "  Replaced with: " + replacement.template_name +
-                        " (entrances: [" + replacement.entrances.stream()
-                            .map(Object::toString)
-                            .collect(Collectors.joining(", ")) + "])");
                     fixedRooms++;
                 } else if (!allOptions.isEmpty()) {
                     // Fall back to any valid option if no exact match
                     TemplateRoom replacement = allOptions.get(random.nextInt(allOptions.size()));
                     rooms.put(roomKey, replacement);
-                    Log.info("replaceInvalidRooms", "  Replaced with (fallback): " + replacement.template_name +
-                        " (entrances: [" + replacement.entrances.stream()
-                            .map(Object::toString)
-                            .collect(Collectors.joining(", ")) + "])");
                     fixedRooms++;
-                } else {
-                    Log.warn("replaceInvalidRooms", "  No valid replacement found for required connections: [" +
-                        requiredConnections.stream()
-                            .map(Object::toString)
-                            .collect(Collectors.joining(", ")) + "]");
                 }
             }
         }
-
-        Log.info("replaceInvalidRooms", "Validation complete: " + invalidRooms + " invalid rooms found, " +
-            fixedRooms + " successfully replaced");
     }
 
     private void replaceDeadends() {
-        Log.info("replaceDeadends", "Starting deadend connection cleanup");
-
         int deadendRooms = 0;
         int fixedRooms = 0;
 
@@ -315,13 +281,6 @@ public class TemplateGenerator extends MapGenerator {
 
             if (!exitsToEmpty.isEmpty()) {
                 // This room has exits that lead to empty space - it's a deadend candidate
-                Log.info("replaceDeadends", "Room " + roomKey + " (" + currentRoom.template_name + ") has deadend exits");
-                Log.info("replaceDeadends", "  Exits to empty: [" + exitsToEmpty.stream()
-                    .map(Object::toString)
-                    .collect(Collectors.joining(", ")) + "]");
-                Log.info("replaceDeadends", "  All exits: [" + currentRoom.exits.stream()
-                    .map(Object::toString)
-                    .collect(Collectors.joining(", ")) + "]");
 
                 deadendRooms++;
 
@@ -342,10 +301,6 @@ public class TemplateGenerator extends MapGenerator {
                     // Replace in-place with an exact match that won't have deadend exits
                     TemplateRoom replacement = exactOptions.get(random.nextInt(exactOptions.size()));
                     rooms.put(roomKey, replacement);
-                    Log.info("replaceDeadends", "  Replaced with: " + replacement.template_name +
-                        " (exits: [" + replacement.exits.stream()
-                            .map(Object::toString)
-                            .collect(Collectors.joining(", ")) + "])");
                     fixedRooms++;
                 } else {
                     // Try to find rooms with fewer total exits to minimize deadends
@@ -362,19 +317,10 @@ public class TemplateGenerator extends MapGenerator {
                     if (!betterOptions.isEmpty()) {
                         TemplateRoom replacement = betterOptions.get(0); // Use the one with fewest exits
                         rooms.put(roomKey, replacement);
-                        Log.info("replaceDeadends", "  Replaced with (reduced exits): " + replacement.template_name +
-                            " (exits: [" + replacement.exits.stream()
-                                .map(Object::toString)
-                                .collect(Collectors.joining(", ")) + "])");
                         fixedRooms++;
-                    } else {
-                        Log.warn("replaceDeadends", "  No better replacement found - keeping current room");
                     }
                 }
             }
         }
-
-        Log.info("replaceDeadends", "Deadend cleanup complete: " + deadendRooms + " deadend rooms found, " +
-            fixedRooms + " successfully replaced");
     }
 }

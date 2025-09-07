@@ -6,6 +6,9 @@ package curly.octo.network.messages;
  */
 public class MapRegenerationStartMessage {
     
+    /** Unique ID for this regeneration request (for client synchronization) */
+    public long regenerationId;
+    
     /** The seed used for the new map generation */
     public long newMapSeed;
     
@@ -20,8 +23,9 @@ public class MapRegenerationStartMessage {
     }
     
     public MapRegenerationStartMessage(long newMapSeed, String reason) {
+        this.regenerationId = System.currentTimeMillis(); // Use timestamp as unique ID
         this.newMapSeed = newMapSeed;
         this.reason = reason != null ? reason : "Server triggered";
-        this.timestamp = System.currentTimeMillis();
+        this.timestamp = this.regenerationId;
     }
 }

@@ -15,8 +15,8 @@ public class Constants {
     /** Chunk size for map transfer (8KB) */
     public static final int NETWORK_CHUNK_SIZE = 8192;
 
-    /** Network buffer size for read/write operations (16KB) */
-    public static final int NETWORK_BUFFER_SIZE = 16384;
+    /** Network buffer size for read/write operations (32KB) */
+    public static final int NETWORK_BUFFER_SIZE = 32768;
 
     /** Position update interval in nanoseconds (50 FPS = 20ms) */
     public static final long NETWORK_POSITION_UPDATE_INTERVAL_NS = 20_000_000L;

@@ -54,16 +54,9 @@ public class TemplateRoom {
 
         for(Direction dir : enteringDirections) {
             if (!entrances.contains(dir)) {
-                Log.info("isValidRoom", template_name + ": enteringDirections: [" + enteringDirections.stream()
-                    .map(Object::toString)
-                    .collect(Collectors.joining(", ")) + "], no");
-
                 return false;
             }
         }
-        Log.info("isValidRoom", template_name + ": enteringDirections: [" + enteringDirections.stream()
-            .map(Object::toString)
-            .collect(Collectors.joining(", ")) + "], yes");
         return true;
     }
 }
