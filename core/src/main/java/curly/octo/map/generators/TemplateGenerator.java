@@ -29,7 +29,7 @@ public class TemplateGenerator extends MapGenerator {
     public TemplateGenerator(Random random, GameMap map) {
         super(random, map);
         roomsPlaced = 0;
-        manager = new TemplateManager(new String[]{"templates"});
+        manager = new TemplateManager(new String[]{"templates/9x9_no_connectors"});
         expansionKeys = new ArrayList<>();
         rooms = new HashMap<>();
         connectors = new HashMap<>();
@@ -100,17 +100,6 @@ public class TemplateGenerator extends MapGenerator {
         placeRoom(0,0,0, manager.getTemplateByFileName(SPAWN_ROOM));
         addSpawn(new Vector3(5,1,5));
 
-//
-//        String roomName = "corridor_nesw";
-//        Vector3 north = Direction.advanceVector(Direction.NORTH, new Vector3(0,0,0));
-//        placeRoom((int)north.x, (int)north.y, (int)north.z, manager.getTemplateByFileName(roomName));
-
-//        Direction.advanceVector(Direction.NORTH, north);
-//        placeRoom((int)north.x, (int)north.y, (int)north.z, manager.getTemplateByFileName(roomName));
-//
-//        Direction.advanceVector(Direction.NORTH, north);
-//        placeRoom((int)north.x, (int)north.y, (int)north.z, manager.getTemplateByFileName(roomName));
-
         while(!expansionKeys.isEmpty() && roomsPlaced < MAX_ROOMS) {
             String key = expansionKeys.remove(0);
             HashSet<Direction> requirements = gatherValidRoomEntranceRequirements(key);
@@ -122,11 +111,13 @@ public class TemplateGenerator extends MapGenerator {
             }
         }
 
-        Log.info("generate", "Placed " + roomsPlaced + " rooms");
-        for(Map.Entry<String, TemplateRoom> room : rooms.entrySet()) {
-            Vector3 roomCoordinates = extractCoordinatesFromRoomKey(room.getKey());
-            for(Direction exitDirection : room.getValue().exits) {
-                addRoomConnection(exitDirection, roomCoordinates);
+        if (USE_CONNECTORS) {
+            Log.info("generate", "Placed " + roomsPlaced + " rooms");
+            for(Map.Entry<String, TemplateRoom> room : rooms.entrySet()) {
+                Vector3 roomCoordinates = extractCoordinatesFromRoomKey(room.getKey());
+                for(Direction exitDirection : room.getValue().exits) {
+                    addRoomConnection(exitDirection, roomCoordinates);
+                }
             }
         }
 
@@ -155,9 +146,9 @@ public class TemplateGenerator extends MapGenerator {
             TemplateRoom template = roomEntry.getValue();
 
             // Rooms are 7x7x7, so translate room coordinates to world coordinates
-            int baseX = (int)roomCoordinates.x * 8;
-            int baseY = (int)roomCoordinates.y * 8;
-            int baseZ = (int)roomCoordinates.z * 8;
+            int baseX = (int)roomCoordinates.x * (ROOM_SIZE + (USE_CONNECTORS ? 1 : 0));
+            int baseY = (int)roomCoordinates.y * (ROOM_SIZE + (USE_CONNECTORS ? 1 : 0));
+            int baseZ = (int)roomCoordinates.z * (ROOM_SIZE + (USE_CONNECTORS ? 1 : 0));
 
             // Copy template data to map using touchTile
             for (int slice = 0; slice < template.walls.length; slice++) {
@@ -189,9 +180,9 @@ public class TemplateGenerator extends MapGenerator {
 
             // Connectors are 9x7x9, positioned between rooms with 1 tile padding
             // Calculate connector position based on the midpoint between rooms
-            int baseX = (int)room1Coords.x * 8;
-            int baseY = (int)room1Coords.y * 8;
-            int baseZ = (int)room1Coords.z * 8;
+            int baseX = (int)room1Coords.x * (ROOM_SIZE + (USE_CONNECTORS ? 1 : 0));
+            int baseY = (int)room1Coords.y * (ROOM_SIZE + (USE_CONNECTORS ? 1 : 0));
+            int baseZ = (int)room1Coords.z * (ROOM_SIZE + (USE_CONNECTORS ? 1 : 0));
 
             // Copy template data to map using touchTile
             for (int slice = 0; slice < template.walls.length; slice++) {

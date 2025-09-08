@@ -3,80 +3,36 @@ package curly.octo.map.generators.templated;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.utils.Json;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.Direction;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 
 public class TemplateManager {
 
+    public static final String COLLECTION_METADATA_FILENAME = "collection.json";
+
     public static final String CONNECTOR_PREFIX = "connector";
     public static int ROOM_SIZE = 7;
-    public static final String SPAWN_ROOM = "spawn_nesw";
-
-    public static final String NORTH_END = "corridor_n";
-    public static final String EAST_END = "corridor_e";
-    public static final String SOUTH_END = "corridor_s";
-    public static final String WEST_END = "corridor_w";
-
+    public static String SPAWN_ROOM = "spawn_nesw";
+    public static boolean USE_CONNECTORS;
 
     public ArrayList<TemplateRoom> roomTemplates;
     public ArrayList<TemplateRoom> connectorTemplates;
     private final HashMap<String, ArrayList<TemplateRoom>> validRoomCache;
     private final HashMap<String, ArrayList<TemplateRoom>> validConnectorCache;
 
-
     public TemplateManager(String[] templatePaths) {
         roomTemplates = new ArrayList<>();
         connectorTemplates = new ArrayList<>();
         validRoomCache = new HashMap<>();
         validConnectorCache = new HashMap<>();
-        for(String path : templatePaths) {
-            // Known template files in the templates directory
-            String[] templateFiles = {
-//                "corridor_e.png",
-//                "corridor_n.png",
-//                "corridor_s.png",
-//                "corridor_w.png",
 
-                "corridor_sw.png",
-                "corridor_es.png",
-                "corridor_ew.png",
-                "corridor_ne.png",
-                "corridor_ns.png",
-                "corridor_sw.png",
-
-                "corridor_esw.png",
-                "corridor_nes.png",
-                "corridor_nsw.png",
-//                "corridor_new.png", // Broken
-
-                "corridor_nesw.png",
-
-
-//                "connector_e_five.png",
-//                "connector_e_four.png",
-//                "connector_e_seven.png",
-//                "connector_n_five.png",
-//                "connector_n_four.png",
-//                "connector_n_seven.png",
-//                "connector_s_five.png",
-//                "connector_s_four.png",
-//                "connector_s_seven.png",
-//                "connector_w_five.png",
-//                "connector_w_four.png",
-//                "connector_w_seven.png",
-                "connector_nesw_three.png",
-//                "connector_nesw_five.png",
-//                "stairs_es_es.png",
-//                "open_nesw.png",
-                "spawn_nesw.png"
-            };
-
-            for (String templateName : templateFiles) {
-                FileHandle templateFile = Gdx.files.internal(path + "/" + templateName);
+        HashMap<String, TemplateCollection> collections = loadCollections(templatePaths);
+        for(Map.Entry<String, TemplateCollection> collectionMetadata : collections.entrySet()) {
+            for (String templateName : collectionMetadata.getValue().templates) {
+                FileHandle templateFile = Gdx.files.internal(collectionMetadata.getKey() + "/" + templateName + ".png");
                 if (templateFile.exists()) {
                     try {
                         TemplateRoom room = null;
@@ -96,6 +52,29 @@ public class TemplateManager {
             }
             Log.info("TemplateManager", "Done importing templates");
         }
+    }
+
+    private HashMap<String, TemplateCollection> loadCollections(String[] templatePaths) {
+        Json json = new Json();
+        HashMap<String, TemplateCollection> collections = new HashMap<>();
+        for(String collectionPath : templatePaths) {
+            FileHandle templateFile = Gdx.files.internal(collectionPath + "/" + COLLECTION_METADATA_FILENAME);
+            if (templateFile.exists()) {
+                TemplateCollection collection = json.fromJson(TemplateCollection.class, templateFile);
+                if (collection != null) {
+                    collections.put(collectionPath, collection);
+                    SPAWN_ROOM = collection.spawn_room;
+                    ROOM_SIZE = collection.templateDimensionDepth;
+                    USE_CONNECTORS = collection.use_connectors;
+                } else {
+                    Log.error("loadCollections", "Failed to parse collection metadata file for " + collectionPath);
+                }
+            } else {
+                Log.error("loadCollections", "Missing collection metadata for " + collectionPath);
+            }
+        }
+
+        return collections;
     }
 
     private TemplateRoom loadTemplate(FileHandle templateFile) {
