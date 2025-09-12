@@ -160,7 +160,7 @@ public class TemplateGenerator extends MapGenerator {
                     }
                 }
             }
-            if (random.nextBoolean()) {
+            if (random.nextFloat() > 0.8f) {
                 addLight(new Vector3(baseZ + 5,baseY + 6,  baseX + 5));
             }
         }

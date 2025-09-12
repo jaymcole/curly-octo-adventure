@@ -43,19 +43,17 @@ public class MapRegenerationCompleteHandler extends AbstractStateHandler {
         Boolean finalizationComplete = context.getStateData("finalization_complete", Boolean.class, false);
         
         if (finalizationComplete) {
-            logAction("Finalization complete, ready to play");
-            // Auto-transition to PLAYING state after a brief delay
-            Long completionTime = context.getStateData("completion_time", Long.class);
-            if (completionTime != null && System.currentTimeMillis() - completionTime > 500) {
-                // Give the user a moment to see the completion message, then transition
-                if (clientGameMode != null) {
-                    clientGameMode.getStateManager().requestStateChange(GameState.PLAYING);
-                }
-                return;
+            // Only log once when finalization completes
+            Boolean finalizationLogged = context.getStateData("finalization_logged", Boolean.class, false);
+            if (!finalizationLogged) {
+                logAction("Finalization complete, ready to play");
+                context.setStateData("finalization_logged", true);
             }
-        } else {
-            // Update finalization progress
-            updateFinalizationProgress(context);
+            
+            // Transition immediately to PLAYING state
+            if (clientGameMode != null) {
+                clientGameMode.getStateManager().requestStateChange(GameState.PLAYING);
+            }
         }
     }
     
@@ -86,11 +84,11 @@ public class MapRegenerationCompleteHandler extends AbstractStateHandler {
                 return;
             }
             
-            updateProgress(context, 0.3f, "Verifying world integrity...");
+            updateProgress(context, 1.0f, "Ready to resume gameplay!");
             
-            // Mark finalization as started
-            context.setStateData("finalization_started", true);
-            context.setStateData("finalization_start_time", System.currentTimeMillis());
+            // Mark finalization as complete immediately
+            context.setStateData("finalization_complete", true);
+            logAction("Finalization completed successfully");
             
         } catch (Exception e) {
             Log.error("MapRegenerationCompleteHandler", "Error during finalization", e);
@@ -131,32 +129,6 @@ public class MapRegenerationCompleteHandler extends AbstractStateHandler {
         return true;
     }
     
-    private void updateFinalizationProgress(StateContext context) {
-        Boolean finalizationStarted = context.getStateData("finalization_started", Boolean.class, false);
-        
-        if (!finalizationStarted) {
-            return;
-        }
-        
-        Long startTime = context.getStateData("finalization_start_time", Long.class);
-        if (startTime == null) {
-            return;
-        }
-        
-        long elapsedTime = System.currentTimeMillis() - startTime;
-        
-        // Short finalization process
-        if (elapsedTime < 500) {
-            updateProgress(context, 0.3f + (elapsedTime / 500.0f) * 0.4f, "Verifying world integrity...");
-        } else if (elapsedTime < 1000) {
-            updateProgress(context, 0.7f + ((elapsedTime - 500) / 500.0f) * 0.2f, "Preparing network resume...");
-        } else {
-            updateProgress(context, 1.0f, "Ready to resume gameplay!");
-            context.setStateData("finalization_complete", true);
-            context.setStateData("completion_time", System.currentTimeMillis());
-            logAction("Finalization completed successfully");
-        }
-    }
     
     private void resumeNetworkUpdates(StateContext context) {
         // This is the key fix for the original Kryo serialization error
@@ -189,8 +161,7 @@ public class MapRegenerationCompleteHandler extends AbstractStateHandler {
             "bytes_received", "total_bytes", "chunks_received", "total_chunks",
             "map_id", "received_map_id",
             "rebuilding_complete", "rebuilding_started", "rebuilding_start_time",
-            "finalization_complete", "finalization_started", "finalization_start_time",
-            "completion_time",
+            "finalization_complete", "finalization_logged",
             // Client synchronization data
             "regeneration_timestamp", "new_map_seed", "regeneration_reason",
             // Map processing data

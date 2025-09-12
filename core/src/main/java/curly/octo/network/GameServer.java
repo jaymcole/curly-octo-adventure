@@ -291,9 +291,9 @@ public class GameServer {
                 MapChunkMessage chunkMessage = new MapChunkMessage(mapId, i, totalChunks, chunkData);
                 server.sendToTCP(connection.getID(), chunkMessage);
                 
-                // Small delay between chunks to avoid overwhelming the network
-                if (i > 0 && i % 10 == 0) {
-                    Thread.sleep(1); // 1ms pause every 10 chunks
+                // Small delay between chunks to prevent buffer overflow
+                if (i > 0 && i % 5 == 0) {
+                    Thread.sleep(2); // 2ms pause every 5 chunks
                 }
             }
             

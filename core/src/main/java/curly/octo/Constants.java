@@ -27,7 +27,7 @@ public class Constants {
     // =========================
 
     /** Size of each map tile in world units */
-    public static final float MAP_TILE_SIZE = 5f;
+    public static final float MAP_TILE_SIZE = 3f;
 
     /** Number of tiles per chunk side (16x16 chunks) */
     public static final int MAP_CHUNK_SIZE = 16;

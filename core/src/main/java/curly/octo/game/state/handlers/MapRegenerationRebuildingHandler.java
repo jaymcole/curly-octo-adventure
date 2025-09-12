@@ -50,11 +50,7 @@ public class MapRegenerationRebuildingHandler extends AbstractStateHandler {
             if (clientGameMode != null) {
                 clientGameMode.getStateManager().requestStateChange(GameState.MAP_REGENERATION_COMPLETE);
             }
-            return;
         }
-        
-        // Update rebuilding progress
-        updateRebuildingProgress(context);
     }
     
     @Override
@@ -109,35 +105,16 @@ public class MapRegenerationRebuildingHandler extends AbstractStateHandler {
             
             logAction("Map rebuilding process completed successfully");
             
+            // Mark rebuilding as complete immediately
+            context.setStateData("rebuilding_complete", true);
+            updateProgress(context, 1.0f, "World rebuilding complete");
+            
         } catch (Exception e) {
             Log.error("MapRegenerationRebuildingHandler", "Error starting rebuilding", e);
             context.setStateData("error_message", "Failed to start rebuilding: " + e.getMessage());
         }
     }
     
-    private void updateRebuildingProgress(StateContext context) {
-        Boolean rebuildingStarted = context.getStateData("rebuilding_started", Boolean.class, false);
-        
-        if (!rebuildingStarted) {
-            return;
-        }
-        
-        Long startTime = context.getStateData("rebuilding_start_time", Long.class);
-        if (startTime == null) {
-            return;
-        }
-        
-        long elapsedTime = System.currentTimeMillis() - startTime;
-        
-        // Since rebuilding is now done synchronously, just wait briefly to show completion
-        if (elapsedTime < 500) {
-            updateProgress(context, 1.0f, "World rebuilding complete");
-        } else {
-            // Allow time for user to see the completion message
-            context.setStateData("rebuilding_complete", true);
-            logAction("World rebuilding completed successfully");
-        }
-    }
     
     /**
      * This method would be called by the actual map loading system

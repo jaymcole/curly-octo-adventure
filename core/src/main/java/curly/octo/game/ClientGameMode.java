@@ -30,7 +30,7 @@ import java.util.HashSet;
  * Client game mode that handles connecting to server and receiving updates.
  */
 public class ClientGameMode implements GameMode {
-    
+
     // Callback interface for communicating with parent (Main)
     public interface MapRegenerationListener {
         void onMapSeedChanged(long newSeed);
@@ -42,12 +42,13 @@ public class ClientGameMode implements GameMode {
     private boolean active = false;
     private boolean mapReceived = false;
     private boolean playerAssigned = false;
-    
+
     // State management system
     private GameStateManager stateManager;
+    private MapRegenerationDownloadingHandler downloadingHandler;
     private boolean networkUpdatesPaused = false;
     private boolean inputDisabled = false;
-    
+
     // Map regeneration listener
     private MapRegenerationListener mapRegenerationListener;
 
@@ -72,7 +73,7 @@ public class ClientGameMode implements GameMode {
     // Smart rate limiting for sustained performance
     private long lastPositionSendTime = 0;
     private final long TARGET_POSITION_INTERVAL_NS = Constants.NETWORK_POSITION_UPDATE_INTERVAL_NS; // 50 FPS (20ms between updates) - high but sustainable
-    
+
     // Buffer monitoring
     private long lastBufferCheckTime = System.currentTimeMillis();
 
@@ -82,23 +83,28 @@ public class ClientGameMode implements GameMode {
 
         // Initialize new input system for future migration
         this.inputController = new MinimalPlayerController();
-        
+
         // Initialize state management system
         this.stateManager = new GameStateManager(GameState.LOBBY);
         initializeStateHandlers();
     }
-    
+
     /**
      * Initialize all state handlers for the state machine
      */
     private void initializeStateHandlers() {
         // Register handlers for map regeneration states
         stateManager.registerHandler(new MapRegenerationCleanupHandler(this));
+
+        // Store reference to downloading handler so we can call it directly for chunk updates
+//        this.downloadingHandler = new MapRegenerationDownloadingHandler(this);
+//        stateManager.registerHandler(downloadingHandler);
         stateManager.registerHandler(new MapRegenerationDownloadingHandler(this));
+
         stateManager.registerHandler(new MapRegenerationRebuildingHandler(this));
         stateManager.registerHandler(new MapRegenerationCompleteHandler(this));
-        
-        Log.info("ClientGameMode", "State management system initialized with " + 
+
+        Log.info("ClientGameMode", "State management system initialized with " +
                  "map regeneration handlers");
     }
 
@@ -119,14 +125,14 @@ public class ClientGameMode implements GameMode {
         }
         return null;
     }
-    
+
     /**
      * Get the state manager for this client game mode
      */
     public GameStateManager getStateManager() {
         return stateManager;
     }
-    
+
     /**
      * Pause network position updates (used during map regeneration)
      */
@@ -134,7 +140,7 @@ public class ClientGameMode implements GameMode {
         this.networkUpdatesPaused = true;
         Log.info("ClientGameMode", "Network position updates paused");
     }
-    
+
     /**
      * Resume network position updates (used after map regeneration)
      */
@@ -142,7 +148,7 @@ public class ClientGameMode implements GameMode {
         this.networkUpdatesPaused = false;
         Log.info("ClientGameMode", "Network position updates resumed");
     }
-    
+
     /**
      * Disable player input (movement, etc.) during map regeneration
      */
@@ -150,7 +156,7 @@ public class ClientGameMode implements GameMode {
         inputDisabled = true;
         Log.info("ClientGameMode", "Player input disabled (map regeneration)");
     }
-    
+
     /**
      * Re-enable player input after map regeneration completes
      */
@@ -158,14 +164,14 @@ public class ClientGameMode implements GameMode {
         inputDisabled = false;
         Log.info("ClientGameMode", "Player input enabled (map regeneration complete)");
     }
-    
+
     /**
      * Immediately dispose of current map resources when regeneration starts
      */
     private void performImmediateMapCleanup() {
         try {
             Log.info("ClientGameMode", "Performing immediate map resource cleanup");
-            
+
             ClientGameWorld clientWorld = (ClientGameWorld) gameWorld;
             if (clientWorld != null) {
                 // Call the existing cleanup method that properly disposes resources
@@ -174,13 +180,13 @@ public class ClientGameMode implements GameMode {
             } else {
                 Log.warn("ClientGameMode", "No ClientGameWorld available for cleanup");
             }
-            
+
         } catch (Exception e) {
             Log.error("ClientGameMode", "Error during immediate map cleanup: " + e.getMessage());
             e.printStackTrace();
         }
     }
-    
+
     /**
      * Get the GameClient instance for network operations
      */
@@ -260,7 +266,7 @@ public class ClientGameMode implements GameMode {
                                 lastPositionSendTime = currentTime;
                             }
                         }
-                        
+
                         // Monitor network buffer status every few seconds
                         long currentTimeMs = System.currentTimeMillis();
                         if (gameClient != null && currentTimeMs - lastBufferCheckTime >= 2000) {
@@ -295,31 +301,36 @@ public class ClientGameMode implements GameMode {
         gameClient.setMapReceivedListener(receivedMap -> {
             Gdx.app.postRunnable(() -> {
                 Log.info("ClientGameMode", "Map received from server");
-                
+
                 // Check if we're in a regeneration state
                 GameState currentState = stateManager.getCurrentState();
                 if (currentState.isMapRegenerationState()) {
                     Log.info("ClientGameMode", "Map received during regeneration - storing for state processing");
-                    
+
                     // Store the map for the rebuilding handler to process
                     stateManager.getStateContext().setStateData("received_map", receivedMap);
                     stateManager.getStateContext().setStateData("download_complete", true);
                     stateManager.getStateContext().setStateData("map_received_time", System.currentTimeMillis());
                     
+                    // Update progress to 100% now that map is ready
+                    if (stateManager.getCurrentState() == GameState.MAP_REGENERATION_DOWNLOADING) {
+                        stateManager.getStateContext().updateProgress(1.0f, "Map ready for rebuilding");
+                    }
+
                     Log.info("ClientGameMode", "Map stored in state context, rebuilding handler will process it");
-                    
+
                 } else {
                     // Normal map loading (not during regeneration)
                     Log.info("ClientGameMode", "Map received during normal play - processing immediately");
                     long startTime = System.currentTimeMillis();
-                    
+
                     gameWorld.setMap(receivedMap);
-                    
+
                     if (gameWorld instanceof ClientGameWorld) {
                         Log.info("ClientGameMode", "Reinitializing players for new map");
                         ((ClientGameWorld) gameWorld).reinitializePlayersAfterMapRegeneration();
                     }
-                    
+
                     long endTime = System.currentTimeMillis();
                     Log.info("ClientGameMode", "Map setup completed in " + (endTime - startTime) + "ms");
                     mapReceived = true;
@@ -413,59 +424,59 @@ public class ClientGameMode implements GameMode {
                 targetPlayer.setPitch(playerUpdate.pitch);
             });
         });
-        
+
         // Map regeneration start listener - now using state management system
         gameClient.setMapRegenerationStartListener(mapRegenerationStart -> {
             Gdx.app.postRunnable(() -> {
                 Log.info("ClientGameMode", "Map regeneration starting - performing immediate resource cleanup");
-                Log.info("ClientGameMode", "New map seed: " + mapRegenerationStart.newMapSeed + 
+                Log.info("ClientGameMode", "New map seed: " + mapRegenerationStart.newMapSeed +
                          ", Reason: " + mapRegenerationStart.reason);
-                
+
                 // Immediately disable player input to prevent movement during regeneration
                 disableInput();
-                
+
                 // IMMEDIATELY dispose of current map resources - don't wait for cleanup state
                 performImmediateMapCleanup();
-                
+
                 // Update debug UI with new seed via callback
                 if (mapRegenerationListener != null) {
                     mapRegenerationListener.onMapSeedChanged(mapRegenerationStart.newMapSeed);
                     Log.info("ClientGameMode", "Notified main of seed change to: " + mapRegenerationStart.newMapSeed);
                 }
-                
+
                 // Store regeneration data and transition to cleanup state
                 java.util.Map<String, Object> stateData = new java.util.HashMap<>();
                 stateData.put("new_map_seed", mapRegenerationStart.newMapSeed);
                 stateData.put("regeneration_reason", mapRegenerationStart.reason);
                 stateData.put("regeneration_timestamp", mapRegenerationStart.timestamp);
-                
+
                 // Transition to cleanup state - this will trigger the state handlers
                 stateManager.requestStateChange(GameState.MAP_REGENERATION_CLEANUP, stateData);
-                
+
                 Log.info("ClientGameMode", "State transition requested to MAP_REGENERATION_CLEANUP");
             });
         });
-        
-        // Player reset listener  
+
+        // Player reset listener
         gameClient.setPlayerResetListener(playerReset -> {
             Gdx.app.postRunnable(() -> {
                 Log.info("ClientGameMode", "Received player reset for: " + playerReset.playerId);
-                
+
                 // Check if this is for our local player
                 String localId = getLocalPlayerId();
                 if (localId != null && localId.equals(playerReset.playerId)) {
                     Log.info("ClientGameMode", "Resetting local player to new spawn position");
-                    
+
                     if (gameWorld instanceof ClientGameWorld) {
                         ClientGameWorld clientWorld = (ClientGameWorld) gameWorld;
                         clientWorld.resetLocalPlayerToSpawn(
-                            playerReset.getSpawnPosition(), 
+                            playerReset.getSpawnPosition(),
                             playerReset.spawnYaw
                         );
                     }
                 } else {
                     Log.info("ClientGameMode", "Player reset for remote player: " + playerReset.playerId);
-                    
+
                     // Find and reset remote player
                     for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
                         if (player.entityId.equals(playerReset.playerId)) {
@@ -478,6 +489,19 @@ public class ClientGameMode implements GameMode {
                     }
                 }
             });
+        });
+
+        // Map transfer progress listeners for better loading bar responsiveness
+        gameClient.setMapTransferStartListener(message -> {
+            onMapTransferStart(message.mapId, message.totalChunks, message.totalSize);
+        });
+
+        gameClient.setMapChunkListener(message -> {
+            onChunkReceived(message.mapId, message.chunkIndex, message.chunkData);
+        });
+
+        gameClient.setMapTransferCompleteListener(message -> {
+            onMapTransferComplete(message.mapId);
         });
     }
 
@@ -592,7 +616,7 @@ public class ClientGameMode implements GameMode {
             // Switch to 3D view
             Gdx.app.postRunnable(() -> {
                 active = true;
-                
+
                 // Transition to PLAYING state now that we're fully connected and ready
                 if (stateManager != null) {
                     stateManager.requestStateChange(GameState.PLAYING);
@@ -620,7 +644,7 @@ public class ClientGameMode implements GameMode {
         if (stateManager != null) {
             stateManager.update(deltaTime);
         }
-        
+
         // Network updates are now handled in separate thread
         // This method only handles game world updates on main thread
 
@@ -768,7 +792,7 @@ public class ClientGameMode implements GameMode {
         if (inputDisabled) {
             return null;
         }
-        return inputController instanceof com.badlogic.gdx.InputProcessor ? 
+        return inputController instanceof com.badlogic.gdx.InputProcessor ?
                (com.badlogic.gdx.InputProcessor) inputController : null;
     }
 
@@ -777,7 +801,7 @@ public class ClientGameMode implements GameMode {
         if (networkUpdatesPaused) {
             return; // Skip sending position updates to prevent Kryo serialization errors
         }
-        
+
         if (gameClient != null) {
             String playerId = getLocalPlayerId();
             Vector3 position = getLocalPlayerPosition();
@@ -800,28 +824,28 @@ public class ClientGameMode implements GameMode {
             }
         }
     }
-    
+
     private void checkNetworkBufferStatus() {
         if (gameClient != null && gameClient.getClient() != null) {
             try {
                 // Get the underlying KryoNet client
                 com.esotericsoftware.kryonet.Client client = gameClient.getClient();
-                
+
                 // Check if client is connected first
                 if (client.isConnected()) {
                     // KryoNet may not expose direct buffer size methods, but we can check connection state
                     // and use reflection or indirect methods to monitor network health
-                    
+
                     // Check return trip time which can indicate network congestion
                     int returnTripTime = client.getReturnTripTime();
-                    
+
                     // Log network health indicators
                     if (returnTripTime > 100) {
                         Log.warn("ClientGameMode", "High network latency detected: " + returnTripTime + "ms RTT - possible congestion");
                     } else if (returnTripTime > 0) {
                         Log.info("ClientGameMode", "Network RTT: " + returnTripTime + "ms (healthy)");
                     }
-                    
+
                     // Additional connection info
                     String remoteAddress = "unknown";
                     try {
@@ -831,8 +855,8 @@ public class ClientGameMode implements GameMode {
                     } catch (Exception e) {
                         // Ignore address lookup errors
                     }
-                    
-                    Log.info("ClientGameMode", "Connection status - Address: " + remoteAddress + 
+
+                    Log.info("ClientGameMode", "Connection status - Address: " + remoteAddress +
                             ", Connected: " + client.isConnected());
                 }
             } catch (Exception e) {
@@ -840,7 +864,71 @@ public class ClientGameMode implements GameMode {
             }
         }
     }
-    
+
+    /**
+     * Called by GameClient when map transfer starts - update state context for progress tracking
+     */
+    public void onMapTransferStart(String mapId, int totalChunks, long totalSize) {
+        Log.info("ClientGameMode", "onMapTransferStart called: mapId=" + mapId + ", totalChunks=" + totalChunks + ", currentState=" + stateManager.getCurrentState());
+        
+        if (stateManager.getCurrentState() == GameState.MAP_REGENERATION_DOWNLOADING) {
+            StateContext context = stateManager.getStateContext();
+            context.setStateData("map_id", mapId);
+            context.setStateData("total_chunks", totalChunks);
+            context.setStateData("total_bytes", totalSize);
+            context.setStateData("chunks_received", 0);
+            context.setStateData("bytes_received", 0L);
+            context.updateProgress(0.1f, String.format("Receiving map data (%d chunks)...", totalChunks));
+            Log.info("ClientGameMode", "Map transfer setup complete, expecting " + totalChunks + " chunks");
+        } else {
+            Log.info("ClientGameMode", "Not in DOWNLOADING state, skipping transfer start setup");
+        }
+    }
+
+    /**
+     * Called by GameClient when a chunk is received - update state context with progress
+     */
+    public void onChunkReceived(String mapId, int chunkIndex, byte[] chunkData) {
+        Log.info("ClientGameMode", "onChunkReceived called: mapId=" + mapId + ", chunk=" + chunkIndex + ", currentState=" + stateManager.getCurrentState());
+        
+        if (stateManager.getCurrentState() == GameState.MAP_REGENERATION_DOWNLOADING) {
+            StateContext context = stateManager.getStateContext();
+            
+            int chunksReceived = context.getStateData("chunks_received", Integer.class, 0) + 1;
+            long bytesReceived = context.getStateData("bytes_received", Long.class, 0L) + chunkData.length;
+            
+            context.setStateData("chunks_received", chunksReceived);
+            context.setStateData("bytes_received", bytesReceived);
+            
+            // Update progress based on chunks received (10% to 90% range)
+            Integer totalChunks = context.getStateData("total_chunks", Integer.class, 0);
+            if (totalChunks > 0) {
+                float progress = 0.1f + (chunksReceived / (float) totalChunks) * 0.8f;
+                Log.info("ClientGameMode", "Updating progress to " + (progress * 100) + "% (" + chunksReceived + "/" + totalChunks + " chunks)");
+                context.updateProgress(progress, 
+                    String.format("Received %d/%d chunks...", chunksReceived, totalChunks));
+            } else {
+                Log.warn("ClientGameMode", "No totalChunks data found, cannot update progress");
+            }
+        } else {
+            Log.info("ClientGameMode", "Not in DOWNLOADING state, skipping chunk progress update");
+        }
+    }
+
+    /**
+     * Called by GameClient when map transfer completes - update state context
+     */
+    public void onMapTransferComplete(String mapId) {
+        if (stateManager.getCurrentState() == GameState.MAP_REGENERATION_DOWNLOADING) {
+            StateContext context = stateManager.getStateContext();
+            context.updateProgress(0.95f, "Map transfer complete, processing...");
+            context.setStateData("received_map_id", mapId);
+            // Don't set download_complete = true here - let the mapReceivedListener do it
+            // after the map is actually deserialized and stored
+            Log.info("ClientGameMode", "Map transfer complete, waiting for deserialization");
+        }
+    }
+
     /**
      * Set the map regeneration listener to notify about seed changes.
      */
