@@ -221,9 +221,24 @@ public class GameStateManager {
     public void updateProgress(float progress, String message) {
         float oldProgress = context.getProgress();
         context.updateProgress(progress, message);
-        
-        // Notify listeners of progress update
-        if (Math.abs(progress - oldProgress) > 0.01f) { // Only notify if significant change
+
+        // Notify listeners of progress update with different thresholds based on state
+        boolean shouldNotify = false;
+        GameState currentState = context.getCurrentState();
+
+        if (currentState == GameState.MAP_REGENERATION_DOWNLOADING || currentState == GameState.LOBBY) {
+            // TEMPORARILY REMOVE ALL THROTTLING FOR DEBUGGING (for downloading or initial connection)
+            shouldNotify = true;
+            Log.info("GameStateManager", "MAP TRANSFER progress update: " + progress + " (was " + oldProgress + ") in state " + currentState + " - NO THROTTLING FOR DEBUG");
+        } else {
+            // For other states, use original 1% threshold
+            if (Math.abs(progress - oldProgress) > 0.01f) {
+                shouldNotify = true;
+            }
+        }
+
+        if (shouldNotify) {
+            Log.info("GameStateManager", "Notifying " + listeners.size() + " listeners of progress update");
             notifyProgressUpdated();
         }
     }

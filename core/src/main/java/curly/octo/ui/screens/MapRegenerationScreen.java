@@ -265,7 +265,7 @@ public class MapRegenerationScreen implements StateScreen {
             // Calculate overall progress across all stages
             float overallProgress = calculateOverallProgress(currentState, stateProgress);
             progressBar.setValue(overallProgress);
-            Log.info("MapRegenerationScreen", "Progress Update - State: " + currentState + ", StateProgress: " + stateProgress + ", Overall: " + overallProgress);
+            Log.info("MapRegenerationScreen", "PROGRESS BAR UPDATED - State: " + currentState + ", StateProgress: " + stateProgress + ", Overall: " + overallProgress + ", ProgressBarValue: " + progressBar.getValue());
 
             int percentage = Math.round(overallProgress * 100);
             progressLabel.setText(percentage + "%");

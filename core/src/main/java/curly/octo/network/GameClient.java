@@ -57,6 +57,14 @@ public class GameClient {
         float getProgress() {
             return (float) chunksReceived / totalChunks;
         }
+
+        int getTotalChunks() {
+            return totalChunks;
+        }
+
+        int getChunksReceived() {
+            return chunksReceived;
+        }
     }
 
     /**
@@ -279,6 +287,16 @@ public class GameClient {
     public void setMapReceivedListener(MapReceivedListener listener) {
         this.mapReceivedListener = listener;
         this.networkListener.setMapReceivedListener(listener);
+    }
+
+    /**
+     * Get transfer information for debugging/progress tracking
+     * @param mapId the map ID to get transfer info for
+     * @return total chunks for the transfer, or null if not found
+     */
+    public Integer getCurrentTransferTotalChunks(String mapId) {
+        MapTransferState state = activeTransfers.get(mapId);
+        return state != null ? state.getTotalChunks() : null;
     }
 
     public void setPlayerAssignmentListener(PlayerAssignmentListener listener) {

@@ -110,7 +110,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
                                           curly.octo.game.state.GameState newState, 
                                           curly.octo.game.state.StateContext context) {
                     
-                    Log.info("Main", String.format("State changed from %s to %s", 
+                    Log.info("Main", String.format("STATE TRANSITION: %s -> %s",
                         oldState.getDisplayName(), newState.getDisplayName()));
                     
                     // Update UI on the main thread
@@ -127,8 +127,10 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
                 
                 @Override
                 public void onStateProgressUpdated(curly.octo.game.state.StateContext context) {
+                    Log.info("Main", "STATE PROGRESS UPDATED - Progress: " + context.getProgress() + ", State: " + context.getCurrentState());
                     // Update progress on the main thread
                     Gdx.app.postRunnable(() -> {
+                        Log.info("Main", "Executing UI update on main thread");
                         stateUI.updateProgress(context);
                     });
                 }

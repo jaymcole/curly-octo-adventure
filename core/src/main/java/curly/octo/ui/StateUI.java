@@ -164,7 +164,9 @@ public class StateUI {
      * Update progress for the current screen
      */
     public void updateProgress(StateContext context) {
+        Log.info("StateUI", "updateProgress called - visible: " + visible + ", currentScreen: " + (currentScreen != null));
         if (currentScreen != null && visible) {
+            Log.info("StateUI", "Calling updateContext on current screen");
             currentScreen.updateContext(context);
         }
     }

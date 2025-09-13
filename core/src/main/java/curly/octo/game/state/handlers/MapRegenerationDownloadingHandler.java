@@ -57,8 +57,9 @@ public class MapRegenerationDownloadingHandler extends AbstractStateHandler {
             return;
         }
         
-        // Update download progress based on current transfer status
-        updateDownloadProgress(context);
+        // NOTE: Download progress is now handled by ClientGameMode.onChunkReceived()
+        // to avoid competing progress updates that cause oscillation
+        // updateDownloadProgress(context); // DISABLED
     }
     
     @Override
@@ -70,74 +71,8 @@ public class MapRegenerationDownloadingHandler extends AbstractStateHandler {
         logAction("Download state completed");
     }
     
-    /**
-     * Called by the network layer when map transfer starts
-     */
-    public void onMapTransferStart(String mapId, int totalChunks, long totalSize) {
-        if (clientGameMode != null) {
-            StateContext context = clientGameMode.getStateManager().getStateContext();
-            
-            if (context.isInState(GameState.MAP_REGENERATION_DOWNLOADING)) {
-                context.setStateData("map_id", mapId);
-                context.setStateData("total_chunks", totalChunks);
-                context.setStateData("total_bytes", totalSize);
-                
-                logAction(String.format("Map transfer started: %s (%d chunks, %d bytes)", 
-                    mapId, totalChunks, totalSize));
-                    
-                updateProgress(context, 0.1f, String.format("Receiving map data (%d chunks)...", totalChunks));
-            }
-        }
-    }
-    
-    /**
-     * Called by the network layer when a chunk is received
-     */
-    public void onChunkReceived(String mapId, int chunkIndex, byte[] chunkData) {
-        if (clientGameMode != null) {
-            StateContext context = clientGameMode.getStateManager().getStateContext();
-            
-            if (context.isInState(GameState.MAP_REGENERATION_DOWNLOADING)) {
-                int chunksReceived = context.getStateData("chunks_received", Integer.class, 0) + 1;
-                long bytesReceived = context.getStateData("bytes_received", Long.class, 0L) + chunkData.length;
-                
-                context.setStateData("chunks_received", chunksReceived);
-                context.setStateData("bytes_received", bytesReceived);
-                
-                // Update progress based on chunks received
-                Integer totalChunks = context.getStateData("total_chunks", Integer.class, 0);
-                if (totalChunks > 0) {
-                    float progress = 0.1f + (chunksReceived / (float) totalChunks) * 0.8f;
-                    updateProgress(context, progress, 
-                        String.format("Received %d/%d chunks...", chunksReceived, totalChunks));
-                }
-                
-                // Check if download is complete
-                if (totalChunks > 0 && chunksReceived >= totalChunks) {
-                    updateProgress(context, 1.0f, "Map download complete");
-                    context.setStateData("download_complete", true);
-                    logAction("All chunks received, download complete");
-                }
-            }
-        }
-    }
-    
-    /**
-     * Called by the network layer when transfer is complete
-     */
-    public void onMapTransferComplete(String mapId) {
-        if (clientGameMode != null) {
-            StateContext context = clientGameMode.getStateManager().getStateContext();
-            
-            if (context.isInState(GameState.MAP_REGENERATION_DOWNLOADING)) {
-                updateProgress(context, 1.0f, "Map transfer complete");
-                context.setStateData("download_complete", true);
-                context.setStateData("received_map_id", mapId);
-                
-                logAction("Map transfer completed: " + mapId);
-            }
-        }
-    }
+    // NOTE: Network transfer progress is now handled directly in ClientGameMode
+    // to ensure proper main-thread execution and single source of truth.
     
     private void updateDownloadProgress(StateContext context) {
         // If we don't have chunk information yet, show a waiting animation
