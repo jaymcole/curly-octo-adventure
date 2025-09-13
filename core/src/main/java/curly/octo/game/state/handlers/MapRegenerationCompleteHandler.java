@@ -84,11 +84,27 @@ public class MapRegenerationCompleteHandler extends AbstractStateHandler {
                 return;
             }
             
-            updateProgress(context, 1.0f, "Ready to resume gameplay!");
-            
-            // Mark finalization as complete immediately
-            context.setStateData("finalization_complete", true);
-            logAction("Finalization completed successfully");
+            // Show progress over time instead of completing immediately
+            Thread finalizationThread = new Thread(() -> {
+                try {
+                    updateProgress(context, 0.3f, "Verifying regeneration...");
+                    Thread.sleep(300);
+
+                    updateProgress(context, 0.6f, "Preparing to resume...");
+                    Thread.sleep(300);
+
+                    updateProgress(context, 1.0f, "Ready to resume gameplay!");
+                    Thread.sleep(500);
+
+                    // Mark finalization as complete
+                    context.setStateData("finalization_complete", true);
+                    logAction("Finalization completed successfully");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    context.setStateData("finalization_complete", true);
+                }
+            });
+            finalizationThread.start();
             
         } catch (Exception e) {
             Log.error("MapRegenerationCompleteHandler", "Error during finalization", e);

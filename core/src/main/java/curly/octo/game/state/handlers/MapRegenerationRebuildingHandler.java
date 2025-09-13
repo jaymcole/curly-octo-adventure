@@ -104,10 +104,20 @@ public class MapRegenerationRebuildingHandler extends AbstractStateHandler {
             context.setStateData("rebuilding_start_time", System.currentTimeMillis());
             
             logAction("Map rebuilding process completed successfully");
-            
-            // Mark rebuilding as complete immediately
-            context.setStateData("rebuilding_complete", true);
-            updateProgress(context, 1.0f, "World rebuilding complete");
+
+            // Add a small delay to show completion progress
+            Thread rebuildingCompletionThread = new Thread(() -> {
+                try {
+                    Thread.sleep(500); // Half second delay to show completion
+                    updateProgress(context, 1.0f, "World rebuilding complete");
+                    Thread.sleep(500); // Another half second before marking complete
+                    context.setStateData("rebuilding_complete", true);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    context.setStateData("rebuilding_complete", true);
+                }
+            });
+            rebuildingCompletionThread.start();
             
         } catch (Exception e) {
             Log.error("MapRegenerationRebuildingHandler", "Error starting rebuilding", e);

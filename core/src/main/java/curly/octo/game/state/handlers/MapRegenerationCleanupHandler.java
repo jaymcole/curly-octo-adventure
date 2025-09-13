@@ -47,11 +47,25 @@ public class MapRegenerationCleanupHandler extends AbstractStateHandler {
         
         // Send ready confirmation to server
         sendReadyConfirmation(context);
-        
-        // Mark cleanup as complete and ready to transition
-        context.setStateData("cleanup_complete", true);
-        updateProgress(context, 1.0f, "Cleanup complete");
-        logAction("Cleanup completed immediately");
+
+        // Show completion progress gradually instead of immediately
+        Thread cleanupCompletionThread = new Thread(() -> {
+            try {
+                updateProgress(context, 0.9f, "Sending ready confirmation...");
+                Thread.sleep(200);
+
+                updateProgress(context, 1.0f, "Cleanup complete");
+                Thread.sleep(300);
+
+                // Mark cleanup as complete and ready to transition
+                context.setStateData("cleanup_complete", true);
+                logAction("Cleanup completed");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                context.setStateData("cleanup_complete", true);
+            }
+        });
+        cleanupCompletionThread.start();
     }
     
     @Override
