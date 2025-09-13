@@ -8,12 +8,11 @@ import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.*;
+import curly.octo.game.regeneration.MapRegenerationCoordinator;
 import curly.octo.ui.LobbyUI;
 import curly.octo.ui.DebugUI;
 import curly.octo.ui.StateUI;
 import curly.octo.network.Network;
-import curly.octo.game.state.GameStateManager;
-import curly.octo.game.state.GameState;
 
 import java.io.IOException;
 import java.util.Random;
@@ -67,7 +66,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         // Set the regeneration listener on the client mode
         if (clientGameMode != null) {
             clientGameMode.setMapRegenerationListener(this);
-            // Connect the state UI to the state manager
+            // Connect the state UI to the regeneration coordinator
             connectStateUIToClient(clientGameMode);
         }
 
@@ -83,10 +82,10 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         clientGameMode = new ClientGameMode(host, random);
         clientGameMode.setMapRegenerationListener(this); // Set ourselves as the listener
         
-        // Connect the state UI to the state manager
-        connectStateUIToClient(clientGameMode);
-        
         clientGameMode.initialize();
+        
+        // Connect the state UI to the regeneration coordinator AFTER initialization
+        connectStateUIToClient(clientGameMode);
 
         lobbyUI.setStatus("Connected to " + host);
         lobbyUI.disableInputs();
@@ -94,48 +93,24 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
     }
     
     /**
-     * Connect the StateUI to the ClientGameMode's state manager for automatic UI updates
+     * Connect the StateUI to the ClientGameMode's regeneration coordinator for automatic UI updates
      */
     private void connectStateUIToClient(ClientGameMode clientGameMode) {
         if (clientGameMode == null || stateUI == null) {
+            Log.warn("Main", "Cannot connect StateUI - clientGameMode or stateUI is null");
             return;
         }
         
-        GameStateManager stateManager = clientGameMode.getStateManager();
-        if (stateManager != null) {
-            // Add a state change listener that updates the UI
-            stateManager.addStateChangeListener(new GameStateManager.StateChangeListener() {
-                @Override
-                public void onStateChanged(curly.octo.game.state.GameState oldState, 
-                                          curly.octo.game.state.GameState newState, 
-                                          curly.octo.game.state.StateContext context) {
-                    
-                    Log.info("Main", String.format("State changed from %s to %s", 
-                        oldState.getDisplayName(), newState.getDisplayName()));
-                    
-                    // Update UI on the main thread
-                    Gdx.app.postRunnable(() -> {
-                        if (newState.isMapRegenerationState()) {
-                            // Show the regeneration screen
-                            stateUI.showStateScreen(newState, context);
-                        } else {
-                            // Hide state screens for normal states
-                            stateUI.hideAllScreens();
-                        }
-                    });
-                }
-                
-                @Override
-                public void onStateProgressUpdated(curly.octo.game.state.StateContext context) {
-                    // Update progress on the main thread
-                    Gdx.app.postRunnable(() -> {
-                        stateUI.updateProgress(context);
-                    });
-                }
-            });
-            
-            Log.info("Main", "Connected StateUI to ClientGameMode state manager");
+        // Connect StateUI to the regeneration coordinator
+        MapRegenerationCoordinator coordinator = clientGameMode.getRegenerationCoordinator();
+        if (coordinator == null) {
+            Log.error("Main", "Cannot connect StateUI - regeneration coordinator is null! Initialization order issue?");
+            return;
         }
+        
+        stateUI.setRegenerationCoordinator(coordinator);
+        
+        Log.info("Main", "Successfully connected StateUI to ClientGameMode regeneration coordinator");
     }
 
     @Override
@@ -236,10 +211,9 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         if (Constants.DEBUG_SHOW_FPS) {
             boolean showDebugUI = true;
             
-            // Hide debug UI during map regeneration states
-            if (clientGameMode != null && clientGameMode.getStateManager() != null) {
-                GameState currentState = clientGameMode.getStateManager().getCurrentState();
-                if (currentState.isMapRegenerationState()) {
+            // Hide debug UI during map regeneration
+            if (clientGameMode != null && clientGameMode.getRegenerationCoordinator() != null) {
+                if (clientGameMode.getRegenerationCoordinator().isActive()) {
                     showDebugUI = false;
                 }
             }

@@ -41,13 +41,15 @@ public class GameServer {
     private final GameWorld gameWorld;
     private final Map<Integer, String> connectionToPlayerMap = new HashMap<>();
     private final Set<Integer> readyClients = new HashSet<>(); // Track clients that have received map and assignment
-    
+
+    // Removed GameState tracking - no longer needed with new coordinator system
+
     // Map regeneration state tracking
     private volatile boolean isRegenerating = false;
     private long currentRegenerationId = 0;
     private final Set<Integer> clientsReadyForMap = new HashSet<>();
     private Thread regenerationThread;
-    
+
     // Chunked map transfer support
     private static final int CHUNK_SIZE = Constants.NETWORK_CHUNK_SIZE; // 8KB chunks
     private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
@@ -114,13 +116,15 @@ public class GameServer {
                     // Client is ready to receive new map data
                     ClientReadyForMapMessage readyMessage = (ClientReadyForMapMessage) object;
                     handleClientReadyForMap(connection, readyMessage);
+                // Removed ClientGameStateMessage handling - no longer needed
                 }
             }
 
             @Override
             public void disconnected(Connection connection) {
-                // Remove from ready clients
+                // Remove from ready clients and game state tracking
                 readyClients.remove(connection.getID());
+                // Removed clientGameStates tracking
 
                 // Find and remove the disconnected player using the connection mapping
                 String playerId = connectionToPlayerMap.remove(connection.getID());
@@ -268,92 +272,92 @@ public class GameServer {
     public void sendMapRefreshToUser(Connection connection) {
         String mapId = "map_" + System.currentTimeMillis(); // Unique map ID
         Log.info("Server", "Starting chunked map transfer to client " + connection.getID() + " (mapId: " + mapId + ")");
-        
+
         try {
             // Serialize the map (with caching)
             byte[] mapData = getSerializedMapData();
             int totalChunks = (int) Math.ceil((double) mapData.length / CHUNK_SIZE);
-            
+
             Log.info("Server", "Map size: " + mapData.length + " bytes, " + totalChunks + " chunks");
-            
+
             // Send transfer start message
             MapTransferStartMessage startMessage = new MapTransferStartMessage(mapId, totalChunks, mapData.length);
             server.sendToTCP(connection.getID(), startMessage);
-            
+
             // Send chunks in sequence
             for (int i = 0; i < totalChunks; i++) {
                 int offset = i * CHUNK_SIZE;
                 int chunkLength = Math.min(CHUNK_SIZE, mapData.length - offset);
-                
+
                 byte[] chunkData = new byte[chunkLength];
                 System.arraycopy(mapData, offset, chunkData, 0, chunkLength);
-                
+
                 MapChunkMessage chunkMessage = new MapChunkMessage(mapId, i, totalChunks, chunkData);
                 server.sendToTCP(connection.getID(), chunkMessage);
-                
+
                 // Small delay between chunks to prevent buffer overflow
                 if (i > 0 && i % 5 == 0) {
-                    Thread.sleep(2); // 2ms pause every 5 chunks
+                    Thread.sleep(5); // 2ms pause every 5 chunks
                 }
             }
-            
+
             // Send transfer complete message
             MapTransferCompleteMessage completeMessage = new MapTransferCompleteMessage(mapId);
             server.sendToTCP(connection.getID(), completeMessage);
-            
+
             Log.info("Server", "Chunked map transfer completed to client " + connection.getID());
-            
+
         } catch (Exception e) {
             Log.error("Server", "Error sending chunked map data to client " + connection.getID() + ": " + e.getMessage());
             e.printStackTrace();
         }
     }
-    
+
     /**
      * Serializes the map data using Kryo and caches it for reuse.
      * @return serialized map data as byte array
      */
     private byte[] getSerializedMapData() throws IOException {
         // Get the current map from the game world (not the constructor field)
-        GameMap currentMap = (gameWorld != null && gameWorld.getMapManager() != null) ? 
+        GameMap currentMap = (gameWorld != null && gameWorld.getMapManager() != null) ?
                             gameWorld.getMapManager() : map;
-        
+
         // Create cache key based on map hash to ensure new maps get fresh serialization
         String cacheKey = "map_" + currentMap.hashCode();
-        
+
         byte[] cachedData = serializedMaps.get(cacheKey);
         if (cachedData != null) {
-            Log.info("Server", "Using cached map data for hash " + currentMap.hashCode() + 
+            Log.info("Server", "Using cached map data for hash " + currentMap.hashCode() +
                      " (" + cachedData.length + " bytes)");
             return cachedData;
         }
-        
+
         // Serialize the current map using Kryo (same as KryoNet uses)
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              Output output = new Output(baos)) {
-            
+
             // Get the server's Kryo instance (already configured with our registrations)
             Kryo kryo = server.getKryo();
             kryo.writeObject(output, currentMap);
             output.flush();
-            
+
             byte[] mapData = baos.toByteArray();
             serializedMaps.put(cacheKey, mapData); // Cache with hash-based key
-            
-            Log.info("Server", "Serialized and cached NEW map data with hash " + currentMap.hashCode() + 
+
+            Log.info("Server", "Serialized and cached NEW map data with hash " + currentMap.hashCode() +
                      " (" + mapData.length + " bytes, " + currentMap.getAllTiles().size() + " tiles)");
             return mapData;
         }
     }
-    
+
     // =====================================
     // MAP REGENERATION FUNCTIONALITY
     // =====================================
-    
+
     /**
      * Regenerates the server map with a new seed and broadcasts it to all clients.
      * This triggers a complete resource cleanup and reload cycle on all clients.
-     * 
+     *
      * @param newSeed The seed for the new map generation
      * @param reason Optional reason for regeneration (for logging)
      */
@@ -362,7 +366,7 @@ public class GameServer {
             Log.warn("GameServer", "Map regeneration already in progress, ignoring request");
             return;
         }
-        
+
         // Wait for any previous regeneration thread to finish
         if (regenerationThread != null && regenerationThread.isAlive()) {
             Log.info("GameServer", "Waiting for previous regeneration thread to complete...");
@@ -376,14 +380,14 @@ public class GameServer {
                 Thread.currentThread().interrupt();
             }
         }
-        
-        Log.info("GameServer", "Starting map regeneration with seed: " + newSeed + 
+
+        Log.info("GameServer", "Starting map regeneration with seed: " + newSeed +
                  (reason != null ? " (Reason: " + reason + ")" : ""));
-        
+
         isRegenerating = true;
         currentRegenerationId = System.currentTimeMillis();
         clientsReadyForMap.clear();
-        
+
         // Start regeneration in a separate thread to avoid blocking
         regenerationThread = new Thread(() -> {
             try {
@@ -391,15 +395,15 @@ public class GameServer {
                 MapRegenerationStartMessage startMessage = new MapRegenerationStartMessage(currentRegenerationId, newSeed, reason);
                 server.sendToAllTCP(startMessage);
                 Log.info("GameServer", "Sent regeneration start message to all clients, waiting for readiness confirmations...");
-                
+
                 // Step 2: Wait for all clients to confirm they're ready
                 if (!waitForAllClientsReady()) {
                     Log.error("GameServer", "Timeout waiting for clients to be ready, proceeding anyway");
                 }
-                
+
                 // Step 3: Clear cached map data to force fresh serialization
                 serializedMaps.clear();
-                
+
                 // Step 4: Ask the game world to regenerate the map
                 if (gameWorld != null) {
                     gameWorld.regenerateMap(newSeed);
@@ -408,18 +412,18 @@ public class GameServer {
                     Log.error("GameServer", "Cannot regenerate map - game world is null");
                     return;
                 }
-                
+
                 // Step 5: Send new map to all connected clients (now they're ready!)
                 Log.info("GameServer", "Broadcasting new map to all ready clients");
                 for (Connection connection : server.getConnections()) {
                     sendMapRefreshToUser(connection);
                 }
-                
+
                 // Step 6: Reset all players to new spawn locations
                 resetAllPlayersToSpawn();
-                
+
                 Log.info("GameServer", "Map regeneration completed successfully");
-                
+
             } catch (Exception e) {
                 Log.error("GameServer", "Failed to regenerate map: " + e.getMessage());
                 e.printStackTrace();
@@ -428,20 +432,20 @@ public class GameServer {
                 clientsReadyForMap.clear();
             }
         });
-        
+
         regenerationThread.start();
     }
-    
+
     /**
      * Regenerates the map using a random seed.
-     * 
+     *
      * @param reason Optional reason for regeneration
      */
     public void regenerateMapRandom(String reason) {
         long newSeed = System.currentTimeMillis();
         regenerateMap(newSeed, reason != null ? reason : "Random regeneration");
     }
-    
+
     /**
      * Resets all connected players to spawn locations on the new map.
      */
@@ -450,27 +454,27 @@ public class GameServer {
             Log.error("GameServer", "Cannot reset players - map is null");
             return;
         }
-        
+
         try {
             // Get all spawn points from the new map
             java.util.ArrayList<curly.octo.map.hints.MapHint> spawnHints = map.getAllHintsOfType(curly.octo.map.hints.SpawnPointHint.class);
-            
+
             if (spawnHints.isEmpty()) {
                 Log.warn("GameServer", "No spawn points found in new map");
                 return;
             }
-            
+
             Log.info("GameServer", "Resetting " + connectionToPlayerMap.size() + " players to spawn locations");
-            
+
             int spawnIndex = 0;
             for (Map.Entry<Integer, String> entry : connectionToPlayerMap.entrySet()) {
                 int connectionId = entry.getKey();
                 String playerId = entry.getValue();
-                
+
                 // Use spawn points in rotation if there are more players than spawn points
                 curly.octo.map.hints.MapHint spawnHint = spawnHints.get(spawnIndex % spawnHints.size());
                 curly.octo.map.MapTile spawnTile = map.getTile(spawnHint.tileLookupKey);
-                
+
                 Vector3 spawnPosition;
                 if (spawnTile != null) {
                     // Spawn well above the tile to avoid clipping into floor
@@ -480,10 +484,10 @@ public class GameServer {
                     Log.warn("GameServer", "Could not find spawn tile for hint, using default position");
                     spawnPosition = new Vector3(15, 25, 15);
                 }
-                
+
                 // Send reset message to specific client
                 PlayerResetMessage resetMessage = new PlayerResetMessage(playerId, spawnPosition, 0f);
-                
+
                 Connection connection = null;
                 for (Connection conn : server.getConnections()) {
                     if (conn.getID() == connectionId) {
@@ -493,19 +497,19 @@ public class GameServer {
                 }
                 if (connection != null) {
                     connection.sendTCP(resetMessage);
-                    Log.info("GameServer", "Sent player reset to " + playerId + 
+                    Log.info("GameServer", "Sent player reset to " + playerId +
                              " at position: " + spawnPosition);
                 }
-                
+
                 spawnIndex++;
             }
-            
+
         } catch (Exception e) {
             Log.error("GameServer", "Failed to reset players to spawn: " + e.getMessage());
             e.printStackTrace();
         }
     }
-    
+
     /**
      * Triggers map regeneration for debugging/admin purposes.
      * Can be called from game commands or server console.
@@ -513,27 +517,27 @@ public class GameServer {
     public void debugRegenerateMap() {
         regenerateMapRandom("Debug/Admin triggered");
     }
-    
+
     /**
      * Handle client readiness confirmation for map regeneration
      */
     private void handleClientReadyForMap(Connection connection, ClientReadyForMapMessage readyMessage) {
         if (!isRegenerating || readyMessage.regenerationId != currentRegenerationId) {
-            Log.warn("GameServer", "Received client ready message for wrong/old regeneration ID: " + 
+            Log.warn("GameServer", "Received client ready message for wrong/old regeneration ID: " +
                      readyMessage.regenerationId + " (current: " + currentRegenerationId + ")");
             return;
         }
-        
+
         synchronized (clientsReadyForMap) {
             clientsReadyForMap.add(connection.getID());
-            Log.info("GameServer", "Client " + connection.getID() + " ready for map transfer (" + 
+            Log.info("GameServer", "Client " + connection.getID() + " ready for map transfer (" +
                      clientsReadyForMap.size() + "/" + server.getConnections().size() + ")");
-            
+
             // Notify waiting thread
             clientsReadyForMap.notifyAll();
         }
     }
-    
+
     /**
      * Wait for all connected clients to confirm they're ready for map transfer
      */
@@ -543,19 +547,19 @@ public class GameServer {
             Log.info("GameServer", "No clients connected, proceeding with regeneration");
             return true;
         }
-        
+
         long startTime = System.currentTimeMillis();
         long timeout = 10000; // 10 seconds timeout
-        
+
         synchronized (clientsReadyForMap) {
             while (clientsReadyForMap.size() < totalClients) {
                 long elapsed = System.currentTimeMillis() - startTime;
                 if (elapsed >= timeout) {
-                    Log.warn("GameServer", "Timeout waiting for clients: " + 
+                    Log.warn("GameServer", "Timeout waiting for clients: " +
                              clientsReadyForMap.size() + "/" + totalClients + " ready");
                     return false;
                 }
-                
+
                 try {
                     clientsReadyForMap.wait(timeout - elapsed);
                 } catch (InterruptedException e) {
@@ -564,8 +568,10 @@ public class GameServer {
                 }
             }
         }
-        
+
         Log.info("GameServer", "All " + totalClients + " clients are ready for map transfer");
         return true;
     }
+
+    // Removed all GameState tracking methods - no longer needed with coordinator system
 }

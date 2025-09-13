@@ -4,14 +4,18 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.utils.Align;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.game.state.GameState;
-import curly.octo.game.state.StateContext;
+import curly.octo.game.regeneration.MapRegenerationCoordinator;
+import curly.octo.game.regeneration.RegenerationProgressListener;
+import curly.octo.game.regeneration.RegenerationPhase;
 
 /**
- * UI screen displayed during map regeneration process.
- * Shows progress, status messages, and information about the regeneration.
+ * Simplified UI screen for map regeneration process.
+ * Uses the new coordinator system for clean progress updates.
  */
-public class MapRegenerationScreen implements StateScreen {
+public class MapRegenerationScreen implements StateScreen, RegenerationProgressListener {
+
+
+
 
     private final Skin skin;
     private Table mainTable;
@@ -27,11 +31,24 @@ public class MapRegenerationScreen implements StateScreen {
 
     // Progress tracking
     private long displayStartTime;
-    private StateContext lastContext;
+    private MapRegenerationCoordinator coordinator;
+    private RegenerationPhase currentPhase;
+    private float currentProgress = 0.0f;
+    private String currentMessage = "";
 
-    public MapRegenerationScreen(Skin skin) {
+    // UI debug elements
+    private Label debugUpdateLabel;
+    private int updateCount = 0;
+
+    public MapRegenerationScreen(Skin skin, MapRegenerationCoordinator coordinator) {
         this.skin = skin;
+        this.coordinator = coordinator;
         this.displayStartTime = System.currentTimeMillis();
+        
+        // Register as progress listener
+        if (coordinator != null) {
+            coordinator.addProgressListener(this);
+        }
     }
 
     @Override
@@ -105,6 +122,8 @@ public class MapRegenerationScreen implements StateScreen {
         statusLabel.setWrap(true);
         containerTable.add(statusLabel).width(400).colspan(2).padBottom(20).row();
 
+        // Remove test button
+
         // Information section
         createInfoSection(containerTable);
 
@@ -113,6 +132,12 @@ public class MapRegenerationScreen implements StateScreen {
         timeLabel.setColor(Color.GRAY);
         timeLabel.setAlignment(Align.center);
         containerTable.add(timeLabel).colspan(2).padTop(10).row();
+
+        // Debug update counter
+        debugUpdateLabel = new Label("Coordinator Updates: 0", skin);
+        debugUpdateLabel.setColor(Color.GREEN);
+        debugUpdateLabel.setAlignment(Align.center);
+        containerTable.add(debugUpdateLabel).colspan(2).padTop(5).row();
 
         // Add container to main table
         mainTable.add(containerTable).expand().center();
@@ -153,124 +178,91 @@ public class MapRegenerationScreen implements StateScreen {
     }
 
     @Override
-    public void updateContext(StateContext context) {
-        if (context == null) {
-            return;
-        }
-
-        this.lastContext = context;
-
-        // Update all UI components based on current state
-        updateStateDisplay(context);
-        updateProgress(context);
-        updateStatusMessage(context);
-        updateTimeDisplay(context);
-        updateInfoPanel(context);
+    public void updateContext(Object context) {
+        // Legacy method - no longer used with new coordinator system
+        // The coordinator updates come through RegenerationProgressListener interface
     }
 
-    private void updateStateDisplay(StateContext context) {
-        GameState currentState = context.getCurrentState();
-        if (stateLabel != null) {
-            String stateText = getStateDisplayText(currentState);
-            stateLabel.setText(stateText);
+    private void updateStateDisplay() {
+        if (stateLabel != null && currentPhase != null) {
+            stateLabel.setText(currentPhase.getDisplayName());
+        }
+
+        // Animate title color to show UI is updating
+        if (titleLabel != null) {
+            float time = (System.currentTimeMillis() - displayStartTime) / 1000.0f;
+            float pulse = (float)(Math.sin(time * 2.0) * 0.3 + 0.7); // Pulse between 0.4 and 1.0
+            titleLabel.setColor(pulse, pulse, 1.0f, 1.0f); // Blue-ish pulse
         }
     }
 
-    private String getStateDisplayText(GameState state) {
-        switch (state) {
-            case MAP_REGENERATION_CLEANUP:
-                return "Cleaning Up Resources";
-            case MAP_REGENERATION_DOWNLOADING:
-                return "Downloading New Map";
-            case MAP_REGENERATION_REBUILDING:
-                return "Rebuilding World";
-            case MAP_REGENERATION_COMPLETE:
-                return "Finalizing";
-            default:
-                return state.getDisplayName();
-        }
-    }
 
-    private void updateProgress(StateContext context) {
+    private void updateProgress() {
         if (progressBar != null && progressLabel != null) {
-            float progress = context.getProgress();
-            progressBar.setValue(progress);
-            Log.info("updateProgress", "Setting progress bar to: " + progress);
-            int percentage = Math.round(progress * 100);
+            progressBar.setValue(currentProgress);
+            int percentage = Math.round(currentProgress * 100);
             progressLabel.setText(percentage + "%");
         }
     }
 
-    private void updateStatusMessage(StateContext context) {
-        if (statusLabel != null) {
-            String message = context.getStatusMessage();
-            if (message != null && !message.trim().isEmpty()) {
-                statusLabel.setText(message);
-            }
+    private void updateStatusMessage() {
+        if (statusLabel != null && currentMessage != null && !currentMessage.trim().isEmpty()) {
+            statusLabel.setText(currentMessage);
         }
     }
 
-    private void updateTimeDisplay(StateContext context) {
+    private void updateTimeDisplay() {
         if (timeLabel != null) {
             long elapsedSeconds = (System.currentTimeMillis() - displayStartTime) / 1000;
             timeLabel.setText("Time: " + elapsedSeconds + "s");
         }
     }
 
-    private void updateInfoPanel(StateContext context) {
-        // Update info based on current state and context data
+    private void updateInfoPanel() {
+        // Update info based on current phase
         if (infoTable != null) {
             // Clear existing info
             infoTable.clear();
 
-            // Add current state-specific information
-            GameState currentState = context.getCurrentState();
+            if (currentPhase != null) {
+                switch (currentPhase) {
+                    case CLEANUP:
+                        addInfoRow("Phase:", "Cleaning up current map");
+                        addInfoRow("Status:", "Removing old resources");
+                        break;
 
-            switch (currentState) {
-                case MAP_REGENERATION_CLEANUP:
-                    addInfoRow("Phase:", "Cleaning up current map");
-                    addInfoRow("Status:", "Removing old resources");
-                    break;
+                    case DOWNLOADING:
+                        addInfoRow("Phase:", "Downloading new map data");
+                        addInfoRow("Status:", "Receiving chunks from server");
+                        break;
 
-                case MAP_REGENERATION_DOWNLOADING:
-                    addInfoRow("Phase:", "Downloading new map data");
+                    case REBUILDING:
+                        addInfoRow("Phase:", "Rebuilding game world");
+                        addInfoRow("Status:", "Creating new environment");
+                        break;
 
-                    // Show download progress if available
-                    Integer totalChunks = context.getStateData("total_chunks", Integer.class);
-                    Integer chunksReceived = context.getStateData("chunks_received", Integer.class);
+                    case COMPLETE:
+                        addInfoRow("Phase:", "Complete");
+                        addInfoRow("Status:", "Ready to play!");
+                        break;
 
-                    if (totalChunks != null && chunksReceived != null) {
-                        addInfoRow("Progress:", chunksReceived + "/" + totalChunks + " chunks");
-                    } else {
-                        addInfoRow("Status:", "Waiting for data...");
-                    }
-                    break;
-
-                case MAP_REGENERATION_REBUILDING:
-                    addInfoRow("Phase:", "Rebuilding game world");
-                    addInfoRow("Status:", "Creating new environment");
-                    break;
-
-                case MAP_REGENERATION_COMPLETE:
-                    addInfoRow("Phase:", "Finalizing");
-                    addInfoRow("Status:", "Almost ready!");
-                    break;
-
-                default:
-                    addInfoRow("Status:", "Processing...");
-                    break;
+                    default:
+                        addInfoRow("Status:", "Processing...");
+                        break;
+                }
             }
 
-            // Show regeneration reason if available
-            String reason = context.getStateData("regeneration_reason", String.class);
-            if (reason != null && !reason.trim().isEmpty()) {
-                addInfoRow("Reason:", reason);
-            }
+            // Show regeneration info if available
+            if (coordinator != null) {
+                String reason = coordinator.getRegenerationReason();
+                if (reason != null && !reason.trim().isEmpty()) {
+                    addInfoRow("Reason:", reason);
+                }
 
-            // Show new map seed if available
-            Long newSeed = context.getStateData("new_map_seed", Long.class);
-            if (newSeed != null) {
-                addInfoRow("New Seed:", String.valueOf(newSeed));
+                long newSeed = coordinator.getNewMapSeed();
+                if (newSeed != 0) {
+                    addInfoRow("New Seed:", String.valueOf(newSeed));
+                }
             }
         }
     }
@@ -280,11 +272,7 @@ public class MapRegenerationScreen implements StateScreen {
         return "Map Regeneration";
     }
 
-    @Override
-    public void dispose() {
-        // Nothing specific to dispose for this screen
-        // The skin is managed by StateUI
-    }
+    // Removed duplicate dispose method
 
     /**
      * Reset the display time (called when screen is first shown)
@@ -293,10 +281,68 @@ public class MapRegenerationScreen implements StateScreen {
         this.displayStartTime = System.currentTimeMillis();
     }
 
-    /**
-     * Get the last updated context
-     */
-    public StateContext getLastContext() {
-        return lastContext;
+    // RegenerationProgressListener implementation
+    @Override
+    public void onPhaseChanged(RegenerationPhase phase, String message) {
+        // Ensure UI modifications happen on the main thread
+        com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+            this.currentPhase = phase;
+            this.currentMessage = message;
+            
+            updateCount++;
+            if (debugUpdateLabel != null) {
+                debugUpdateLabel.setText("Coordinator Updates: " + updateCount);
+            }
+            
+            // Update UI components
+            updateStateDisplay();
+            updateStatusMessage();
+            updateInfoPanel();
+            updateTimeDisplay();
+            
+            Log.info("MapRegenerationScreen", "Phase changed to: " + phase.getDisplayName() + " - " + message);
+        });
+    }
+    
+    @Override
+    public void onProgressChanged(float progress) {
+        // Ensure UI modifications happen on the main thread
+        com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+            this.currentProgress = progress;
+            updateProgress();
+            
+            Log.debug("MapRegenerationScreen", "Progress updated to: " + (progress * 100) + "%");
+        });
+    }
+    
+    @Override
+    public void onCompleted() {
+        // Ensure UI modifications happen on the main thread
+        com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+            Log.info("MapRegenerationScreen", "Regeneration completed successfully");
+            if (statusLabel != null) {
+                statusLabel.setText("Regeneration complete! Ready to continue.");
+            }
+        });
+    }
+    
+    @Override
+    public void onError(String errorMessage) {
+        // Ensure UI modifications happen on the main thread
+        com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+            Log.error("MapRegenerationScreen", "Regeneration error: " + errorMessage);
+            if (statusLabel != null) {
+                statusLabel.setText("Error: " + errorMessage);
+                statusLabel.setColor(Color.RED);
+            }
+        });
+    }
+    
+    @Override
+    public void dispose() {
+        // Unregister from coordinator
+        if (coordinator != null) {
+            coordinator.removeProgressListener(this);
+        }
     }
 }

@@ -29,10 +29,18 @@ public class MinimalPlayerController extends InputAdapter implements InputContro
     // Fly mode control
     private boolean fWasPressed = false;
     private boolean crouchWasPressed = false;
+    
+    // Input control
+    private boolean inputEnabled = true;
 
     @Override
     public void handleInput(float delta, Possessable target, PerspectiveCamera camera) {
-        if (target == null) {
+        if (target == null || !inputEnabled) {
+            // If input is disabled, make sure cursor is not locked
+            if (!inputEnabled && mouseCaptured) {
+                mouseCaptured = false;
+                Gdx.input.setCursorCatched(false);
+            }
             return;
         }
 
@@ -216,5 +224,25 @@ public class MinimalPlayerController extends InputAdapter implements InputContro
         camera.up.set(0, 1, 0);
 
         camera.update();
+    }
+    
+    /**
+     * Enable or disable input handling (including cursor locking)
+     */
+    public void setInputEnabled(boolean enabled) {
+        this.inputEnabled = enabled;
+        
+        // If disabling input, immediately unlock cursor
+        if (!enabled && mouseCaptured) {
+            mouseCaptured = false;
+            Gdx.input.setCursorCatched(false);
+        }
+    }
+    
+    /**
+     * Check if input is currently enabled
+     */
+    public boolean isInputEnabled() {
+        return inputEnabled;
     }
 }

@@ -70,6 +70,7 @@ public class Network {
         kryo.register(MapTileGeometryType.class);
         kryo.register(MapTileMaterial.class);
         kryo.register(Direction.class);
+        // Removed GameState.class registration - no longer used
         kryo.register(ArrayList.class);
         kryo.register(java.util.HashMap.class);
         kryo.register(MapHint.class);
@@ -89,6 +90,7 @@ public class Network {
         kryo.register(MapTransferCompleteMessage.class);
         kryo.register(MapRegenerationStartMessage.class);
         kryo.register(ClientReadyForMapMessage.class);
+        // Removed ClientGameStateMessage.class registration - no longer used
         kryo.register(PlayerResetMessage.class);
         kryo.register(PlayerUpdate.class);
         kryo.register(PlayerDisconnectUpdate.class);

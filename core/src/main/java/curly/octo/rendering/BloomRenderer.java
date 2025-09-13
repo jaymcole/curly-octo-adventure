@@ -60,8 +60,6 @@ public class BloomRenderer implements Disposable {
         initializeFrameBuffers();
         loadShaders();
         createFullscreenQuad();
-
-        Log.info("BloomRenderer", "Initialized bloom renderer: " + width + "x" + height);
     }
 
     private void initializeFrameBuffers() {
@@ -78,9 +76,6 @@ public class BloomRenderer implements Disposable {
         bloomExtractFrameBuffer = new FrameBuffer(Pixmap.Format.RGBA8888, bloomWidth, bloomHeight, false);
         bloomBlurFrameBuffer1 = new FrameBuffer(Pixmap.Format.RGBA8888, bloomWidth, bloomHeight, false);
         bloomBlurFrameBuffer2 = new FrameBuffer(Pixmap.Format.RGBA8888, bloomWidth, bloomHeight, false);
-
-        Log.info("BloomRenderer", "Created framebuffers - Scene: " + width + "x" + height + " (24-bit depth)" +
-                ", Bloom: " + bloomWidth + "x" + bloomHeight);
     }
 
     private void loadShaders() {
@@ -127,8 +122,6 @@ public class BloomRenderer implements Disposable {
             Log.error("BloomRenderer", "Debug solid shader compilation failed: " + debugSolidShader.getLog());
             throw new RuntimeException("Debug solid shader compilation failed");
         }
-
-        Log.info("BloomRenderer", "Loaded bloom shaders successfully");
     }
 
     private void createFullscreenQuad() {
@@ -153,8 +146,6 @@ public class BloomRenderer implements Disposable {
 
         fullscreenQuad.setVertices(vertices);
         fullscreenQuad.setIndices(indices);
-
-        Log.info("BloomRenderer", "Created fullscreen quad mesh");
     }
 
     /**

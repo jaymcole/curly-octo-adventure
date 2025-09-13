@@ -14,13 +14,11 @@ import curly.octo.input.InputController;
 import curly.octo.input.MinimalPlayerController;
 import curly.octo.map.MapTile;
 import curly.octo.map.hints.MapHint;
-import curly.octo.game.state.GameStateManager;
-import curly.octo.game.state.GameState;
-import curly.octo.game.state.StateContext;
-import curly.octo.game.state.handlers.MapRegenerationCleanupHandler;
-import curly.octo.game.state.handlers.MapRegenerationDownloadingHandler;
-import curly.octo.game.state.handlers.MapRegenerationRebuildingHandler;
-import curly.octo.game.state.handlers.MapRegenerationCompleteHandler;
+import curly.octo.game.regeneration.MapRegenerationCoordinator;
+import curly.octo.game.regeneration.MapResourceManager;
+import curly.octo.game.regeneration.NetworkEventRouter;
+import curly.octo.game.regeneration.RegenerationProgressListener;
+import curly.octo.game.regeneration.RegenerationPhase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,10 +41,10 @@ public class ClientGameMode implements GameMode {
     private boolean mapReceived = false;
     private boolean playerAssigned = false;
 
-    // State management system
-    private GameStateManager stateManager;
-    private MapRegenerationDownloadingHandler downloadingHandler;
-    private boolean networkUpdatesPaused = false;
+    // New simplified regeneration system
+    private MapRegenerationCoordinator regenerationCoordinator;
+    private MapResourceManager resourceManager;
+    private NetworkEventRouter networkEventRouter;
     private boolean inputDisabled = false;
 
     // Map regeneration listener
@@ -84,29 +82,12 @@ public class ClientGameMode implements GameMode {
         // Initialize new input system for future migration
         this.inputController = new MinimalPlayerController();
 
-        // Initialize state management system
-        this.stateManager = new GameStateManager(GameState.LOBBY);
-        initializeStateHandlers();
+        // Initialize new simplified regeneration system
+        this.resourceManager = new MapResourceManager(this.gameWorld);
+        this.regenerationCoordinator = new MapRegenerationCoordinator(resourceManager, null); // gameClient set later
+        this.networkEventRouter = new NetworkEventRouter(regenerationCoordinator, null); // clientId set later
     }
 
-    /**
-     * Initialize all state handlers for the state machine
-     */
-    private void initializeStateHandlers() {
-        // Register handlers for map regeneration states
-        stateManager.registerHandler(new MapRegenerationCleanupHandler(this));
-
-        // Store reference to downloading handler so we can call it directly for chunk updates
-//        this.downloadingHandler = new MapRegenerationDownloadingHandler(this);
-//        stateManager.registerHandler(downloadingHandler);
-        stateManager.registerHandler(new MapRegenerationDownloadingHandler(this));
-
-        stateManager.registerHandler(new MapRegenerationRebuildingHandler(this));
-        stateManager.registerHandler(new MapRegenerationCompleteHandler(this));
-
-        Log.info("ClientGameMode", "State management system initialized with " +
-                 "map regeneration handlers");
-    }
 
     // Helper method to get local player position
     private Vector3 getLocalPlayerPosition() {
@@ -127,33 +108,24 @@ public class ClientGameMode implements GameMode {
     }
 
     /**
-     * Get the state manager for this client game mode
+     * Get the regeneration coordinator for this client game mode
      */
-    public GameStateManager getStateManager() {
-        return stateManager;
+    public MapRegenerationCoordinator getRegenerationCoordinator() {
+        return regenerationCoordinator;
     }
 
-    /**
-     * Pause network position updates (used during map regeneration)
-     */
-    public void pauseNetworkUpdates() {
-        this.networkUpdatesPaused = true;
-        Log.info("ClientGameMode", "Network position updates paused");
-    }
-
-    /**
-     * Resume network position updates (used after map regeneration)
-     */
-    public void resumeNetworkUpdates() {
-        this.networkUpdatesPaused = false;
-        Log.info("ClientGameMode", "Network position updates resumed");
-    }
 
     /**
      * Disable player input (movement, etc.) during map regeneration
      */
     public void disableInput() {
         inputDisabled = true;
+
+        // Also disable input in the input controller to unlock cursor
+        if (inputController instanceof MinimalPlayerController) {
+            ((MinimalPlayerController) inputController).setInputEnabled(false);
+        }
+
         Log.info("ClientGameMode", "Player input disabled (map regeneration)");
     }
 
@@ -162,30 +134,15 @@ public class ClientGameMode implements GameMode {
      */
     public void enableInput() {
         inputDisabled = false;
+
+        // Also re-enable input in the input controller
+        if (inputController instanceof MinimalPlayerController) {
+            ((MinimalPlayerController) inputController).setInputEnabled(true);
+        }
+
         Log.info("ClientGameMode", "Player input enabled (map regeneration complete)");
     }
 
-    /**
-     * Immediately dispose of current map resources when regeneration starts
-     */
-    private void performImmediateMapCleanup() {
-        try {
-            Log.info("ClientGameMode", "Performing immediate map resource cleanup");
-
-            ClientGameWorld clientWorld = (ClientGameWorld) gameWorld;
-            if (clientWorld != null) {
-                // Call the existing cleanup method that properly disposes resources
-                clientWorld.cleanupForMapRegeneration();
-                Log.info("ClientGameMode", "Map resources disposed immediately");
-            } else {
-                Log.warn("ClientGameMode", "No ClientGameWorld available for cleanup");
-            }
-
-        } catch (Exception e) {
-            Log.error("ClientGameMode", "Error during immediate map cleanup: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
 
     /**
      * Get the GameClient instance for network operations
@@ -200,6 +157,10 @@ public class ClientGameMode implements GameMode {
             Log.info("ClientGameMode", "Initializing client mode");
 
             gameClient = new GameClient(host);
+
+            // Update coordinator with game client reference
+            regenerationCoordinator = new MapRegenerationCoordinator(resourceManager, gameClient);
+
             setupNetworkListeners();
 
             // Connect to server
@@ -223,16 +184,6 @@ public class ClientGameMode implements GameMode {
 
             while (networkRunning) {
                 try {
-                    long loopStartTime = System.currentTimeMillis();
-
-                    // Debug: Track network loop frequency
-                    networkLoopCount++;
-                    if (loopStartTime - lastNetworkLoopLogTime >= 1000) {
-                        Log.info("ClientGameMode", "Network loops per second: " + networkLoopCount);
-                        networkLoopCount = 0;
-                        lastNetworkLoopLogTime = loopStartTime;
-                    }
-
                     // Process network updates
                     if (gameClient != null) {
                         // Handle connection state
@@ -297,28 +248,45 @@ public class ClientGameMode implements GameMode {
     }
 
     private void setupNetworkListeners() {
-        // Map received listener
+        // Setup regeneration listeners through the router
+        networkEventRouter = new NetworkEventRouter(regenerationCoordinator, getLocalPlayerId());
+        networkEventRouter.setupMapRegenerationListeners(gameClient);
+
+        // Setup other gameplay listeners directly (non-regeneration)
+        networkEventRouter.setupGameplayListeners(gameClient, new NetworkEventRouter.GameplayEventHandler() {
+            @Override
+            public void onPlayerAssignment(curly.octo.network.messages.PlayerAssignmentUpdate message) {
+                handlePlayerAssignment(message);
+            }
+
+            @Override
+            public void onPlayerUpdate(curly.octo.network.messages.PlayerUpdate message) {
+                handlePlayerUpdate(message);
+            }
+
+            @Override
+            public void onPlayerRoster(curly.octo.network.messages.PlayerObjectRosterUpdate message) {
+                handlePlayerRoster(message);
+            }
+
+            @Override
+            public void onPlayerDisconnect(curly.octo.network.messages.PlayerDisconnectUpdate message) {
+                handlePlayerDisconnect(message);
+            }
+
+            @Override
+            public void onPlayerReset(curly.octo.network.messages.PlayerResetMessage message) {
+                handlePlayerReset(message);
+            }
+        });
+
+        // Map received listener for both normal gameplay and regeneration
         gameClient.setMapReceivedListener(receivedMap -> {
             Gdx.app.postRunnable(() -> {
-                Log.info("ClientGameMode", "Map received from server");
-
-                // Check if we're in a regeneration state
-                GameState currentState = stateManager.getCurrentState();
-                if (currentState.isMapRegenerationState()) {
-                    Log.info("ClientGameMode", "Map received during regeneration - storing for state processing");
-
-                    // Store the map for the rebuilding handler to process
-                    stateManager.getStateContext().setStateData("received_map", receivedMap);
-                    stateManager.getStateContext().setStateData("download_complete", true);
-                    stateManager.getStateContext().setStateData("map_received_time", System.currentTimeMillis());
-                    
-                    // Update progress to 100% now that map is ready
-                    if (stateManager.getCurrentState() == GameState.MAP_REGENERATION_DOWNLOADING) {
-                        stateManager.getStateContext().updateProgress(1.0f, "Map ready for rebuilding");
-                    }
-
-                    Log.info("ClientGameMode", "Map stored in state context, rebuilding handler will process it");
-
+                if (regenerationCoordinator.isActive()) {
+                    // During regeneration - pass to coordinator
+                    Log.info("ClientGameMode", "Map received during regeneration - passing to coordinator");
+                    regenerationCoordinator.onMapReady(receivedMap);
                 } else {
                     // Normal map loading (not during regeneration)
                     Log.info("ClientGameMode", "Map received during normal play - processing immediately");
@@ -338,171 +306,118 @@ public class ClientGameMode implements GameMode {
                 }
             });
         });
+    }
 
-        // Player assignment listener
-        gameClient.setPlayerAssignmentListener(receivedPlayerId -> {
-            Gdx.app.postRunnable(() -> {
-                Log.info("ClientGameMode", "Assigned player ID: " + receivedPlayerId.playerId);
-                setLocalPlayer(receivedPlayerId.playerId);
-                playerAssigned = true;
-                checkReady();
-            });
-        });
+    // Extracted handler methods for clean separation
+    private void handlePlayerAssignment(curly.octo.network.messages.PlayerAssignmentUpdate receivedPlayerId) {
+        Log.info("ClientGameMode", "Assigned player ID: " + receivedPlayerId.playerId);
+        setLocalPlayer(receivedPlayerId.playerId);
+        playerAssigned = true;
+        checkReady();
+    }
 
-        // Player roster listener
-        gameClient.setPlayerRosterListener(roster -> {
-            Gdx.app.postRunnable(() -> {
-                HashSet<String> currentPlayers = new HashSet<>();
-                for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
-                    currentPlayers.add(player.entityId);
+
+
+    private void handlePlayerRoster(curly.octo.network.messages.PlayerObjectRosterUpdate roster) {
+        HashSet<String> currentPlayers = new HashSet<>();
+        for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
+            currentPlayers.add(player.entityId);
+        }
+
+        for (PlayerObject player : roster.players) {
+            if (!currentPlayers.contains(player.entityId)) {
+                gameWorld.getGameObjectManager().activePlayers.add(player);
+                gameWorld.getGameObjectManager().add(player);
+            } else {
+                Log.info("ClientGameMode", "Skipping player " + player.entityId + " - already in current players");
+            }
+        }
+    }
+
+
+    private void handlePlayerDisconnect(curly.octo.network.messages.PlayerDisconnectUpdate disconnectUpdate) {
+        Log.info("ClientGameMode", "Processing disconnect for player " + disconnectUpdate.playerId);
+
+        // Find and remove the disconnected player
+        PlayerObject playerToRemove = null;
+        for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
+            if (player.entityId.equals(disconnectUpdate.playerId)) {
+                playerToRemove = player;
+                break;
+            }
+        }
+
+        if (playerToRemove != null) {
+            gameWorld.getGameObjectManager().activePlayers.remove(playerToRemove);
+            gameWorld.getGameObjectManager().remove(playerToRemove);
+
+            Log.info("ClientGameMode", "Removed disconnected player " + disconnectUpdate.playerId + " from client");
+        } else {
+            Log.warn("ClientGameMode", "Could not find player " + disconnectUpdate.playerId + " to remove");
+        }
+    }
+
+
+    private void handlePlayerUpdate(curly.octo.network.messages.PlayerUpdate playerUpdate) {
+        // Skip updates for the local player (if local player is set up)
+        String localId = getLocalPlayerId();
+        if (localId != null && playerUpdate.playerId.equals(localId)) {
+            return;
+        }
+
+        // Find the player in our list
+        PlayerObject targetPlayer = null;
+        for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
+            if (player.entityId.equals(playerUpdate.playerId)) {
+                targetPlayer = player;
+                break;
+            }
+        }
+
+        // If player not found, create a new one
+        if (targetPlayer == null) {
+            Log.info("ClientGameMode", "Creating new player controller for player " + playerUpdate.playerId);
+            targetPlayer = new PlayerObject(playerUpdate.playerId); // client mode - need graphics
+            gameWorld.getGameObjectManager().activePlayers.add(targetPlayer);
+            gameWorld.getGameObjectManager().add(targetPlayer);
+        }
+
+        targetPlayer.setPosition(new Vector3(playerUpdate.x, playerUpdate.y, playerUpdate.z));
+        targetPlayer.setYaw(playerUpdate.yaw);
+        targetPlayer.setPitch(playerUpdate.pitch);
+    }
+
+
+
+    private void handlePlayerReset(curly.octo.network.messages.PlayerResetMessage playerReset) {
+        Log.info("ClientGameMode", "Received player reset for: " + playerReset.playerId);
+
+        // Check if this is for our local player
+        String localId = getLocalPlayerId();
+        if (localId != null && localId.equals(playerReset.playerId)) {
+            Log.info("ClientGameMode", "Resetting local player to new spawn position");
+
+            if (gameWorld instanceof ClientGameWorld) {
+                ClientGameWorld clientWorld = (ClientGameWorld) gameWorld;
+                clientWorld.resetLocalPlayerToSpawn(
+                    playerReset.getSpawnPosition(),
+                    playerReset.spawnYaw
+                );
+            }
+        } else {
+            Log.info("ClientGameMode", "Player reset for remote player: " + playerReset.playerId);
+
+            // Find and reset remote player
+            for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
+                if (player.entityId.equals(playerReset.playerId)) {
+                    player.setPosition(playerReset.getSpawnPosition());
+                    player.setYaw(playerReset.spawnYaw);
+                    player.resetPhysicsState();
+                    Log.info("ClientGameMode", "Reset remote player " + playerReset.playerId);
+                    break;
                 }
-
-                for (PlayerObject player : roster.players) {
-                    if (!currentPlayers.contains(player.entityId)) {
-                        gameWorld.getGameObjectManager().activePlayers.add(player);
-                        gameWorld.getGameObjectManager().add(player);
-                    } else {
-                        Log.info("ClientGameMode", "Skipping player " + player.entityId + " - already in current players");
-                    }
-                }
-            });
-        });
-
-        // Player disconnect listener
-        gameClient.setPlayerDisconnectListener(disconnectUpdate -> {
-            Gdx.app.postRunnable(() -> {
-                Log.info("ClientGameMode", "Processing disconnect for player " + disconnectUpdate.playerId);
-
-                // Find and remove the disconnected player
-                PlayerObject playerToRemove = null;
-                for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
-                    if (player.entityId.equals(disconnectUpdate.playerId)) {
-                        playerToRemove = player;
-                        break;
-                    }
-                }
-
-                if (playerToRemove != null) {
-                    gameWorld.getGameObjectManager().activePlayers.remove(playerToRemove);
-                    gameWorld.getGameObjectManager().remove(playerToRemove);
-
-                    Log.info("ClientGameMode", "Removed disconnected player " + disconnectUpdate.playerId + " from client");
-                } else {
-                    Log.warn("ClientGameMode", "Could not find player " + disconnectUpdate.playerId + " to remove");
-                }
-            });
-        });
-
-        // Player update listener
-        gameClient.setPlayerUpdateListener(playerUpdate -> {
-            Gdx.app.postRunnable(() -> {
-                // Skip updates for the local player (if local player is set up)
-                String localId = getLocalPlayerId();
-                if (localId != null && playerUpdate.playerId.equals(localId)) {
-                    return;
-                }
-
-                // Find the player in our list
-                PlayerObject targetPlayer = null;
-                for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
-                    if (player.entityId.equals(playerUpdate.playerId)) {
-                        targetPlayer = player;
-                        break;
-                    }
-                }
-
-                // If player not found, create a new one
-                if (targetPlayer == null) {
-                    Log.info("ClientGameMode", "Creating new player controller for player " + playerUpdate.playerId);
-                    targetPlayer = new PlayerObject(playerUpdate.playerId); // client mode - need graphics
-                    gameWorld.getGameObjectManager().activePlayers.add(targetPlayer);
-                    gameWorld.getGameObjectManager().add(targetPlayer);
-                }
-
-                targetPlayer.setPosition(new Vector3(playerUpdate.x, playerUpdate.y, playerUpdate.z));
-                targetPlayer.setYaw(playerUpdate.yaw);
-                targetPlayer.setPitch(playerUpdate.pitch);
-            });
-        });
-
-        // Map regeneration start listener - now using state management system
-        gameClient.setMapRegenerationStartListener(mapRegenerationStart -> {
-            Gdx.app.postRunnable(() -> {
-                Log.info("ClientGameMode", "Map regeneration starting - performing immediate resource cleanup");
-                Log.info("ClientGameMode", "New map seed: " + mapRegenerationStart.newMapSeed +
-                         ", Reason: " + mapRegenerationStart.reason);
-
-                // Immediately disable player input to prevent movement during regeneration
-                disableInput();
-
-                // IMMEDIATELY dispose of current map resources - don't wait for cleanup state
-                performImmediateMapCleanup();
-
-                // Update debug UI with new seed via callback
-                if (mapRegenerationListener != null) {
-                    mapRegenerationListener.onMapSeedChanged(mapRegenerationStart.newMapSeed);
-                    Log.info("ClientGameMode", "Notified main of seed change to: " + mapRegenerationStart.newMapSeed);
-                }
-
-                // Store regeneration data and transition to cleanup state
-                java.util.Map<String, Object> stateData = new java.util.HashMap<>();
-                stateData.put("new_map_seed", mapRegenerationStart.newMapSeed);
-                stateData.put("regeneration_reason", mapRegenerationStart.reason);
-                stateData.put("regeneration_timestamp", mapRegenerationStart.timestamp);
-
-                // Transition to cleanup state - this will trigger the state handlers
-                stateManager.requestStateChange(GameState.MAP_REGENERATION_CLEANUP, stateData);
-
-                Log.info("ClientGameMode", "State transition requested to MAP_REGENERATION_CLEANUP");
-            });
-        });
-
-        // Player reset listener
-        gameClient.setPlayerResetListener(playerReset -> {
-            Gdx.app.postRunnable(() -> {
-                Log.info("ClientGameMode", "Received player reset for: " + playerReset.playerId);
-
-                // Check if this is for our local player
-                String localId = getLocalPlayerId();
-                if (localId != null && localId.equals(playerReset.playerId)) {
-                    Log.info("ClientGameMode", "Resetting local player to new spawn position");
-
-                    if (gameWorld instanceof ClientGameWorld) {
-                        ClientGameWorld clientWorld = (ClientGameWorld) gameWorld;
-                        clientWorld.resetLocalPlayerToSpawn(
-                            playerReset.getSpawnPosition(),
-                            playerReset.spawnYaw
-                        );
-                    }
-                } else {
-                    Log.info("ClientGameMode", "Player reset for remote player: " + playerReset.playerId);
-
-                    // Find and reset remote player
-                    for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
-                        if (player.entityId.equals(playerReset.playerId)) {
-                            player.setPosition(playerReset.getSpawnPosition());
-                            player.setYaw(playerReset.spawnYaw);
-                            player.resetPhysicsState();
-                            Log.info("ClientGameMode", "Reset remote player " + playerReset.playerId);
-                            break;
-                        }
-                    }
-                }
-            });
-        });
-
-        // Map transfer progress listeners for better loading bar responsiveness
-        gameClient.setMapTransferStartListener(message -> {
-            onMapTransferStart(message.mapId, message.totalChunks, message.totalSize);
-        });
-
-        gameClient.setMapChunkListener(message -> {
-            onChunkReceived(message.mapId, message.chunkIndex, message.chunkData);
-        });
-
-        gameClient.setMapTransferCompleteListener(message -> {
-            onMapTransferComplete(message.mapId);
-        });
+            }
+        }
     }
 
     private void setLocalPlayer(String localPlayerId) {
@@ -617,11 +532,6 @@ public class ClientGameMode implements GameMode {
             Gdx.app.postRunnable(() -> {
                 active = true;
 
-                // Transition to PLAYING state now that we're fully connected and ready
-                if (stateManager != null) {
-                    stateManager.requestStateChange(GameState.PLAYING);
-                }
-
                 if (gameWorld.getGameObjectManager().localPlayer != null) {
                     inputController.setPossessionTarget(gameWorld.getGameObjectManager().localPlayer);
                     if (inputController instanceof com.badlogic.gdx.InputProcessor) {
@@ -640,11 +550,6 @@ public class ClientGameMode implements GameMode {
 
     @Override
     public void update(float deltaTime) throws IOException {
-        // Update state management system first
-        if (stateManager != null) {
-            stateManager.update(deltaTime);
-        }
-
         // Network updates are now handled in separate thread
         // This method only handles game world updates on main thread
 
@@ -652,10 +557,8 @@ public class ClientGameMode implements GameMode {
             return;
         }
 
-        // Handle input for local player
         // Skip input handling and game world updates during map regeneration
-        GameState currentState = stateManager.getCurrentState();
-        if (currentState.isMapRegenerationState()) {
+        if (regenerationCoordinator.isActive()) {
             // Skip all game updates during regeneration to prevent interference
             return;
         }
@@ -797,9 +700,9 @@ public class ClientGameMode implements GameMode {
     }
 
     private void sendPositionUpdate() {
-        // Check if network updates are paused (during map regeneration)
-        if (networkUpdatesPaused) {
-            return; // Skip sending position updates to prevent Kryo serialization errors
+        // Check if regeneration is active (skip updates to prevent issues)
+        if (regenerationCoordinator.isActive()) {
+            return; // Skip sending position updates during regeneration
         }
 
         if (gameClient != null) {
@@ -855,9 +758,6 @@ public class ClientGameMode implements GameMode {
                     } catch (Exception e) {
                         // Ignore address lookup errors
                     }
-
-                    Log.info("ClientGameMode", "Connection status - Address: " + remoteAddress +
-                            ", Connected: " + client.isConnected());
                 }
             } catch (Exception e) {
                 Log.warn("ClientGameMode", "Could not check network status: " + e.getMessage());
@@ -865,74 +765,66 @@ public class ClientGameMode implements GameMode {
         }
     }
 
-    /**
-     * Called by GameClient when map transfer starts - update state context for progress tracking
-     */
-    public void onMapTransferStart(String mapId, int totalChunks, long totalSize) {
-        Log.info("ClientGameMode", "onMapTransferStart called: mapId=" + mapId + ", totalChunks=" + totalChunks + ", currentState=" + stateManager.getCurrentState());
-        
-        if (stateManager.getCurrentState() == GameState.MAP_REGENERATION_DOWNLOADING) {
-            StateContext context = stateManager.getStateContext();
-            context.setStateData("map_id", mapId);
-            context.setStateData("total_chunks", totalChunks);
-            context.setStateData("total_bytes", totalSize);
-            context.setStateData("chunks_received", 0);
-            context.setStateData("bytes_received", 0L);
-            context.updateProgress(0.1f, String.format("Receiving map data (%d chunks)...", totalChunks));
-            Log.info("ClientGameMode", "Map transfer setup complete, expecting " + totalChunks + " chunks");
-        } else {
-            Log.info("ClientGameMode", "Not in DOWNLOADING state, skipping transfer start setup");
-        }
-    }
-
-    /**
-     * Called by GameClient when a chunk is received - update state context with progress
-     */
-    public void onChunkReceived(String mapId, int chunkIndex, byte[] chunkData) {
-        Log.info("ClientGameMode", "onChunkReceived called: mapId=" + mapId + ", chunk=" + chunkIndex + ", currentState=" + stateManager.getCurrentState());
-        
-        if (stateManager.getCurrentState() == GameState.MAP_REGENERATION_DOWNLOADING) {
-            StateContext context = stateManager.getStateContext();
-            
-            int chunksReceived = context.getStateData("chunks_received", Integer.class, 0) + 1;
-            long bytesReceived = context.getStateData("bytes_received", Long.class, 0L) + chunkData.length;
-            
-            context.setStateData("chunks_received", chunksReceived);
-            context.setStateData("bytes_received", bytesReceived);
-            
-            // Update progress based on chunks received (10% to 90% range)
-            Integer totalChunks = context.getStateData("total_chunks", Integer.class, 0);
-            if (totalChunks > 0) {
-                float progress = 0.1f + (chunksReceived / (float) totalChunks) * 0.8f;
-                Log.info("ClientGameMode", "Updating progress to " + (progress * 100) + "% (" + chunksReceived + "/" + totalChunks + " chunks)");
-                context.updateProgress(progress, 
-                    String.format("Received %d/%d chunks...", chunksReceived, totalChunks));
-            } else {
-                Log.warn("ClientGameMode", "No totalChunks data found, cannot update progress");
-            }
-        } else {
-            Log.info("ClientGameMode", "Not in DOWNLOADING state, skipping chunk progress update");
-        }
-    }
-
-    /**
-     * Called by GameClient when map transfer completes - update state context
-     */
-    public void onMapTransferComplete(String mapId) {
-        if (stateManager.getCurrentState() == GameState.MAP_REGENERATION_DOWNLOADING) {
-            StateContext context = stateManager.getStateContext();
-            context.updateProgress(0.95f, "Map transfer complete, processing...");
-            context.setStateData("received_map_id", mapId);
-            // Don't set download_complete = true here - let the mapReceivedListener do it
-            // after the map is actually deserialized and stored
-            Log.info("ClientGameMode", "Map transfer complete, waiting for deserialization");
-        }
-    }
+    // Old transfer methods removed - now handled by NetworkEventRouter and MapRegenerationCoordinator
 
     /**
      * Set the map regeneration listener to notify about seed changes.
+     * Also connect it to the regeneration coordinator for progress updates.
      */
     public void setMapRegenerationListener(MapRegenerationListener listener) {
         this.mapRegenerationListener = listener;
+
+        // Connect the listener to the coordinator for progress updates
+        if (regenerationCoordinator != null) {
+            regenerationCoordinator.addProgressListener(new RegenerationProgressListener() {
+                @Override
+                public void onPhaseChanged(RegenerationPhase phase, String message) {
+                    // Phase changes are handled by UI directly
+                }
+
+                @Override
+                public void onProgressChanged(float progress) {
+                    // Progress changes are handled by UI directly
+                }
+
+                @Override
+                public void onCompleted() {
+                    // Re-enable input when regeneration completes
+                    enableInput();
+                }
+
+                @Override
+                public void onError(String errorMessage) {
+                    Log.error("ClientGameMode", "Regeneration error: " + errorMessage);
+                    // Re-enable input on error to allow user to retry/exit
+                    enableInput();
+                }
+            });
+
+            // Also connect for seed change notifications
+            regenerationCoordinator.addProgressListener(new RegenerationProgressListener() {
+                @Override
+                public void onPhaseChanged(RegenerationPhase phase, String message) {
+                    if (phase == RegenerationPhase.CLEANUP && mapRegenerationListener != null) {
+                        // Disable input at start of regeneration
+                        disableInput();
+                        // Notify about seed change
+                        long newSeed = regenerationCoordinator.getNewMapSeed();
+                        if (newSeed != 0) {
+                            mapRegenerationListener.onMapSeedChanged(newSeed);
+                        }
+                    }
+                }
+
+                @Override
+                public void onProgressChanged(float progress) {}
+
+                @Override
+                public void onCompleted() {}
+
+                @Override
+                public void onError(String errorMessage) {}
+            });
+        }
     }
 }

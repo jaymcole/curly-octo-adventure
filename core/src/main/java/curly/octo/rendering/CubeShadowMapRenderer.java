@@ -118,12 +118,8 @@ public class CubeShadowMapRenderer implements Disposable {
             if (!shadowShader.isCompiled()) {
                 Log.error("CubeShadowMapRenderer", "Fallback shader also failed: " + shadowShader.getLog());
                 throw new RuntimeException("Both enhanced and fallback shaders failed to compile");
-            } else {
-                Log.info("CubeShadowMapRenderer", "Successfully loaded fallback 8-light shader (enhanced shader with 32 lights failed)");
             }
         }
-
-        Log.info("CubeShadowMapRenderer", "Cube shadow shaders loaded successfully");
     }
 
     /**
@@ -265,7 +261,7 @@ public class CubeShadowMapRenderer implements Disposable {
         // Sort lights by importance before overflow handling
         // This ensures closest/brightest lights get shadow casting priority
         LightConverter.sortLightsByImportance(requestedShadowLights, camera.position);
-        
+
         // Handle shadow light overflow - convert excess to fallback
         LightConverter.handleShadowLightOverflow(
             requestedShadowLights,    // All requested shadow lights (now sorted by importance)
@@ -311,12 +307,6 @@ public class CubeShadowMapRenderer implements Disposable {
 
         // Render with the combined lights (capped at shader array limit)
         renderWithLightArray(instances, camera, actualShadowLights, combinedLightArray, ambientLight);
-
-        // Log the overflow handling results
-        if (overflowFallbackLights.size > 0) {
-            Log.info("CubeShadowMapRenderer", "Shadow overflow handled: " + overflowFallbackLights.size +
-                     " excess shadow lights converted to fallback lights. ALL LIGHTS REMAIN VISIBLE.");
-        }
     }
 
     /**
@@ -438,16 +428,6 @@ public class CubeShadowMapRenderer implements Disposable {
 
         // Render with all lights (no longer limited to 8 - increased to 256!)
         renderWithLightArray(instances, camera, actualShadowLights, combinedLightArray, ambientLight);
-
-        // Log the overflow handling results
-        int overflowCount = allLights.size - shadowCount;
-        if (overflowCount > 0) {
-            Log.info("CubeShadowMapRenderer", "Shadow overflow handled: " + overflowCount +
-                     " lights rendered without shadows. ALL " + allLights.size + " LIGHTS REMAIN VISIBLE.");
-        }
-
-        Log.info("CubeShadowMapRenderer", "Rendered " + shadowCount + " shadow lights + " +
-                 (allLights.size - shadowCount) + " fallback lights = " + allLights.size + " total lights");
     }
 
     public void renderWithMultipleCubeShadows(Array<ModelInstance> instances, Camera camera, Array<PointLight> shadowLights, Array<PointLight> allLights, Vector3 ambientLight) {
@@ -488,14 +468,14 @@ public class CubeShadowMapRenderer implements Disposable {
                 nonShadowLights.add(light);
             }
         }
-        
+
         // Sort non-shadow lights by distance from camera (closest first)
         nonShadowLights.sort((light1, light2) -> {
             float distance1 = light1.position.dst(camera.position);
             float distance2 = light2.position.dst(camera.position);
             return Float.compare(distance1, distance2);
         });
-        
+
         // Add sorted non-shadow lights to the final array
         orderedLights.addAll(nonShadowLights);
 

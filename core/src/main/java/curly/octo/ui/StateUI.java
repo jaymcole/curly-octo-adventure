@@ -12,32 +12,51 @@ import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.game.state.GameState;
-import curly.octo.game.state.StateContext;
+import curly.octo.game.regeneration.MapRegenerationCoordinator;
+import curly.octo.game.regeneration.RegenerationProgressListener;
+import curly.octo.game.regeneration.RegenerationPhase;
 import curly.octo.ui.screens.StateScreen;
 import curly.octo.ui.screens.MapRegenerationScreen;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
-
 /**
- * Manages modal UI screens for different game states.
- * Integrates with the existing UI system by providing overlay screens
- * that appear over the game world during state transitions.
+ * Simplified UI manager for regeneration overlay screen.
+ * Shows the map regeneration progress over the game world.
  */
-public class StateUI {
+public class StateUI implements RegenerationProgressListener {
     
     private Stage stage;
     private Skin skin;
-    private StateScreen currentScreen;
-    private final Map<GameState, StateScreen> screens;
+    private MapRegenerationScreen regenerationScreen;
     private boolean visible = false;
     private Table backgroundTable;
+    private MapRegenerationCoordinator coordinator;
     
     public StateUI() {
-        this.screens = new ConcurrentHashMap<>();
         createStage();
-        createScreens();
+    }
+    
+    /**
+     * Set the regeneration coordinator to listen for progress updates
+     */
+    public void setRegenerationCoordinator(MapRegenerationCoordinator coordinator) {
+        Log.info("StateUI", "setRegenerationCoordinator called with coordinator: " + (coordinator != null ? "valid" : "null"));
+        
+        // Remove from old coordinator if any
+        if (this.coordinator != null) {
+            this.coordinator.removeProgressListener(this);
+            Log.info("StateUI", "Removed listener from old coordinator");
+        }
+        
+        this.coordinator = coordinator;
+        
+        // Add to new coordinator
+        if (coordinator != null) {
+            coordinator.addProgressListener(this);
+            createScreens(coordinator);
+            Log.info("StateUI", "Successfully added progress listener to coordinator");
+        } else {
+            Log.warn("StateUI", "Cannot add progress listener - coordinator is null");
+        }
     }
     
     private void createStage() {
@@ -120,59 +139,66 @@ public class StateUI {
         return fallbackSkin;
     }
     
-    private void createScreens() {
-        // Create screens for states that need UI
-        MapRegenerationScreen mapRegenScreen = new MapRegenerationScreen(skin);
+    private void createScreens(MapRegenerationCoordinator coordinator) {
+        // Create single regeneration screen that listens to coordinator
+        regenerationScreen = new MapRegenerationScreen(skin, coordinator);
         
-        // Register screens for all map regeneration states
-        screens.put(GameState.MAP_REGENERATION_CLEANUP, mapRegenScreen);
-        screens.put(GameState.MAP_REGENERATION_DOWNLOADING, mapRegenScreen);
-        screens.put(GameState.MAP_REGENERATION_REBUILDING, mapRegenScreen);
-        screens.put(GameState.MAP_REGENERATION_COMPLETE, mapRegenScreen);
-        
-        Log.info("StateUI", "Created state screens for " + screens.size() + " states");
+        Log.info("StateUI", "Created regeneration screen");
     }
     
     /**
-     * Show the appropriate screen for the given state
+     * Show the regeneration screen (called automatically when regeneration starts)
      */
-    public void showStateScreen(GameState state, StateContext context) {
-        StateScreen screen = screens.get(state);
-        
-        if (screen != null) {
-            // Hide current screen if different
-            if (currentScreen != screen) {
-                hideCurrentScreen();
-                currentScreen = screen;
+    private void showRegenerationScreen() {
+        if (regenerationScreen != null && !visible) {
+            showScreen(regenerationScreen);
+            Log.info("StateUI", "Showing regeneration screen");
+        }
+    }
+    
+    // RegenerationProgressListener implementation
+    @Override
+    public void onPhaseChanged(RegenerationPhase phase, String message) {
+        // Ensure UI modifications happen on the main thread
+        com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+            if (phase == RegenerationPhase.CLEANUP) {
+                // Show screen when regeneration starts
+                showRegenerationScreen();
             }
-            
-            // Update the screen with current context
-            currentScreen.updateContext(context);
-            
-            // Show the screen
-            showScreen(currentScreen);
-            
-            Log.info("StateUI", "Showing screen for state: " + state.getDisplayName());
-        } else {
-            // No screen for this state, hide any current screen
-            hideCurrentScreen();
-            Log.debug("StateUI", "No screen defined for state: " + state.getDisplayName());
-        }
+            Log.debug("StateUI", "Phase changed to: " + phase.getDisplayName());
+        });
+    }
+    
+    @Override
+    public void onProgressChanged(float progress) {
+        // No UI modifications needed for progress updates
+        Log.debug("StateUI", "Progress updated to: " + (progress * 100) + "%");
+    }
+    
+    @Override
+    public void onCompleted() {
+        Log.info("StateUI", "*** onCompleted() callback received! ***");
+        // Ensure UI modifications happen on the main thread
+        com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+            Log.info("StateUI", "Regeneration completed, hiding screen (on main thread)");
+            hideRegenerationScreen();
+            Log.info("StateUI", "Screen hide request completed");
+        });
+    }
+    
+    @Override
+    public void onError(String errorMessage) {
+        // Ensure UI modifications happen on the main thread
+        com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+            Log.error("StateUI", "Regeneration error: " + errorMessage);
+            // Keep screen visible to show error
+        });
     }
     
     /**
-     * Update progress for the current screen
+     * Hide the regeneration screen
      */
-    public void updateProgress(StateContext context) {
-        if (currentScreen != null && visible) {
-            currentScreen.updateContext(context);
-        }
-    }
-    
-    /**
-     * Hide all state screens
-     */
-    public void hideAllScreens() {
+    public void hideRegenerationScreen() {
         hideCurrentScreen();
     }
     
@@ -194,13 +220,15 @@ public class StateUI {
     }
     
     private void hideCurrentScreen() {
+        Log.info("StateUI", "hideCurrentScreen called - visible: " + visible);
         if (visible) {
             backgroundTable.setVisible(false);
             backgroundTable.clear();
             visible = false;
-            currentScreen = null;
             
-            Log.debug("StateUI", "Screen hidden");
+            Log.info("StateUI", "*** SCREEN SUCCESSFULLY HIDDEN ***");
+        } else {
+            Log.warn("StateUI", "hideCurrentScreen called but screen was not visible");
         }
     }
     
@@ -209,7 +237,13 @@ public class StateUI {
      */
     public void update(float deltaTime) {
         if (visible && stage != null) {
-            stage.act(deltaTime);
+            try {
+                stage.act(deltaTime);
+            } catch (Exception e) {
+                Log.error("StateUI", "Error during stage update, hiding screen to prevent further crashes", e);
+                // Safely hide the screen to prevent further crashes
+                hideCurrentScreen();
+            }
         }
     }
     
@@ -252,16 +286,21 @@ public class StateUI {
     }
     
     /**
-     * Get the current state screen being displayed
+     * Get the regeneration screen
      */
-    public StateScreen getCurrentScreen() {
-        return currentScreen;
+    public MapRegenerationScreen getRegenerationScreen() {
+        return regenerationScreen;
     }
     
     /**
      * Dispose of resources
      */
     public void dispose() {
+        // Unregister from coordinator
+        if (coordinator != null) {
+            coordinator.removeProgressListener(this);
+        }
+        
         if (stage != null) {
             stage.dispose();
         }
@@ -269,9 +308,9 @@ public class StateUI {
             skin.dispose();
         }
         
-        // Dispose all screens
-        for (StateScreen screen : screens.values()) {
-            screen.dispose();
+        // Dispose regeneration screen
+        if (regenerationScreen != null) {
+            regenerationScreen.dispose();
         }
     }
 }

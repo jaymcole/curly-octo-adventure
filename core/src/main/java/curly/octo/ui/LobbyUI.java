@@ -39,7 +39,6 @@ public class LobbyUI {
         Skin skin;
         try {
             skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
-            Log.info("LobbyUI", "Successfully loaded UI skin");
         } catch (Exception e) {
             Log.error("LobbyUI", "Failed to load UI skin: " + e.getMessage());
             e.printStackTrace();

@@ -1,7 +1,7 @@
 package curly.octo.ui.screens;
 
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
-import curly.octo.game.state.StateContext;
+// StateContext import removed - using coordinator system now
 
 /**
  * Interface for state-specific UI screens.
@@ -18,12 +18,14 @@ public interface StateScreen {
     Table createUI();
     
     /**
-     * Update the screen with the current state context.
-     * This is called whenever the state data changes.
+     * Legacy update method - kept for compatibility.
+     * New screens should implement RegenerationProgressListener instead.
      * 
-     * @param context Current state context with progress and data
+     * @param context Legacy context (may be null)
      */
-    void updateContext(StateContext context);
+    default void updateContext(Object context) {
+        // Default implementation does nothing - for backward compatibility
+    }
     
     /**
      * Get the title to display for this screen.

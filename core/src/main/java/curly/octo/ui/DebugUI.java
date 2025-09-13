@@ -52,7 +52,6 @@ public class DebugUI {
         Skin skin;
         try {
             skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
-            Log.info("DebugUI", "Successfully loaded UI skin");
         } catch (Exception e) {
             Log.error("DebugUI", "Failed to load UI skin: " + e.getMessage());
             e.printStackTrace();
@@ -77,28 +76,16 @@ public class DebugUI {
         // Map Generation Seed Button
         currentMapSeed = Constants.MAP_GENERATION_SEED;
         mapSeedButton = new TextButton("Map Seed: " + currentMapSeed, skin);
-
-        // Debug: Log button creation
-        Log.info("DebugUI", "Created map seed button with text: " + mapSeedButton.getText());
-
-        // Make button more obvious for debugging
-//        mapSeedButton.setColor(1f, 0.5f, 0.5f, 1f); // Reddish color to make it stand out
-//        mapSeedButton.setSize(200, 50); // Explicit size
-
         mapSeedButton.addListener(new ClickListener() {
 
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                Log.info("DebugUI", "Map seed button clicked! Seed: " + currentMapSeed);
-                Log.info("DebugUI", "Click coordinates: x=" + x + ", y=" + y);
-
                 // Copy seed to clipboard
                 try {
                     String seedString = String.valueOf(currentMapSeed);
                     StringSelection stringSelection = new StringSelection(seedString);
                     Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                     clipboard.setContents(stringSelection, null);
-                    Log.info("DebugUI", "Map seed copied to clipboard: " + seedString);
                 } catch (Exception e) {
                     Log.error("DebugUI", "Failed to copy seed to clipboard: " + e.getMessage());
                 }
@@ -106,12 +93,6 @@ public class DebugUI {
                 // Show feedback to user
                 final String originalText = mapSeedButton.getText().toString();
                 mapSeedButton.setText("Copied: " + currentMapSeed);
-
-                // Log the seed to console for easy copying
-                System.out.println("=== MAP SEED ===");
-                System.out.println("Seed: " + currentMapSeed);
-                System.out.println("Copied to clipboard!");
-                System.out.println("================");
 
                 // Revert text after delay
                 new Thread(() -> {
@@ -127,28 +108,21 @@ public class DebugUI {
 
             @Override
             public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                Log.info("DebugUI", "Map seed button touchUp: x=" + x + ", y=" + y + ", pointer=" + pointer + ", button=" + button);
-                // Restore original color
                 mapSeedButton.setColor(1f, 0.5f, 0.5f, 1f); // Back to reddish
             }
 
             @Override
             public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
-                Log.info("DebugUI", "Map seed button enter: x=" + x + ", y=" + y);
-                // Make button brighter on hover
                 mapSeedButton.setColor(1f, 0.7f, 0.7f, 1f); // Brighter reddish
             }
 
             @Override
             public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
-                Log.info("DebugUI", "Map seed button exit: x=" + x + ", y=" + y);
-                // Restore original color
                 mapSeedButton.setColor(1f, 0.5f, 0.5f, 1f); // Back to original reddish
             }
         });
 
         // Debug: Log button addition to table
-        Log.info("DebugUI", "Adding map seed button to debug table");
         debugTable.add(mapSeedButton).size(200, 50).pad(10).row();
 
         // Map Regeneration Button
@@ -156,19 +130,15 @@ public class DebugUI {
         mapRegenerateButton.addListener(new ClickListener() {
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                Log.info("DebugUI", "Map regeneration button clicked!");
-                
                 // Trigger regeneration
                 if (debugListener != null) {
                     debugListener.onRegenerateMap();
-                } else {
-                    Log.warn("DebugUI", "No debug listener set for map regeneration");
                 }
-                
+
                 // Show feedback to user
                 final String originalText = mapRegenerateButton.getText().toString();
                 mapRegenerateButton.setText("Regenerating...");
-                
+
                 // Revert text after delay
                 new Thread(() -> {
                     try {
@@ -178,11 +148,11 @@ public class DebugUI {
                         Thread.currentThread().interrupt();
                     }
                 }).start();
-                
+
                 return super.touchDown(event, x, y, pointer, button);
             }
         });
-        
+
         debugTable.add(mapRegenerateButton).size(200, 50).pad(10).row();
 
         // Lighting System Limits
@@ -233,19 +203,14 @@ public class DebugUI {
         stage.addListener(new InputListener() {
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                Log.info("DebugUI", "Stage touchDown: x=" + x + ", y=" + y + ", pointer=" + pointer + ", button=" + button);
                 return false; // Don't consume the event
             }
 
             public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                Log.info("DebugUI", "Stage touchUp: x=" + x + ", y=" + y + ", pointer=" + pointer + ", button=" + button);
             }
 
             public boolean mouseMoved(InputEvent event, float x, float y) {
                 // Log mouse movement occasionally to see if events are reaching the stage
-                if (System.currentTimeMillis() % 10000 < 50) { // Log every ~10 seconds
-                    Log.info("DebugUI", "Stage mouseMoved: x=" + x + ", y=" + y);
-                }
                 return false; // Don't consume the event
             }
         });

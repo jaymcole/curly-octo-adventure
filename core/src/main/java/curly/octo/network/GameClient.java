@@ -234,14 +234,6 @@ public class GameClient {
                 // Only log if it takes longer than expected (>50ms is definitely problematic)
                 if (updateTime > 50) {
                     Log.warn("GameClient", "KryoNet client.update(0) took " + updateTime + "ms - this should be near-instant!");
-
-                    // Additional diagnostics
-                    if (client.isConnected()) {
-                        int rtt = client.getReturnTripTime();
-                        Log.warn("GameClient", "Connection RTT: " + rtt + "ms, Connected: true");
-                    } else {
-                        Log.warn("GameClient", "Client not connected during slow update");
-                    }
                 }
             } catch (Exception e) {
                 long errorTime = (System.nanoTime() - startTime) / 1_000_000;
