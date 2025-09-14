@@ -1030,16 +1030,11 @@ public class ClientGameMode implements GameMode {
                     final int finalChunksReceived = cachedChunksReceived;
                     final int finalTotalChunks = cachedTotalChunks;
 
-                    // Use static method for immediate UI update without postRunnable delay
+                    // Use ONLY the static method for immediate, consistent UI updates
+                    // Avoid competing updates that cause UI shaking/oscillation
                     curly.octo.ui.screens.MapRegenerationScreen.updateChunkProgress(
                         finalChunksReceived, finalTotalChunks,
                         String.format("Received %d/%d chunks...", finalChunksReceived, finalTotalChunks));
-
-                    // Also update state manager (but this may be throttled)
-                    Gdx.app.postRunnable(() -> {
-                        stateManager.updateProgress(finalProgress,
-                            String.format("Received %d/%d chunks...", finalChunksReceived, finalTotalChunks));
-                    });
 
                     // Periodic state sync (every 100 chunks) to maintain consistency
                     if (cachedChunksReceived % 100 == 0) {
