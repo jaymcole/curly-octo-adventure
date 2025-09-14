@@ -6,27 +6,30 @@ dependencies {
   api "com.badlogicgames.gdx:gdx:$gdxVersion"
   api "com.badlogicgames.gdx:gdx-box2d:$gdxVersion"
   api "com.badlogicgames.gdx:gdx-freetype:$gdxVersion"
-  
+
   // 3D
   api "com.badlogicgames.gdx:gdx-bullet:$gdxVersion"
   api "com.badlogicgames.gdx:gdx-bullet-platform:$gdxVersion:natives-desktop"
   api "com.github.mgsx-dev.gdx-gltf:gltf:2.2.1"
-  
+
   // Controllers
   api "com.badlogicgames.gdx-controllers:gdx-controllers-core:$gdxControllersVersion"
-  
+
   // Networking
   api "com.github.crykn:kryonet:$kryoNetVersion"
   implementation 'org.bitlet:weupnp:0.1.4'
-  
+
   // Desktop-specific
   api "com.badlogicgames.gdx:gdx-backend-lwjgl3:$gdxVersion"
   api "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
   api "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-desktop"
-  
+
+
+
   if(enableGraalNative == 'true') {
     implementation "io.github.berstanio:gdx-svmhelper-annotations:$graalHelperVersion"
   }
+  implementation "org.apache.commons:commons-lang3:3.0"
 }
 
 // Task to create a runnable JAR with all dependencies

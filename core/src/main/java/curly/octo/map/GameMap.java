@@ -160,6 +160,10 @@ public class GameMap {
         return getTile(constructKeyFromIndexCoordinates(x,y,z));
     }
 
+    public MapTile getTile(Vector3 coordinates) {
+        return getTile(constructKeyFromIndexCoordinates((int)coordinates.x,(int)coordinates.y,(int)coordinates.z));
+    }
+
     public MapTile getTile(Long tileKey) {
         return map.getOrDefault(tileKey, null);
     }

@@ -6,7 +6,7 @@ public class Constants {
     // NETWORK CONFIGURATION
     // =========================
 
-    public static final int MAP_TRANSFER_CHUNK_DELAY = 10;
+    public static final int MAP_TRANSFER_CHUNK_DELAY = 2;
 
     /** Default TCP port for server connections */
     public static final int NETWORK_TCP_PORT = 54555;

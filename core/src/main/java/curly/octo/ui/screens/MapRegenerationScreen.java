@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.Align;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.state.GameState;
 import curly.octo.game.state.StateContext;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * UI screen displayed during map regeneration process.
@@ -209,7 +210,6 @@ public class MapRegenerationScreen implements StateScreen {
 
         // Add some helpful information
         addInfoRow("What's happening:", "The game world is being regenerated");
-        addInfoRow("Your progress:", "Saved automatically");
         addInfoRow("Connection:", "Maintained with server");
 
         containerTable.add(staticInfoTable).colspan(2).padBottom(15).row();
@@ -259,10 +259,18 @@ public class MapRegenerationScreen implements StateScreen {
     private static void updateTitleStatic(StateContext context) {
         if (staticTitleLabel != null && context != null) {
             Boolean isInitialGeneration = context.getStateData("is_initial_generation", Boolean.class);
+            String titleText;
             if (isInitialGeneration != null && isInitialGeneration) {
-                staticTitleLabel.setText("Generating Initial Map");
+                titleText = "Generating Initial Map";
             } else {
-                staticTitleLabel.setText("Map Regeneration");
+                titleText = "Map Regeneration";
+            }
+
+            // Ensure the title text is not empty
+            if (titleText != null && !titleText.trim().isEmpty()) {
+                safeSetText(staticTitleLabel, titleText);
+            } else {
+                safeSetText(staticTitleLabel, "Map Processing");
             }
         }
     }
@@ -331,7 +339,9 @@ public class MapRegenerationScreen implements StateScreen {
         if (staticStatusLabel != null) {
             String message = context.getStatusMessage();
             if (message != null && !message.trim().isEmpty()) {
-                staticStatusLabel.setText(message);
+                safeSetText(staticStatusLabel, message);
+            } else {
+                safeSetText(staticStatusLabel, "Processing...");
             }
         }
     }
@@ -343,7 +353,7 @@ public class MapRegenerationScreen implements StateScreen {
     private static void updateTimeDisplayStatic(StateContext context) {
         if (staticTimeLabel != null) {
             long elapsedSeconds = (System.currentTimeMillis() - staticDisplayStartTime) / 1000;
-            staticTimeLabel.setText("Time: " + elapsedSeconds + "s");
+            safeSetText(staticTimeLabel, "Time: " + elapsedSeconds + "s");
         }
     }
 
@@ -369,7 +379,6 @@ public class MapRegenerationScreen implements StateScreen {
             } else {
                 // Messages for map regeneration
                 addInfoRowStatic("What's happening:", "The game world is being regenerated");
-                addInfoRowStatic("Your progress:", "Saved automatically");
                 addInfoRowStatic("Connection:", "Maintained with server");
             }
 
@@ -424,21 +433,33 @@ public class MapRegenerationScreen implements StateScreen {
     }
 
     private static void addInfoRowStatic(String label, String value) {
-        // Use static skin reference
-        Skin currentSkin = staticSkin;
-        if (currentSkin == null) {
-            Log.warn("MapRegenerationScreen", "Static skin not initialized, cannot add info row");
-            return;
+        try {
+            // Use static skin reference
+            Skin currentSkin = staticSkin;
+            if (currentSkin == null) {
+                Log.warn("MapRegenerationScreen", "Static skin not initialized, cannot add info row");
+                return;
+            }
+
+            // Ensure non-empty strings
+            String safeLabel = (label != null && !label.trim().isEmpty()) ? label : "Info:";
+            String safeValue = (value != null && !value.trim().isEmpty()) ? value : "N/A";
+
+            Log.debug("MapRegenerationScreen", "Adding info row - Label: '" + safeLabel + "' (length: " + safeLabel.length() + "), Value: '" + safeValue + "' (length: " + safeValue.length() + ")");
+
+            Label labelWidget = new Label("Loading...", currentSkin);
+            labelWidget.setColor(Color.LIGHT_GRAY);
+            safeSetText(labelWidget, safeLabel);
+
+            Label valueWidget = new Label("Loading...", currentSkin);
+            valueWidget.setColor(Color.WHITE);
+            safeSetText(valueWidget, safeValue);
+
+            staticInfoTable.add(labelWidget).left().padRight(10);
+            staticInfoTable.add(valueWidget).left().row();
+        } catch (Exception e) {
+            Log.error("MapRegenerationScreen", "Error in addInfoRowStatic: " + e.getMessage(), e);
         }
-
-        Label labelWidget = new Label(label, currentSkin);
-        labelWidget.setColor(Color.LIGHT_GRAY);
-
-        Label valueWidget = new Label(value, currentSkin);
-        valueWidget.setColor(Color.WHITE);
-
-        staticInfoTable.add(labelWidget).left().padRight(10);
-        staticInfoTable.add(valueWidget).left().row();
     }
 
     @Override
@@ -469,6 +490,39 @@ public class MapRegenerationScreen implements StateScreen {
     // =============== STATIC METHODS FOR THREAD-SAFE DIRECT UPDATES ===============
 
     /**
+     * Safe method to set text on a Label, working around LibGDX StringBuilder issues
+     */
+    private static void safeSetText(Label label, String text) {
+        if (label == null) return;
+
+        try {
+            // Ensure text is never null or empty
+            String safeText = (text != null && !text.trim().isEmpty()) ? text : "Loading...";
+
+            // Create a new Java String to avoid LibGDX StringBuilder issues
+            String finalText = new String(safeText.toCharArray());
+
+            // Use postRunnable to ensure main thread execution
+            com.badlogic.gdx.Gdx.app.postRunnable(() -> {
+                try {
+                    label.setText(finalText);
+                } catch (Exception e) {
+                    Log.error("MapRegenerationScreen", "Failed to set label text to: '" + finalText + "': " + e.getMessage());
+                    // Final fallback - set a simple safe string
+                    try {
+                        label.setText("...");
+                    } catch (Exception e2) {
+                        Log.error("MapRegenerationScreen", "Even fallback setText failed: " + e2.getMessage());
+                    }
+                }
+            });
+
+        } catch (Exception e) {
+            Log.error("MapRegenerationScreen", "Error in safeSetText: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Ensure static UI components are initialized (called when UI is first created)
      */
     public static void ensureStaticInitialization() {
@@ -483,30 +537,46 @@ public class MapRegenerationScreen implements StateScreen {
      */
     public static void updateProgressDirect(GameState currentState, float stateProgress, String message) {
         if (staticProgressBar != null && staticProgressLabel != null) {
-            // Calculate overall progress across all stages
-            float overallProgress = calculateOverallProgressStatic(currentState, stateProgress);
-            staticProgressBar.setValue(overallProgress);
+            try {
+                // Calculate overall progress across all stages
+                float overallProgress = calculateOverallProgressStatic(currentState, stateProgress);
+                staticProgressBar.setValue(overallProgress);
 
-            int percentage = Math.round(overallProgress * 100);
-            staticProgressLabel.setText(percentage + "%");
+                int percentage = Math.round(overallProgress * 100);
+                String percentageText = percentage + "%";
+                Log.debug("MapRegenerationScreen", "Setting progress label to: '" + percentageText + "' (length: " + percentageText.length() + ")");
+                safeSetText(staticProgressLabel, percentageText);
 
-            // Update status message if provided
-            if (message != null && staticStatusLabel != null) {
-                staticStatusLabel.setText(message);
+                // Update status message if provided
+                if (message != null && !message.trim().isEmpty() && staticStatusLabel != null) {
+                    Log.debug("MapRegenerationScreen", "Setting status label to: '" + message + "' (length: " + message.length() + ")");
+                    safeSetText(staticStatusLabel, message);
+                } else if (staticStatusLabel != null) {
+                    Log.debug("MapRegenerationScreen", "Setting status label to default: 'Processing...'");
+                    safeSetText(staticStatusLabel, "Processing...");
+                }
+
+                // Update state display
+                if (staticStateLabel != null) {
+                    String stateText = getStateDisplayTextStatic(currentState);
+                    if (stateText != null && !stateText.trim().isEmpty()) {
+                        Log.debug("MapRegenerationScreen", "Setting state label to: '" + stateText + "' (length: " + stateText.length() + ")");
+                        safeSetText(staticStateLabel, stateText);
+                    } else {
+                        Log.debug("MapRegenerationScreen", "Setting state label to default: 'Unknown State'");
+                        safeSetText(staticStateLabel, "Unknown State");
+                    }
+                }
+
+                // Update individual stage progress bars
+                updateStageProgressBarsStatic(currentState, stateProgress);
+
+                Log.info("MapRegenerationScreen", "DIRECT PROGRESS UPDATE - State: " + currentState +
+                         ", StateProgress: " + stateProgress + ", Overall: " + overallProgress +
+                         ", ProgressBarValue: " + staticProgressBar.getValue());
+            } catch (Exception e) {
+                Log.error("MapRegenerationScreen", "Error in updateProgressDirect: " + e.getMessage(), e);
             }
-
-            // Update state display
-            if (staticStateLabel != null) {
-                String stateText = getStateDisplayTextStatic(currentState);
-                staticStateLabel.setText(stateText);
-            }
-
-            // Update individual stage progress bars
-            updateStageProgressBarsStatic(currentState, stateProgress);
-
-            Log.info("MapRegenerationScreen", "DIRECT PROGRESS UPDATE - State: " + currentState +
-                     ", StateProgress: " + stateProgress + ", Overall: " + overallProgress +
-                     ", ProgressBarValue: " + staticProgressBar.getValue());
         }
     }
 
@@ -514,18 +584,37 @@ public class MapRegenerationScreen implements StateScreen {
      * Static method to update chunk progress specifically during map downloads
      */
     public static void updateChunkProgress(int chunksReceived, int totalChunks, String message) {
-        if (totalChunks > 0) {
-            float chunkProgress = (float) chunksReceived / totalChunks;
-            updateProgressDirect(GameState.MAP_REGENERATION_DOWNLOADING, chunkProgress, message);
+        try {
+            if (totalChunks > 0) {
+                float chunkProgress = (float) chunksReceived / totalChunks;
+                updateProgressDirect(GameState.MAP_REGENERATION_DOWNLOADING, chunkProgress, message);
 
-            // Update downloading stage specifically
-            if (staticDownloadingProgressBar != null && staticDownloadingStatusLabel != null) {
-                staticDownloadingProgressBar.setValue(chunkProgress);
-                staticDownloadingStatusLabel.setText(String.format("%d/%d chunks", chunksReceived, totalChunks));
-                staticDownloadingStatusLabel.setColor(Color.CYAN);
+                // Update downloading stage specifically
+                if (staticDownloadingProgressBar != null && staticDownloadingStatusLabel != null) {
+                    staticDownloadingProgressBar.setValue(chunkProgress);
+                    String chunksReceivedFormatted = StringUtils.leftPad(chunksReceived + "", (totalChunks + "").length());
+                    String chunkText = String.format("%s/%d chunks", chunksReceivedFormatted, totalChunks);
+                    Log.debug("MapRegenerationScreen", "Setting downloading status label to: '" + chunkText + "' (length: " + chunkText.length() + ")");
+                    if (!chunkText.isEmpty()) {
+                        safeSetText(staticDownloadingStatusLabel, chunkText);
+                    } else {
+                        Log.debug("MapRegenerationScreen", "Chunk text was empty, using fallback");
+                        safeSetText(staticDownloadingStatusLabel, "0/0 chunks");
+                    }
+                    staticDownloadingStatusLabel.setColor(Color.CYAN);
+                }
+            } else {
+                Log.warn("MapRegenerationScreen", "updateChunkProgress called with totalChunks <= 0: " + totalChunks);
+                // Set safe fallback values
+                if (staticDownloadingProgressBar != null && staticDownloadingStatusLabel != null) {
+                    staticDownloadingProgressBar.setValue(0.0f);
+                    Log.debug("MapRegenerationScreen", "Setting downloading status label to fallback: 'Waiting...'");
+                    safeSetText(staticDownloadingStatusLabel, "Waiting...");
+                    staticDownloadingStatusLabel.setColor(Color.GRAY);
+                }
             }
-        } else {
-            Log.warn("MapRegenerationScreen", "updateChunkProgress called with totalChunks <= 0: " + totalChunks);
+        } catch (Exception e) {
+            Log.error("MapRegenerationScreen", "Error in updateChunkProgress: " + e.getMessage(), e);
         }
     }
 
@@ -545,6 +634,10 @@ public class MapRegenerationScreen implements StateScreen {
     }
 
     private static String getStateDisplayTextStatic(GameState state) {
+        if (state == null) {
+            return "Unknown State";
+        }
+
         switch (state) {
             case MAP_REGENERATION_CLEANUP:
                 return "Cleaning Up Resources";
@@ -555,7 +648,8 @@ public class MapRegenerationScreen implements StateScreen {
             case MAP_REGENERATION_COMPLETE:
                 return "Finalizing";
             default:
-                return state.getDisplayName();
+                String displayName = state.getDisplayName();
+                return (displayName != null && !displayName.trim().isEmpty()) ? displayName : "Unknown State";
         }
     }
 
@@ -582,23 +676,30 @@ public class MapRegenerationScreen implements StateScreen {
                                                   float stateProgress) {
         if (progressBar == null || statusLabel == null) return;
 
-        String stageName = getStageNameForStateStatic(targetState);
+        try {
+            String stageName = getStageNameForStateStatic(targetState);
 
-        if (currentState.ordinal() > targetState.ordinal()) {
-            // Stage is complete
-            progressBar.setValue(1.0f);
-            statusLabel.setText("✓ Complete");
-            statusLabel.setColor(Color.GREEN);
-        } else if (currentState == targetState) {
-            // Stage is currently active
-            progressBar.setValue(stateProgress);
-            statusLabel.setText("In progress...");
-            statusLabel.setColor(Color.CYAN);
-        } else {
-            // Stage is waiting
-            progressBar.setValue(0.0f);
-            statusLabel.setText("Waiting...");
-            statusLabel.setColor(Color.GRAY);
+            if (currentState.ordinal() > targetState.ordinal()) {
+                // Stage is complete
+                progressBar.setValue(1.0f);
+                Log.debug("MapRegenerationScreen", "Setting " + stageName + " stage label to: '✓ Complete'");
+                safeSetText(statusLabel, "✓ Complete");
+                statusLabel.setColor(Color.GREEN);
+            } else if (currentState == targetState) {
+                // Stage is currently active
+                progressBar.setValue(stateProgress);
+                Log.debug("MapRegenerationScreen", "Setting " + stageName + " stage label to: 'In progress...'");
+                safeSetText(statusLabel, "In progress...");
+                statusLabel.setColor(Color.CYAN);
+            } else {
+                // Stage is waiting
+                progressBar.setValue(0.0f);
+                Log.debug("MapRegenerationScreen", "Setting " + stageName + " stage label to: 'Waiting...'");
+                safeSetText(statusLabel, "Waiting...");
+                statusLabel.setColor(Color.GRAY);
+            }
+        } catch (Exception e) {
+            Log.error("MapRegenerationScreen", "Error in updateStageProgressStatic for " + targetState + ": " + e.getMessage(), e);
         }
     }
 

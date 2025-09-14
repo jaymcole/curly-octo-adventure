@@ -4,6 +4,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.enums.Direction;
+import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.generators.templated.TemplateManager;
 import curly.octo.map.generators.templated.TemplateRoom;
 
@@ -127,6 +128,8 @@ public class TemplateGenerator extends MapGenerator {
         copyRoomTemplates();
         copyConnectorTemplates();
         closeMap();
+
+        initiateFlood(new Vector3(5,0,5), MapTileFillType.FOG);
     }
 
     private void addRoomConnection(Direction exitDirection, Vector3 roomCoordinates) {

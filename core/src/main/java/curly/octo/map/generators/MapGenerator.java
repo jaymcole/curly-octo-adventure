@@ -1,9 +1,11 @@
 package curly.octo.map.generators;
 
 import com.badlogic.gdx.math.Vector3;
+import com.esotericsoftware.minlog.Log;
 import curly.octo.Constants;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
+import curly.octo.map.enums.Direction;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.hints.LightHint;
@@ -11,6 +13,7 @@ import curly.octo.map.hints.SpawnPointHint;
 import lights.LightPresets;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Random;
 
 public abstract class MapGenerator {
@@ -64,9 +67,6 @@ public abstract class MapGenerator {
         // Create light hint at position
         LightHint lightHint = new LightHint(map.constructKeyFromIndexCoordinates(
             (int)lightPos.x, (int)lightPos.y, (int)lightPos.z));
-//        lightHint.color_r = 0.8f;  // Warm white light
-//        lightHint.color_g = 0.7f;
-//        lightHint.color_b = 0.5f;
         lightHint.color_r = random.nextFloat();  // Warm white light
         lightHint.color_g = random.nextFloat();
         lightHint.color_b = random.nextFloat();
@@ -76,4 +76,40 @@ public abstract class MapGenerator {
         map.registerHint(lightHint);
     }
 
+
+    private HashSet<MapTile> visitedFloodTiles;
+    private ArrayList<Vector3> tilesToFlood;
+    protected void initiateFlood(Vector3 tilePosition, MapTileFillType fill) {
+        visitedFloodTiles = new HashSet<>();
+        tilesToFlood = new ArrayList<>();
+        addTileToFlood(tilePosition);
+        flood(fill);
+        Log.info("flood", "Flooded " + visitedFloodTiles.size() + " tiles");
+    }
+
+    private void flood(MapTileFillType fill) {
+        while (!tilesToFlood.isEmpty()) {
+            Vector3 coordinate = tilesToFlood.remove(0);
+            MapTile tile = map.getTile(coordinate);
+
+            Log.info("flood", "flooding: " + coordinate);
+            visitedFloodTiles.add(tile);
+            tile.fillType = fill;
+
+            addTileToFlood(Direction.advanceVector(Direction.NORTH, coordinate.cpy()));
+            addTileToFlood(Direction.advanceVector(Direction.EAST, coordinate.cpy()));
+            addTileToFlood(Direction.advanceVector(Direction.SOUTH, coordinate.cpy()));
+            addTileToFlood(Direction.advanceVector(Direction.WEST, coordinate.cpy()));
+            addTileToFlood(Direction.advanceVector(Direction.DOWN, coordinate.cpy()));
+        }
+    }
+
+    private void addTileToFlood(Vector3 tileCoordinate) {
+        MapTile tile = map.getTile(tileCoordinate);
+        if (tile == null || tile.geometryType == MapTileGeometryType.FULL || visitedFloodTiles.contains(tile)) {
+            return;
+        }
+        visitedFloodTiles.add(tile);
+        tilesToFlood.add(tileCoordinate);
+    }
 }
