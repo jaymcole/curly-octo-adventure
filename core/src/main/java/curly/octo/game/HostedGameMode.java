@@ -33,13 +33,13 @@ public class HostedGameMode implements GameMode {
         try {
             Log.info("HostedGameMode", "Initializing hosted mode");
 
-            // Initialize map for server (no rendering components)
-            serverGameWorld.initializeHostMap();
+            // Set up deferred map generation - map will be created when client connects
+            serverGameWorld.setDeferredMapGeneration(true);
 
             // Create and start server with its own player list (not shared with client)
             gameServer = new GameServer(
                 serverGameWorld.getRandom(),
-                serverGameWorld.getMapManager(),
+                serverGameWorld.getMapManager(), // Will be null initially
                 new ArrayList<>(), // Server gets its own independent player list
                 serverGameWorld
             );

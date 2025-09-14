@@ -21,6 +21,7 @@ import curly.octo.game.state.handlers.MapRegenerationCleanupHandler;
 import curly.octo.game.state.handlers.MapRegenerationDownloadingHandler;
 import curly.octo.game.state.handlers.MapRegenerationRebuildingHandler;
 import curly.octo.game.state.handlers.MapRegenerationCompleteHandler;
+import curly.octo.game.state.handlers.PlayingStateHandler;
 import curly.octo.ui.screens.MapRegenerationScreen;
 
 import java.io.IOException;
@@ -102,8 +103,11 @@ public class ClientGameMode implements GameMode {
         stateManager.registerHandler(new MapRegenerationRebuildingHandler(this));
         stateManager.registerHandler(new MapRegenerationCompleteHandler(this));
 
+        // Register PLAYING state handler for proper game activation
+        stateManager.registerHandler(new PlayingStateHandler(this));
+
         Log.info("ClientGameMode", "State management system initialized with " +
-                 "map regeneration handlers");
+                 "map regeneration and playing state handlers");
     }
 
     // Helper method to get local player position
@@ -129,6 +133,81 @@ public class ClientGameMode implements GameMode {
      */
     public GameStateManager getStateManager() {
         return stateManager;
+    }
+
+    /**
+     * Set the map received flag (used by regeneration handlers to integrate with normal flow)
+     */
+    public void setMapReceivedFlag(boolean received) {
+        this.mapReceived = received;
+        Log.info("ClientGameMode", "Map received flag set to: " + received);
+    }
+
+    /**
+     * Get the map received flag
+     */
+    public boolean isMapReceived() {
+        return mapReceived;
+    }
+
+    /**
+     * Get the player assigned flag
+     */
+    public boolean isPlayerAssigned() {
+        return playerAssigned;
+    }
+
+    /**
+     * Get the active flag
+     */
+    public boolean isActive() {
+        return active;
+    }
+
+    /**
+     * Set the active flag (used by state handlers)
+     */
+    public void setActiveFlag(boolean active) {
+        this.active = active;
+        Log.info("ClientGameMode", "Active flag set to: " + active);
+    }
+
+    /**
+     * Get the input controller
+     */
+    public MinimalPlayerController getInputController() {
+        return (MinimalPlayerController) inputController;
+    }
+
+    /**
+     * Get the game world
+     */
+    public ClientGameWorld getGameWorld() {
+        return gameWorld;
+    }
+
+    /**
+     * Check if player reinitialization is needed after assignment (for initial generation scenarios)
+     */
+    private void checkAndHandlePlayerReinitAfterAssignment() {
+        if (stateManager != null) {
+            StateContext context = stateManager.getStateContext();
+            Boolean needsReinit = context.getStateData("needs_player_reinit_after_assignment", Boolean.class, false);
+
+            if (needsReinit) {
+                Log.info("ClientGameMode", "Player reinitialization needed after assignment - calling reinitializePlayersAfterMapRegeneration()");
+
+                if (gameWorld instanceof ClientGameWorld) {
+                    ((ClientGameWorld) gameWorld).reinitializePlayersAfterMapRegeneration();
+
+                    // Clear the flag so we don't do this again
+                    context.setStateData("needs_player_reinit_after_assignment", false);
+                    Log.info("ClientGameMode", "Player reinitialization completed for initial generation");
+                } else {
+                    Log.warn("ClientGameMode", "Cannot reinitialize players - gameWorld is not ClientGameWorld instance");
+                }
+            }
+        }
     }
 
     /**
@@ -309,7 +388,7 @@ public class ClientGameMode implements GameMode {
                     stateManager.getStateContext().setStateData("received_map", receivedMap);
                     stateManager.getStateContext().setStateData("download_complete", true);
                     stateManager.getStateContext().setStateData("map_received_time", System.currentTimeMillis());
-                    
+
                     // Update progress to 100% now that map is ready
                     GameState mapReceivedState = stateManager.getCurrentState();
         if (mapReceivedState == GameState.MAP_REGENERATION_DOWNLOADING || mapReceivedState == GameState.LOBBY) {
@@ -448,6 +527,7 @@ public class ClientGameMode implements GameMode {
                 stateData.put("new_map_seed", mapRegenerationStart.newMapSeed);
                 stateData.put("regeneration_reason", mapRegenerationStart.reason);
                 stateData.put("regeneration_timestamp", mapRegenerationStart.timestamp);
+                stateData.put("is_initial_generation", mapRegenerationStart.isInitialGeneration);
 
                 // Transition to cleanup state - this will trigger the state handlers
                 stateManager.requestStateChange(GameState.MAP_REGENERATION_CLEANUP, stateData);
@@ -585,6 +665,10 @@ public class ClientGameMode implements GameMode {
             }
 
             Log.info("ClientGameMode", "Successfully reused existing player as local player ID: " + localPlayerId);
+
+            // Check if we need to reinitialize players after assignment (for initial generation)
+            checkAndHandlePlayerReinitAfterAssignment();
+
             return; // Exit early since we've set up the local player
         }
 
@@ -609,6 +693,9 @@ public class ClientGameMode implements GameMode {
                     Log.info("ClientGameMode", "Would set input processor to inputController (fresh player)");
                 }
                 Log.info("ClientGameMode", "Successfully created and set local player ID to: " + localPlayerId);
+
+                // Check if we need to reinitialize players after assignment (for initial generation)
+                checkAndHandlePlayerReinitAfterAssignment();
             } else {
                 Log.error("ClientGameMode", "Failed to create local player controller");
             }
@@ -619,25 +706,11 @@ public class ClientGameMode implements GameMode {
         Log.info("ClientGameMode", "checkReady() - mapReceived: " + mapReceived + ", playerAssigned: " + playerAssigned + ", active: " + active);
 
         if (mapReceived && playerAssigned && !active) {
-            Log.info("ClientGameMode", "All conditions met, activating client mode...");
-            // Switch to 3D view
+            Log.info("ClientGameMode", "All conditions met, transitioning to PLAYING state...");
+            // Transition to PLAYING state - the PlayingStateHandler will handle activation
             Gdx.app.postRunnable(() -> {
-                active = true;
-
-                // Transition to PLAYING state now that we're fully connected and ready
                 if (stateManager != null) {
                     stateManager.requestStateChange(GameState.PLAYING);
-                }
-
-                if (gameWorld.getGameObjectManager().localPlayer != null) {
-                    inputController.setPossessionTarget(gameWorld.getGameObjectManager().localPlayer);
-                    if (inputController instanceof com.badlogic.gdx.InputProcessor) {
-                        // Don't override input processor - let main class handle multiplexer
-                        Log.info("ClientGameMode", "Would set input processor to inputController (checkReady)");
-                    }
-                    Log.info("ClientGameMode", "Client mode activated successfully");
-                } else {
-                    Log.error("ClientGameMode", "Local player object is null, cannot activate");
                 }
             });
         } else {
@@ -778,16 +851,6 @@ public class ClientGameMode implements GameMode {
         active = false;
         long totalTime = System.currentTimeMillis() - startTime;
         Log.info("ClientGameMode", "Client game mode disposed in " + totalTime + "ms");
-    }
-
-    @Override
-    public boolean isActive() {
-        return active;
-    }
-
-    @Override
-    public GameWorld getGameWorld() {
-        return gameWorld;
     }
 
     /**

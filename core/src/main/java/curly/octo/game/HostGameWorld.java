@@ -16,6 +16,7 @@ public class HostGameWorld extends GameWorld {
 
     public static final String WORLD_OWNERSHIP = "owned by world";
     private HashMap<String, String> entityIdToEntityOwnerMap;
+    private boolean deferredMapGeneration = false;
 
 
     public HostGameWorld(Random random) {
@@ -40,6 +41,32 @@ public class HostGameWorld extends GameWorld {
             setMapManager(map);
             Log.info("HostGameWorld", "Initialized host map");
         }
+    }
+
+    /**
+     * Sets whether map generation should be deferred until client connection.
+     * When true, the host will not generate an initial map and instead will
+     * trigger map generation through the regeneration workflow when a client connects.
+     */
+    public void setDeferredMapGeneration(boolean deferred) {
+        this.deferredMapGeneration = deferred;
+        if (deferred) {
+            Log.info("HostGameWorld", "Map generation deferred - will generate when client connects");
+        }
+    }
+
+    /**
+     * @return true if map generation is deferred (no initial map created)
+     */
+    public boolean isDeferredMapGeneration() {
+        return deferredMapGeneration;
+    }
+
+    /**
+     * @return true if the host has an initial map available for distribution
+     */
+    public boolean hasInitialMap() {
+        return getMapManager() != null && !deferredMapGeneration;
     }
 
     @Override

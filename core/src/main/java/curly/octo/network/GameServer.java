@@ -7,6 +7,7 @@ import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameWorld;
+import curly.octo.game.HostGameWorld;
 import curly.octo.map.GameMap;
 import curly.octo.network.messages.MapDataUpdate;
 import curly.octo.network.messages.MapChunkMessage;
@@ -49,6 +50,9 @@ public class GameServer {
     private final Set<Integer> clientsReadyForMap = new HashSet<>();
     private Thread regenerationThread;
 
+    // Initial generation player assignment tracking
+    private final Map<Integer, String> pendingPlayerAssignments = new ConcurrentHashMap<>();
+
     // Chunked map transfer support
     private static final int CHUNK_SIZE = Constants.NETWORK_CHUNK_SIZE; // 8KB chunks
     private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
@@ -68,15 +72,33 @@ public class GameServer {
         server.addListener(new Listener() {
             @Override
             public void connected(Connection connection) {
-                sendMapRefreshToUser(connection);
-                PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
-                players.add(newPlayer);
+                // Check if we have an initial map or need to generate one
+                if (hasInitialMap()) {
+                    // Standard flow: send existing map, then assign player immediately
+                    sendMapRefreshToUser(connection);
 
-                connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
-                broadcastNewPlayerRoster();
-                // Also send roster directly to the new connection to ensure they get it
-                sendPlayerRosterToConnection(connection);
-                assignPlayer(connection, newPlayer.entityId);
+                    PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
+                    players.add(newPlayer);
+
+                    connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
+                    broadcastNewPlayerRoster();
+                    // Also send roster directly to the new connection to ensure they get it
+                    sendPlayerRosterToConnection(connection);
+                    assignPlayer(connection, newPlayer.entityId);
+                } else {
+                    // New flow: trigger initial map generation, delay player assignment until after generation
+                    Log.info("GameServer", "Deferring player assignment until after initial map generation for client " + connection.getID());
+
+                    // Create player but don't send assignment yet - store for later
+                    PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
+                    players.add(newPlayer);
+                    connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
+
+                    // Store connection info for later player assignment
+                    pendingPlayerAssignments.put(connection.getID(), newPlayer.entityId);
+
+                    triggerInitialMapGeneration(connection);
+                }
 
 
                 // Safe logging of connection address
@@ -88,7 +110,7 @@ public class GameServer {
                 } catch (Exception e) {
                     Log.warn("Server", "Could not get remote address: " + e.getMessage());
                 }
-                Log.info("Server", "Player " + newPlayer.entityId + " connected from " + address);
+//                Log.info("Server", "Player " + newPlayer.entityId + " connected from " + address);
             }
 
             @Override
@@ -122,6 +144,12 @@ public class GameServer {
             public void disconnected(Connection connection) {
                 // Remove from ready clients
                 readyClients.remove(connection.getID());
+
+                // Remove any pending player assignment for this connection
+                String pendingPlayerId = pendingPlayerAssignments.remove(connection.getID());
+                if (pendingPlayerId != null) {
+                    Log.info("GameServer", "Removed pending player assignment for disconnected client " + connection.getID());
+                }
 
                 // Find and remove the disconnected player using the connection mapping
                 String playerId = connectionToPlayerMap.remove(connection.getID());
@@ -348,6 +376,80 @@ public class GameServer {
     }
 
     // =====================================
+    // INITIAL MAP GENERATION SUPPORT
+    // =====================================
+
+    /**
+     * Checks if the server has an initial map available for distribution.
+     * @return true if there's a map available, false if deferred generation is active
+     */
+    private boolean hasInitialMap() {
+        if (gameWorld instanceof HostGameWorld) {
+            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
+            return hostWorld.hasInitialMap();
+        }
+        // For non-host worlds, assume we have a map if it exists
+        return map != null;
+    }
+
+    /**
+     * Triggers initial map generation when a client connects to a host without an initial map.
+     * This routes the first connection through the regeneration workflow for consistency.
+     */
+    private void triggerInitialMapGeneration(Connection connection) {
+        Log.info("GameServer", "No initial map available - triggering initial map generation for client " + connection.getID());
+
+        // Generate a seed for the initial map
+        long initialSeed = System.currentTimeMillis();
+
+        // Use the regeneration system for initial map generation with the initial generation flag
+        // This ensures consistency with the regeneration workflow and UI
+        regenerateMap(initialSeed, "Initial map generation for host startup", true);
+    }
+
+    /**
+     * Completes pending player assignments that were deferred during initial map generation.
+     * This should be called after the initial map has been generated and sent to clients.
+     */
+    private void completePendingPlayerAssignments() {
+        if (pendingPlayerAssignments.isEmpty()) {
+            Log.debug("GameServer", "No pending player assignments to complete");
+            return;
+        }
+
+        Log.info("GameServer", "Completing " + pendingPlayerAssignments.size() + " pending player assignments");
+
+        for (Map.Entry<Integer, String> entry : pendingPlayerAssignments.entrySet()) {
+            Integer connectionId = entry.getKey();
+            String playerId = entry.getValue();
+
+            // Find the connection object
+            Connection connection = null;
+            for (Connection conn : server.getConnections()) {
+                if (conn.getID() == connectionId) {
+                    connection = conn;
+                    break;
+                }
+            }
+
+            if (connection != null) {
+                Log.info("GameServer", "Sending deferred player assignment to client " + connectionId + " (player: " + playerId + ")");
+
+                // Send player roster first
+                sendPlayerRosterToConnection(connection);
+                // Then assign the player
+                assignPlayer(connection, playerId);
+            } else {
+                Log.warn("GameServer", "Could not find connection " + connectionId + " for pending player assignment");
+            }
+        }
+
+        // Clear pending assignments
+        pendingPlayerAssignments.clear();
+        Log.info("GameServer", "All pending player assignments completed");
+    }
+
+    // =====================================
     // MAP REGENERATION FUNCTIONALITY
     // =====================================
 
@@ -359,6 +461,18 @@ public class GameServer {
      * @param reason Optional reason for regeneration (for logging)
      */
     public void regenerateMap(long newSeed, String reason) {
+        regenerateMap(newSeed, reason, false);
+    }
+
+    /**
+     * Regenerates the server map with a new seed and broadcasts it to all clients.
+     * This triggers a complete resource cleanup and reload cycle on all clients.
+     *
+     * @param newSeed The seed for the new map generation
+     * @param reason Optional reason for regeneration (for logging)
+     * @param isInitialGeneration Whether this is initial generation (host startup) vs regeneration
+     */
+    public void regenerateMap(long newSeed, String reason, boolean isInitialGeneration) {
         if (isRegenerating) {
             Log.warn("GameServer", "Map regeneration already in progress, ignoring request");
             return;
@@ -389,7 +503,7 @@ public class GameServer {
         regenerationThread = new Thread(() -> {
             try {
                 // Step 1: Notify all clients that map regeneration is starting
-                MapRegenerationStartMessage startMessage = new MapRegenerationStartMessage(currentRegenerationId, newSeed, reason);
+                MapRegenerationStartMessage startMessage = new MapRegenerationStartMessage(currentRegenerationId, newSeed, reason, isInitialGeneration);
                 server.sendToAllTCP(startMessage);
                 Log.info("GameServer", "Sent regeneration start message to all clients, waiting for readiness confirmations...");
 
@@ -415,6 +529,9 @@ public class GameServer {
                 for (Connection connection : server.getConnections()) {
                     sendMapRefreshToUser(connection);
                 }
+
+                // Step 5.1: Complete any pending player assignments for initial generation
+                completePendingPlayerAssignments();
 
                 // Step 6: Reset all players to new spawn locations
                 resetAllPlayersToSpawn();

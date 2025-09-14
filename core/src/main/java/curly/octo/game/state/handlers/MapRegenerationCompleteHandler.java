@@ -20,9 +20,10 @@ public class MapRegenerationCompleteHandler extends AbstractStateHandler {
     public MapRegenerationCompleteHandler(ClientGameMode clientGameMode) {
         super(GameState.MAP_REGENERATION_COMPLETE,
               GameState.PLAYING,         // Normal progression back to game
+              GameState.LOBBY,           // For initial generation awaiting player assignment
               GameState.ERROR,           // If final checks fail
               GameState.CONNECTION_LOST); // If disconnected during final steps
-        
+
         this.clientGameMode = clientGameMode;
     }
     
@@ -50,9 +51,29 @@ public class MapRegenerationCompleteHandler extends AbstractStateHandler {
                 context.setStateData("finalization_logged", true);
             }
             
-            // Transition immediately to PLAYING state
-            if (clientGameMode != null) {
-                clientGameMode.getStateManager().requestStateChange(GameState.PLAYING);
+            // Only attempt transition once
+            Boolean transitionAttempted = context.getStateData("transition_attempted", Boolean.class, false);
+            if (!transitionAttempted) {
+                context.setStateData("transition_attempted", true);
+
+                // Regeneration complete - transition directly to PLAYING state
+                logAction("Map regeneration complete - transitioning to PLAYING state");
+                if (clientGameMode != null) {
+                    // Mark both flags as true for proper game activation
+                    clientGameMode.setMapReceivedFlag(true);
+
+                    Boolean isInitialGeneration = context.getStateData("is_initial_generation", Boolean.class, false);
+                    if (isInitialGeneration) {
+                        // For initial generation, we need to wait for player assignment
+                        // But we still transition to PLAYING - the PLAYING handler will check if ready
+                        logAction("Initial generation complete - transitioning to PLAYING (player assignment pending)");
+                    } else {
+                        // For normal regeneration, everything should be ready
+                        logAction("Normal regeneration complete - transitioning to PLAYING");
+                    }
+
+                    clientGameMode.getStateManager().requestStateChange(GameState.PLAYING);
+                }
             }
         }
     }
@@ -177,7 +198,8 @@ public class MapRegenerationCompleteHandler extends AbstractStateHandler {
             "bytes_received", "total_bytes", "chunks_received", "total_chunks",
             "map_id", "received_map_id",
             "rebuilding_complete", "rebuilding_started", "rebuilding_start_time",
-            "finalization_complete", "finalization_logged",
+            "finalization_complete", "finalization_logged", "transition_attempted",
+            "needs_player_reinit_after_assignment",
             // Client synchronization data
             "regeneration_timestamp", "new_map_seed", "regeneration_reason",
             // Map processing data

@@ -245,11 +245,26 @@ public class MapRegenerationScreen implements StateScreen {
         staticLastContext = context;
 
         // Update all UI components based on current state
+        updateTitleStatic(context);
         updateStateDisplayStatic(context);
         updateProgressStatic(context);
         updateStatusMessageStatic(context);
         updateTimeDisplayStatic(context);
         updateInfoPanelStatic(context);
+    }
+
+    /**
+     * Updates the title based on whether this is initial generation or regeneration
+     */
+    private static void updateTitleStatic(StateContext context) {
+        if (staticTitleLabel != null && context != null) {
+            Boolean isInitialGeneration = context.getStateData("is_initial_generation", Boolean.class);
+            if (isInitialGeneration != null && isInitialGeneration) {
+                staticTitleLabel.setText("Generating Initial Map");
+            } else {
+                staticTitleLabel.setText("Map Regeneration");
+            }
+        }
     }
 
     private void updateStateDisplay(StateContext context) {
@@ -342,15 +357,27 @@ public class MapRegenerationScreen implements StateScreen {
             // Clear existing info
             staticInfoTable.clear();
 
-            // Add general information that's always relevant
-            addInfoRowStatic("What's happening:", "The game world is being regenerated");
-            addInfoRowStatic("Your progress:", "Saved automatically");
-            addInfoRowStatic("Connection:", "Maintained with server");
+            // Check if this is initial generation
+            Boolean isInitialGeneration = context.getStateData("is_initial_generation", Boolean.class);
+            boolean isInitial = isInitialGeneration != null && isInitialGeneration;
+
+            if (isInitial) {
+                // Messages for initial map generation
+                addInfoRowStatic("What's happening:", "Creating your first game world");
+                addInfoRowStatic("Status:", "Generating map for host startup");
+                addInfoRowStatic("Connection:", "Setting up multiplayer server");
+            } else {
+                // Messages for map regeneration
+                addInfoRowStatic("What's happening:", "The game world is being regenerated");
+                addInfoRowStatic("Your progress:", "Saved automatically");
+                addInfoRowStatic("Connection:", "Maintained with server");
+            }
 
             // Show regeneration reason if available
             String reason = context.getStateData("regeneration_reason", String.class);
             if (reason != null && !reason.trim().isEmpty()) {
-                addInfoRowStatic("Reason:", reason);
+                String reasonLabel = isInitial ? "Purpose:" : "Reason:";
+                addInfoRowStatic(reasonLabel, reason);
             }
 
             // Show new map seed if available

@@ -89,9 +89,20 @@ public class MapRegenerationRebuildingHandler extends AbstractStateHandler {
                 // Cast the received map object to GameMap
                 gameWorld.setMap((GameMap) receivedMapObj);
                 
-                updateProgress(context, 0.6f, "Reinitializing players...");
-                logAction("Reinitializing players for new map");
-                gameWorld.reinitializePlayersAfterMapRegeneration();
+                // Always try to reinitialize players if they exist
+                // During initial generation, players might be assigned after map setup
+                Boolean isInitialGeneration = context.getStateData("is_initial_generation", Boolean.class, false);
+                if (isInitialGeneration) {
+                    updateProgress(context, 0.6f, "Map ready for initial player assignment...");
+                    logAction("Initial generation - map is ready, players will be initialized when assigned");
+
+                    // Store a flag so we can reinitialize players after they're assigned
+                    context.setStateData("needs_player_reinit_after_assignment", true);
+                } else {
+                    updateProgress(context, 0.6f, "Reinitializing players...");
+                    logAction("Reinitializing players for new map");
+                    gameWorld.reinitializePlayersAfterMapRegeneration();
+                }
                 
                 updateProgress(context, 0.9f, "Finalizing world setup...");
                 

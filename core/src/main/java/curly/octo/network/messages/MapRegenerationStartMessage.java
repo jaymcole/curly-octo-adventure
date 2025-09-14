@@ -17,7 +17,10 @@ public class MapRegenerationStartMessage {
     
     /** Server timestamp when regeneration started */
     public long timestamp;
-    
+
+    /** Flag indicating if this is initial map generation (host startup) vs regeneration */
+    public boolean isInitialGeneration = false;
+
     // No-arg constructor for Kryo serialization
     public MapRegenerationStartMessage() {
     }
@@ -34,5 +37,22 @@ public class MapRegenerationStartMessage {
         this.newMapSeed = newMapSeed;
         this.reason = reason != null ? reason : "Server triggered";
         this.timestamp = regenerationId;
+        this.isInitialGeneration = false;
+    }
+
+    public MapRegenerationStartMessage(long newMapSeed, String reason, boolean isInitialGeneration) {
+        this.regenerationId = System.currentTimeMillis(); // Use timestamp as unique ID
+        this.newMapSeed = newMapSeed;
+        this.reason = reason != null ? reason : "Server triggered";
+        this.timestamp = this.regenerationId;
+        this.isInitialGeneration = isInitialGeneration;
+    }
+
+    public MapRegenerationStartMessage(long regenerationId, long newMapSeed, String reason, boolean isInitialGeneration) {
+        this.regenerationId = regenerationId;
+        this.newMapSeed = newMapSeed;
+        this.reason = reason != null ? reason : "Server triggered";
+        this.timestamp = regenerationId;
+        this.isInitialGeneration = isInitialGeneration;
     }
 }
