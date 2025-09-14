@@ -48,9 +48,24 @@ public class MapRegenerationDownloadingHandler extends AbstractStateHandler {
     public void onUpdateState(StateContext context, float deltaTime) {
         // Check if download is complete
         Boolean downloadComplete = context.getStateData("download_complete", Boolean.class, false);
-        
+
         if (downloadComplete) {
-            logAction("Download complete, transitioning to rebuilding state");
+            // Ensure minimum display time for better UX (so users can see regeneration progress)
+            Long startTime = context.getStateData("download_start_time", Long.class);
+            long minDisplayTimeMs = 1500; // 1.5 seconds minimum display
+
+            if (startTime != null) {
+                long elapsed = System.currentTimeMillis() - startTime;
+                if (elapsed < minDisplayTimeMs) {
+                    // Still within minimum display time - show progress but don't transition yet
+                    long remaining = minDisplayTimeMs - elapsed;
+                    updateProgress(context, 0.9f + (0.1f * elapsed / minDisplayTimeMs),
+                        "Download complete, preparing to rebuild... (" + (remaining / 100) / 10.0f + "s)");
+                    return;
+                }
+            }
+
+            logAction("Download complete and minimum display time elapsed, transitioning to rebuilding state");
             if (clientGameMode != null) {
                 clientGameMode.getStateManager().requestStateChange(GameState.MAP_REGENERATION_REBUILDING);
             }

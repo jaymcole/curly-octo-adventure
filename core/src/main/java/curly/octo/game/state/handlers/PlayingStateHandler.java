@@ -19,9 +19,10 @@ public class PlayingStateHandler extends AbstractStateHandler {
 
     public PlayingStateHandler(ClientGameMode clientGameMode) {
         super(GameState.PLAYING,
-              GameState.LOBBY,           // Can go back to lobby if not ready
-              GameState.ERROR,           // If activation fails
-              GameState.CONNECTION_LOST); // If disconnected
+              GameState.LOBBY,                        // Can go back to lobby if not ready
+              GameState.MAP_REGENERATION_CLEANUP,     // Can transition to map regeneration
+              GameState.ERROR,                        // If activation fails
+              GameState.CONNECTION_LOST);             // If disconnected
 
         this.clientGameMode = clientGameMode;
     }
