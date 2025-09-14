@@ -21,6 +21,7 @@ import curly.octo.game.state.handlers.MapRegenerationCleanupHandler;
 import curly.octo.game.state.handlers.MapRegenerationDownloadingHandler;
 import curly.octo.game.state.handlers.MapRegenerationRebuildingHandler;
 import curly.octo.game.state.handlers.MapRegenerationCompleteHandler;
+import curly.octo.ui.screens.MapRegenerationScreen;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -899,7 +900,11 @@ public class ClientGameMode implements GameMode {
                 Log.info("ClientGameMode", "TRANSFER DATA SET: totalChunks=" + totalChunks + " stored for mapId=" + mapId);
             }
 
-            // Use state manager's updateProgress for consistent throttling
+            // Use both static method for immediate update and state manager for consistency
+            MapRegenerationScreen.updateProgressDirect(GameState.MAP_REGENERATION_DOWNLOADING, 0.1f,
+                String.format("Starting download (%d chunks)...", totalChunks));
+
+            // Also use state manager's updateProgress for consistency
             stateManager.updateProgress(0.1f, String.format("Receiving map data (%d chunks)...", totalChunks));
             Log.info("ClientGameMode", "Map transfer setup complete, expecting " + totalChunks + " chunks");
         } else {
@@ -910,93 +915,77 @@ public class ClientGameMode implements GameMode {
     /**
      * Called by GameClient when a chunk is received - update state context with progress
      */
-    public void onChunkReceived(String mapId, int chunkIndex, byte[] chunkData) {
-        Log.debug("ClientGameMode", "onChunkReceived called: mapId=" + mapId + ", chunk=" + chunkIndex + ", thread=" + Thread.currentThread().getName());
+    // Cache for chunk counts to avoid expensive state operations
+    private volatile int cachedChunksReceived = 0;
+    private volatile long cachedBytesReceived = 0L;
+    private volatile String cachedMapId = null;
+    private volatile Integer cachedTotalChunks = null;
 
+    public void onChunkReceived(String mapId, int chunkIndex, byte[] chunkData) {
         GameState currentState = stateManager.getCurrentState();
+
         // Show progress during regeneration downloading OR during initial connection (LOBBY)
         if (currentState == GameState.MAP_REGENERATION_DOWNLOADING || currentState == GameState.LOBBY) {
-            StateContext context = stateManager.getStateContext();
 
-            // Thread-safe updates to chunk tracking - use the incoming mapId directly
-            synchronized (context) {
-                // Use mapId-specific keys to avoid conflicts between multiple transfers
-                int chunksReceived = context.getStateData("chunks_received_" + mapId, Integer.class, 0) + 1;
-                long bytesReceived = context.getStateData("bytes_received_" + mapId, Long.class, 0L) + chunkData.length;
+            // FAST PATH: Use cached values and minimal state operations to prevent buffer backup
 
-                // Update mapId-specific data
-                context.setStateData("chunks_received_" + mapId, chunksReceived);
-                context.setStateData("bytes_received_" + mapId, bytesReceived);
+            // Reset cache if mapId changed (new transfer)
+            if (!mapId.equals(cachedMapId)) {
+                cachedMapId = mapId;
+                cachedChunksReceived = 0;
+                cachedBytesReceived = 0L;
+                cachedTotalChunks = null;
 
-                // Also update global data for the current transfer
-                context.setStateData("chunks_received", chunksReceived);
-                context.setStateData("bytes_received", bytesReceived);
-
-                // Get total chunks using the incoming mapId (most reliable)
-                Integer totalChunks = context.getStateData("total_chunks_" + mapId, Integer.class);
-
-                // Enhanced debugging for totalChunks issues
-                if (chunksReceived % 50 == 0 || totalChunks == null || totalChunks <= 0) {
-                    Log.warn("ClientGameMode", "DEBUG: mapId=" + mapId + ", chunksReceived=" + chunksReceived + ", totalChunks=" + totalChunks + ", currentState=" + currentState);
+                // Load totalChunks from state context once
+                StateContext context = stateManager.getStateContext();
+                cachedTotalChunks = context.getStateData("total_chunks_" + mapId, Integer.class);
+                if (cachedTotalChunks == null || cachedTotalChunks <= 0) {
+                    cachedTotalChunks = gameClient.getCurrentTransferTotalChunks(mapId);
                 }
+            }
 
-                // WORKAROUND: If mapId-specific totalChunks is missing, try multiple recovery methods
-                if (totalChunks == null || totalChunks <= 0) {
-                    Log.warn("ClientGameMode", "MapId-specific totalChunks missing for " + mapId + ", trying recovery methods");
+            // Fast increment (no state operations on network thread)
+            cachedChunksReceived++;
+            cachedBytesReceived += chunkData.length;
 
-                    // Method 1: Try global totalChunks
-                    totalChunks = context.getStateData("total_chunks", Integer.class);
-                    if (totalChunks != null && totalChunks > 0) {
-                        Log.info("ClientGameMode", "Recovery method 1: Using global totalChunks=" + totalChunks);
-                    } else {
-                        // Method 2: Get directly from GameClient
-                        if (gameClient != null) {
-                            Integer correctTotalChunks = gameClient.getCurrentTransferTotalChunks(mapId);
-                            if (correctTotalChunks != null && correctTotalChunks > 0) {
-                                totalChunks = correctTotalChunks;
-                                Log.info("ClientGameMode", "Recovery method 2: Got totalChunks=" + totalChunks + " from GameClient");
+            // Minimal logging
+            if (cachedChunksReceived % 100 == 0) {
+                float progressPercent = cachedTotalChunks != null && cachedTotalChunks > 0 ?
+                    (cachedChunksReceived * 100.0f / cachedTotalChunks) : 0;
+                Log.info("ClientGameMode", "FAST CHUNK: " + mapId + " chunks=" + cachedChunksReceived + "/" + cachedTotalChunks + " (" + String.format("%.1f", progressPercent) + "%)");
+            }
 
-                                // Store it for future use
-                                context.setStateData("total_chunks_" + mapId, totalChunks);
-                                context.setStateData("total_chunks", totalChunks);
-                            } else {
-                                Log.error("ClientGameMode", "CRITICAL: All recovery methods failed for mapId=" + mapId);
-                            }
-                        }
-                    }
-                }
+            // UI update with aggressive throttling to prevent buffer backup
+            if (cachedTotalChunks != null && cachedTotalChunks > 0) {
+                boolean shouldUpdateUI = (cachedChunksReceived % curly.octo.Constants.MAP_TRANSFER_CHUNK_DELAY == 0);
 
-                if (totalChunks != null && totalChunks > 0) {
-                    float progress = 0.1f + (chunksReceived / (float) totalChunks) * 0.8f;
+                if (shouldUpdateUI) {
+                    float progress = 0.1f + (cachedChunksReceived / (float) cachedTotalChunks) * 0.8f;
 
-                    // Post UI update to main thread (but keep data processing on network thread)
+                    // Minimal UI posting - cache values to avoid capture issues
                     final float finalProgress = progress;
-                    final int finalChunksReceived = chunksReceived;
-                    final int finalTotalChunks = totalChunks;
+                    final int finalChunksReceived = cachedChunksReceived;
+                    final int finalTotalChunks = cachedTotalChunks;
 
+                    // Use static method for immediate UI update without postRunnable delay
+                    curly.octo.ui.screens.MapRegenerationScreen.updateChunkProgress(
+                        finalChunksReceived, finalTotalChunks,
+                        String.format("Received %d/%d chunks...", finalChunksReceived, finalTotalChunks));
+
+                    // Also update state manager (but this may be throttled)
                     Gdx.app.postRunnable(() -> {
                         stateManager.updateProgress(finalProgress,
                             String.format("Received %d/%d chunks...", finalChunksReceived, finalTotalChunks));
                     });
-                } else {
-                    // Don't update progress if we don't have totalChunks - this prevents oscillation
-                    // Just log the issue for debugging
-                    if (totalChunks == null) {
-                        Log.warn("ClientGameMode", "totalChunks is NULL - transfer start may not have been called properly");
-                    } else {
-                        Log.warn("ClientGameMode", "totalChunks is 0 or negative: " + totalChunks);
-                    }
 
-                    // Check if we have any chunks at all for basic progress indication
-                    int currentChunks = context.getStateData("chunks_received", Integer.class, 0);
-                    if (currentChunks > 0) {
-                        Log.info("ClientGameMode", "Have " + currentChunks + " chunks but no totalChunks - keeping previous progress");
-                        // Don't update progress to avoid oscillation
+                    // Periodic state sync (every 100 chunks) to maintain consistency
+                    if (cachedChunksReceived % 100 == 0) {
+                        StateContext context = stateManager.getStateContext();
+                        context.setStateData("chunks_received_" + mapId, cachedChunksReceived);
+                        context.setStateData("chunks_received", cachedChunksReceived);
                     }
                 }
             }
-        } else {
-            Log.debug("ClientGameMode", "Not in DOWNLOADING or LOBBY state (" + currentState + "), skipping chunk progress update");
         }
     }
 
@@ -1007,8 +996,25 @@ public class ClientGameMode implements GameMode {
         GameState currentState = stateManager.getCurrentState();
         if (currentState == GameState.MAP_REGENERATION_DOWNLOADING || currentState == GameState.LOBBY) {
             StateContext context = stateManager.getStateContext();
-            // Use state manager's updateProgress for consistent throttling
-            stateManager.updateProgress(0.95f, "Map transfer complete, processing...");
+
+            // Force immediate UI synchronization with final chunk count
+            if (mapId.equals(cachedMapId) && cachedTotalChunks != null) {
+                final int finalChunksReceived = cachedChunksReceived;
+                final int finalTotalChunks = cachedTotalChunks;
+
+                // Calculate final progress (should be ~95% of download phase)
+                float finalProgress = 0.1f + (finalChunksReceived / (float) finalTotalChunks) * 0.8f;
+
+                Log.info("ClientGameMode", "TRANSFER COMPLETE: Forcing final UI sync - " + finalChunksReceived + "/" + finalTotalChunks + " chunks (" + String.format("%.1f%%", finalProgress * 100) + ")");
+
+                // Use static method for immediate UI update
+                MapRegenerationScreen.updateProgressDirect(GameState.MAP_REGENERATION_DOWNLOADING, finalProgress * 0.9f / 0.6f,
+                    "Map transfer complete, processing...");
+
+                // Also update state manager (immediate, no postRunnable to avoid queue delay)
+                stateManager.updateProgress(finalProgress, "Map transfer complete, processing...");
+            }
+
             context.setStateData("received_map_id", mapId);
             // Don't set download_complete = true here - let the mapReceivedListener do it
             // after the map is actually deserialized and stored

@@ -73,8 +73,8 @@ public class GameClient {
      */
     public GameClient(String host) {
         this.host = host;
-        // Small buffers for fast network operations - maps will be transferred in chunks
-        this.client = new Client(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE); // 16KB read/write buffers
+        // Large buffers to handle chunked map transfers without overflow
+        this.client = new Client(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE); // 128KB read/write buffers
 
         // Register all network classes
         Network.register(client);
