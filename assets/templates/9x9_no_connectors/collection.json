@@ -9,6 +9,11 @@
     "room_nes",
     "room_new",
     "room_nsw",
+    "room_ns",
+    "room_ew",
+    "room_ns_shrinker",
+    "room_ns_slots_1",
+    "room_ew_maze_1",
     "spawn_nesw"
   ]
 }
