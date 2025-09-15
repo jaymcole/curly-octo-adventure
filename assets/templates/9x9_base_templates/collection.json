@@ -1,0 +1,7 @@
+{
+  "templateDimensionWidth": 9,
+  "templateDimensionHeight": 9,
+  "templateDimensionDepth": 9,
+  "use_connectors": false,
+  "spawn_room": "spawn_nesw"
+}

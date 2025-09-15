@@ -8,12 +8,16 @@ import java.util.stream.Collectors;
 
 public class TemplateRoom {
 
+    public final String collection_name;
     public final String template_name;
     public final int[][][] walls;
     public final HashSet<Direction> entrances;
     public final HashSet<Direction> exits;
+    public final TemplateRoomConfigs configs;
 
-    public TemplateRoom(String template_name, int[][][] walls) {
+    public TemplateRoom(String collection_name, String template_name, TemplateRoomConfigs configs, int[][][] walls) {
+        this.configs = configs;
+        this.collection_name = collection_name;
         this.template_name = template_name;
         this.walls = walls;
 

@@ -7,9 +7,17 @@ import com.badlogic.gdx.utils.Json;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.Direction;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.util.*;
 
+import static com.badlogic.gdx.net.HttpRequestBuilder.json;
+
 public class TemplateManager {
+
+    public static final String TEMPLATE_FOLDER = "template";
+    public static final String TEMPLATE_EXTENSION = ".png";
+    public static final String CONFIG_EXTENSION = ".json";
 
     public static final String COLLECTION_METADATA_FILENAME = "collection.json";
 
@@ -19,65 +27,62 @@ public class TemplateManager {
     public static boolean USE_CONNECTORS;
 
     public ArrayList<TemplateRoom> roomTemplates;
-    public ArrayList<TemplateRoom> connectorTemplates;
+
+    public HashMap<String, ArrayList<TemplateRoom>> collectionNameToRoomTemplatesMap;
+    public HashMap<String, TemplateRoom> templateNameToRoomTemplateMap;
+
+
+
     private final HashMap<String, ArrayList<TemplateRoom>> validRoomCache;
-    private final HashMap<String, ArrayList<TemplateRoom>> validConnectorCache;
 
     public TemplateManager(String[] templatePaths) {
+        collectionNameToRoomTemplatesMap = new HashMap<>();
+        templateNameToRoomTemplateMap = new HashMap<>();
         roomTemplates = new ArrayList<>();
-        connectorTemplates = new ArrayList<>();
         validRoomCache = new HashMap<>();
-        validConnectorCache = new HashMap<>();
+        loadTemplatesFromAssetsFile();
+    }
 
-        HashMap<String, TemplateCollection> collections = loadCollections(templatePaths);
-        for(Map.Entry<String, TemplateCollection> collectionMetadata : collections.entrySet()) {
-            for (String templateName : collectionMetadata.getValue().templates) {
-                FileHandle templateFile = Gdx.files.internal(collectionMetadata.getKey() + "/" + templateName + ".png");
-                if (templateFile.exists()) {
-                    try {
-                        TemplateRoom room = null;
-                        if (templateName.startsWith(CONNECTOR_PREFIX)) {
-                            room = loadTemplate(templateFile);
-                            connectorTemplates.add(room);
-                        } else {
-                            room = loadTemplate(templateFile);
-                            roomTemplates.add(room);
+    private void loadTemplatesFromAssetsFile() {
+        FileHandle assetsFile = Gdx.files.internal("assets.txt");
+        try (BufferedReader reader = new BufferedReader(assetsFile.reader())) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String trimmedLine = line.trim();
+                if (trimmedLine.startsWith(TEMPLATE_FOLDER) && trimmedLine.endsWith(TEMPLATE_EXTENSION)) {
+                    String[] directoryParts = trimmedLine.split("/");
+                    String collectionName = directoryParts[1];
+                    String templateName = directoryParts[2].split("\\.")[0];
 
-                        }
-                        Gdx.app.log("Assets", "Loaded template: " + templateFile.path());
-                    } catch (Exception e) {
-                        Log.error("TemplateLoader", "Failed to load template " + templateName + ": " + e.getMessage());
+                    String configsPath = TEMPLATE_FOLDER + "/" + collectionName + "/" + templateName + CONFIG_EXTENSION;
+                    FileHandle room_configs = Gdx.files.internal(configsPath);
+                    if (!room_configs.exists()) {
+                        Log.error("loadTemplatesFromAssetsFile", "missing config file for: " + configsPath);
+                        continue;
                     }
+                    TemplateRoomConfigs configs = json.fromJson(TemplateRoomConfigs.class, room_configs);
+
+                    String templatePath = TEMPLATE_FOLDER + "/" + collectionName + "/" + templateName + TEMPLATE_EXTENSION;
+                    FileHandle room_template = Gdx.files.internal(templatePath);
+                    if (!room_template.exists()) {
+                        Log.error("loadTemplatesFromAssetsFile", "missing template file for: " + templatePath);
+                        continue;
+                    }
+                    TemplateRoom room = loadTemplate(collectionName, room_template, configs);
+                    roomTemplates.add(room);
+                    templateNameToRoomTemplateMap.put(templateName, room);
+                    if (!collectionNameToRoomTemplatesMap.containsKey(collectionName)) {
+                        collectionNameToRoomTemplatesMap.put(collectionName, new ArrayList<>());
+                    }
+                    collectionNameToRoomTemplatesMap.get(collectionName).add(room);
                 }
             }
-            Log.info("TemplateManager", "Done importing templates");
+        } catch (IOException e) {
+            Log.error("TemplateManager", "Error reading assets.txt", e);
         }
     }
 
-    private HashMap<String, TemplateCollection> loadCollections(String[] templatePaths) {
-        Json json = new Json();
-        HashMap<String, TemplateCollection> collections = new HashMap<>();
-        for(String collectionPath : templatePaths) {
-            FileHandle templateFile = Gdx.files.internal(collectionPath + "/" + COLLECTION_METADATA_FILENAME);
-            if (templateFile.exists()) {
-                TemplateCollection collection = json.fromJson(TemplateCollection.class, templateFile);
-                if (collection != null) {
-                    collections.put(collectionPath, collection);
-                    SPAWN_ROOM = collection.spawn_room;
-                    ROOM_SIZE = collection.templateDimensionDepth;
-                    USE_CONNECTORS = collection.use_connectors;
-                } else {
-                    Log.error("loadCollections", "Failed to parse collection metadata file for " + collectionPath);
-                }
-            } else {
-                Log.error("loadCollections", "Missing collection metadata for " + collectionPath);
-            }
-        }
-
-        return collections;
-    }
-
-    private TemplateRoom loadTemplate(FileHandle templateFile) {
+    private TemplateRoom loadTemplate(String collectionName,FileHandle templateFile, TemplateRoomConfigs configs) {
         Pixmap pixmap = null;
 
         try {
@@ -106,7 +111,7 @@ public class TemplateManager {
             }
 
             String templateName = templateFile.nameWithoutExtension();
-            return new TemplateRoom(templateName, walls);
+            return new TemplateRoom(collectionName, templateName, configs, walls);
 
         } catch (Exception e) {
             Log.error("TemplateLoader", "Failed to load template " + templateFile.path() + ": " + e.getMessage());
@@ -127,33 +132,38 @@ public class TemplateManager {
         return null;
     }
 
-    public ArrayList<TemplateRoom> getValidRoomOptions(HashSet<Direction> enteringDirections) {
+    public ArrayList<TemplateRoom> getValidRoomOptions(String[] collections, String[] templateNames, HashSet<Direction> enteringDirections) {
         String cacheKey = constructValidRoomCacheKey(enteringDirections);
         if (validRoomCache.containsKey(cacheKey)) {
             return validRoomCache.get(cacheKey);
         }
-        ArrayList<TemplateRoom> validRooms =  getValidTemplateOptions(enteringDirections, roomTemplates);
+        ArrayList<TemplateRoom> possibleRooms = new ArrayList<>();
+        for(String collection : collections) {
+            if (collectionNameToRoomTemplatesMap.containsKey(collection)) {
+                possibleRooms.addAll(collectionNameToRoomTemplatesMap.get(collection));
+            }
+        }
+
+        for(String templateName : templateNames) {
+            if (templateNameToRoomTemplateMap.containsKey(templateName)) {
+                possibleRooms.add(templateNameToRoomTemplateMap.get(templateName));
+            }
+        }
+
+        ArrayList<TemplateRoom> validRooms =  getValidTemplateOptions(enteringDirections, possibleRooms);
         validRoomCache.put(cacheKey, validRooms);
         return validRooms;
     }
 
-    public ArrayList<TemplateRoom> getValidConnectorOptions(HashSet<Direction> enteringDirections) {
-        String cacheKey = constructValidRoomCacheKey(enteringDirections);
-        if (validConnectorCache.containsKey(cacheKey)) {
-            return validConnectorCache.get(cacheKey);
-        }
-        ArrayList<TemplateRoom> validConnectors =  getValidTemplateOptions(enteringDirections, connectorTemplates);
-        validConnectorCache.put(cacheKey, validConnectors);
-        return validConnectors;
-    }
-
     private ArrayList<TemplateRoom> getValidTemplateOptions(HashSet<Direction> enteringDirections, ArrayList<TemplateRoom> templates) {
         ArrayList<TemplateRoom> validTemplates = new ArrayList<>();
+
         for(TemplateRoom possibleRoomTemplate : templates) {
             if (possibleRoomTemplate.isValidRoom(enteringDirections)) {
                 validTemplates.add(possibleRoomTemplate);
             }
         }
+
         return validTemplates;
     }
 

@@ -30,7 +30,7 @@ public class TemplateGenerator extends MapGenerator {
     public TemplateGenerator(Random random, GameMap map) {
         super(random, map);
         roomsPlaced = 0;
-        manager = new TemplateManager(new String[]{"templates/9x9_no_connectors"});
+        manager = new TemplateManager(new String[]{"templates/9x9_base_templates"});
         expansionKeys = new ArrayList<>();
         rooms = new HashMap<>();
         connectors = new HashMap<>();
@@ -104,7 +104,8 @@ public class TemplateGenerator extends MapGenerator {
         while(!expansionKeys.isEmpty() && roomsPlaced < MAX_ROOMS) {
             String key = expansionKeys.remove(0);
             HashSet<Direction> requirements = gatherValidRoomEntranceRequirements(key);
-            List<TemplateRoom> possibleRooms = manager.getValidRoomOptions(requirements);
+
+            List<TemplateRoom> possibleRooms = manager.getValidRoomOptions(rooms.get(key).configs.validCollections, rooms.get(key).configs.validConnections, requirements);
             if (!possibleRooms.isEmpty()) {
                 TemplateRoom nextRoom = possibleRooms.get(random.nextInt(possibleRooms.size()));
                 Vector3 extractedCoords = extractCoordinatesFromRoomKey(key);
@@ -112,35 +113,13 @@ public class TemplateGenerator extends MapGenerator {
             }
         }
 
-        if (USE_CONNECTORS) {
-            Log.info("generate", "Placed " + roomsPlaced + " rooms");
-            for(Map.Entry<String, TemplateRoom> room : rooms.entrySet()) {
-                Vector3 roomCoordinates = extractCoordinatesFromRoomKey(room.getKey());
-                for(Direction exitDirection : room.getValue().exits) {
-                    addRoomConnection(exitDirection, roomCoordinates);
-                }
-            }
-        }
-
         replaceInvalidRooms();
         replaceDeadends();
 
         copyRoomTemplates();
-        copyConnectorTemplates();
         closeMap();
 
         initiateFlood(new Vector3(5,0,5), MapTileFillType.FOG);
-    }
-
-    private void addRoomConnection(Direction exitDirection, Vector3 roomCoordinates) {
-        String roomKey = constructRoomKey(roomCoordinates);
-        String neighborKey = constructRoomKey(Direction.advanceVector(exitDirection, roomCoordinates.cpy()));
-        if (!connectors.containsKey(constructConnectionKey(roomKey, neighborKey)) && !connectors.containsKey(constructConnectionKey(neighborKey, roomKey))) {
-            HashSet<Direction> requiredDirections = new HashSet<>();
-            requiredDirections.add(exitDirection);
-            ArrayList<TemplateRoom> connectorOptions = manager.getValidConnectorOptions(requiredDirections);
-            connectors.put(constructConnectionKey(roomKey, neighborKey), connectorOptions.get(random.nextInt(connectorOptions.size())));
-        }
     }
 
     private void copyRoomTemplates() {
@@ -165,37 +144,6 @@ public class TemplateGenerator extends MapGenerator {
             }
             if (random.nextFloat() > 0.8f) {
                 addLight(new Vector3(baseZ + 5,baseY + 6,  baseX + 5));
-            }
-        }
-    }
-
-    private void copyConnectorTemplates() {
-        for (Map.Entry<String, TemplateRoom> connectorEntry : connectors.entrySet()) {
-            // Parse connection key to get room coordinates
-            String[] connectionParts = connectorEntry.getKey().split(CONNECTION_KEY_DELIMITER);
-            if (connectionParts.length != 2) {
-                System.err.println("Invalid connection key format: " + connectorEntry.getKey());
-                continue;
-            }
-            Vector3 room1Coords = extractCoordinatesFromRoomKey(connectionParts[0]);
-
-            TemplateRoom template = connectorEntry.getValue();
-
-            // Connectors are 9x7x9, positioned between rooms with 1 tile padding
-            // Calculate connector position based on the midpoint between rooms
-            int baseX = (int)room1Coords.x * (ROOM_SIZE + (USE_CONNECTORS ? 1 : 0));
-            int baseY = (int)room1Coords.y * (ROOM_SIZE + (USE_CONNECTORS ? 1 : 0));
-            int baseZ = (int)room1Coords.z * (ROOM_SIZE + (USE_CONNECTORS ? 1 : 0));
-
-            // Copy template data to map using touchTile
-            for (int slice = 0; slice < template.walls.length; slice++) {
-                for (int z = 0; z < template.walls[slice].length; z++) {
-                    for (int x = 0; x < template.walls[slice][z].length; x++) {
-                        if (template.walls[slice][z][x] == 1) {
-                            map.touchTile(baseZ + z, baseY + slice, baseX + x);
-                        }
-                    }
-                }
             }
         }
     }
@@ -226,7 +174,7 @@ public class TemplateGenerator extends MapGenerator {
                 invalidRooms++;
 
                 // Find a better matching room that has EXACTLY the required connections
-                List<TemplateRoom> allOptions = manager.getValidRoomOptions(requiredConnections);
+                List<TemplateRoom> allOptions = manager.getValidRoomOptions(currentRoom.configs.validCollections, currentRoom.configs.validConnections, requiredConnections);
                 List<TemplateRoom> exactOptions = allOptions.stream()
                     .filter(room -> room.entrances.equals(requiredConnections))
                     .collect(Collectors.toList());
@@ -283,7 +231,7 @@ public class TemplateGenerator extends MapGenerator {
                 HashSet<Direction> requiredConnections = gatherValidRoomEntranceRequirements(roomKey);
 
                 // Find rooms that match the required connections exactly (no deadend exits)
-                List<TemplateRoom> allOptions = manager.getValidRoomOptions(requiredConnections);
+                List<TemplateRoom> allOptions = manager.getValidRoomOptions(currentRoom.configs.validCollections, currentRoom.configs.validConnections, requiredConnections);
                 List<TemplateRoom> exactOptions = allOptions.stream()
                     .filter(room -> {
                         // Room must have exactly the required connections and no extras
