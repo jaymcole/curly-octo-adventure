@@ -15,7 +15,7 @@ import static com.badlogic.gdx.net.HttpRequestBuilder.json;
 
 public class TemplateManager {
 
-    public static final String TEMPLATE_FOLDER = "template";
+    public static final String TEMPLATE_FOLDER = "templates";
     public static final String TEMPLATE_EXTENSION = ".png";
     public static final String CONFIG_EXTENSION = ".json";
 

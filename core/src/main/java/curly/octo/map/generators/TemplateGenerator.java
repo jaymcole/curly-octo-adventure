@@ -105,7 +105,8 @@ public class TemplateGenerator extends MapGenerator {
             String key = expansionKeys.remove(0);
             HashSet<Direction> requirements = gatherValidRoomEntranceRequirements(key);
 
-            List<TemplateRoom> possibleRooms = manager.getValidRoomOptions(rooms.get(key).configs.validCollections, rooms.get(key).configs.validConnections, requirements);
+            TemplateRoom spawnRoom = manager.getTemplateByFileName(SPAWN_ROOM);
+            List<TemplateRoom> possibleRooms = manager.getValidRoomOptions(spawnRoom.configs.validCollections, spawnRoom.configs.validConnections, requirements);
             if (!possibleRooms.isEmpty()) {
                 TemplateRoom nextRoom = possibleRooms.get(random.nextInt(possibleRooms.size()));
                 Vector3 extractedCoords = extractCoordinatesFromRoomKey(key);
