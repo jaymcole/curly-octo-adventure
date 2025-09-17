@@ -38,7 +38,7 @@ public class PlayerObject extends WorldObject {
     private Vector3 velocity = new Vector3();
     private Vector3 tempVector = new Vector3();
     private boolean possessed = false;
-    
+
     // Fly mode state
     private boolean flyModeEnabled = false;
     private Vector3 flyVelocity = new Vector3();
@@ -82,25 +82,25 @@ public class PlayerObject extends WorldObject {
                     Log.info("PlayerObject", "Loading GLTF model from: " + PLAYER_MODEL_PATH);
 
                     SceneAsset sceneAsset = gltfLoader.load(Gdx.files.internal(PLAYER_MODEL_PATH));
-                    
+
                     // Log information about the scene structure
                     Log.info("PlayerObject", "GLTF scene has " + sceneAsset.scene.model.nodes.size + " nodes");
                     Log.info("PlayerObject", "GLTF scene has " + sceneAsset.scene.model.meshes.size + " meshes");
                     Log.info("PlayerObject", "GLTF scene has " + sceneAsset.scene.model.meshParts.size + " mesh parts");
-                    
+
                     // Log position information for each node
                     for (int i = 0; i < sceneAsset.scene.model.nodes.size; i++) {
                         com.badlogic.gdx.graphics.g3d.model.Node node = sceneAsset.scene.model.nodes.get(i);
                         com.badlogic.gdx.math.Vector3 translation = new com.badlogic.gdx.math.Vector3();
                         node.localTransform.getTranslation(translation);
                         Log.info("PlayerObject", "Node " + i + " (" + node.id + ") position: " + translation.toString());
-                        
+
                         // Also log if node has parts (meshes)
                         if (node.parts.size > 0) {
                             Log.info("PlayerObject", "  Node " + i + " has " + node.parts.size + " mesh parts");
                         }
                     }
-                    
+
                     // Use the entire scene model - this should include all models/nodes
                     playerModel = sceneAsset.scene.model;
 
@@ -221,12 +221,14 @@ public class PlayerObject extends WorldObject {
         if (flyModeEnabled) {
             // Fly mode: direct position updates without physics
             updateFlyMode(delta);
-            
+
             // CRITICAL: Ensure physics doesn't override our fly position
-            // Force the character controller to match our current position
+            // Force the character controller to match our current position while maintaining upright orientation
             if (characterController != null && position != null) {
                 com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4();
                 transform.setToTranslation(position);
+                // Ensure the capsule remains upright (identity rotation = upright)
+                // Don't apply any rotation to keep the capsule standing vertically
                 characterController.getGhostObject().setWorldTransform(transform);
                 // Stop any physics movement
                 characterController.setWalkDirection(tempVector.set(0, 0, 0));
@@ -236,18 +238,18 @@ public class PlayerObject extends WorldObject {
             updatePhysicsMode(delta);
         }
     }
-    
+
     private void updateFlyMode(float delta) {
         // Apply fly velocity directly to position
         if (flyVelocity.len2() > 0 && position != null) {
             position.add(tempVector.set(flyVelocity).scl(delta));
             updateModelTransform();
         }
-        
+
         // Light damping to gradually stop movement when no input
         flyVelocity.scl(0.95f);
     }
-    
+
     private void updatePhysicsMode(float delta) {
         // Use character controller for physics-based movement
         if (characterController != null) {
@@ -268,6 +270,14 @@ public class PlayerObject extends WorldObject {
             // Sync position from physics
             if (position != null) {
                 position.set(characterController.getGhostObject().getWorldTransform().getTranslation(tempVector));
+
+                // Ensure the character controller's ghost object maintains upright orientation
+                // This prevents the capsule from tilting during physics updates
+                com.badlogic.gdx.math.Matrix4 currentTransform = characterController.getGhostObject().getWorldTransform();
+                com.badlogic.gdx.math.Matrix4 uprightTransform = new com.badlogic.gdx.math.Matrix4();
+                uprightTransform.setToTranslation(currentTransform.getTranslation(tempVector));
+                characterController.getGhostObject().setWorldTransform(uprightTransform);
+
                 updateModelTransform();
             }
         }
@@ -285,26 +295,25 @@ public class PlayerObject extends WorldObject {
     }
 
 
-    // Implementation of Possessable movement interface
     @Override
     public void move(Vector3 direction) {
         if (flyModeEnabled) {
             // In fly mode, convert the input direction to 3D camera-relative movement
             Vector3 cameraDir = getCameraDirection();
             Vector3 cameraRight = new Vector3(cameraDir).crs(0, 1, 0).nor();
-            
+
             // Build 3D movement vector from camera-relative directions
             Vector3 movement = new Vector3();
-            
+
             // direction.z = forward/backward (W=1, S=-1)
             if (direction.z != 0) {
                 movement.add(new Vector3(cameraDir).scl(direction.z));
             }
-            // direction.x = left/right (A=-1, D=1)  
+            // direction.x = left/right (A=-1, D=1)
             if (direction.x != 0) {
                 movement.add(new Vector3(cameraRight).scl(direction.x));
             }
-            
+
             float currentFlySpeed = getFlySpeed();
             if (movement.len2() > 0) {
                 flyVelocity.set(movement.nor().scl(currentFlySpeed));
@@ -396,7 +405,7 @@ public class PlayerObject extends WorldObject {
             }
         }
     }
-    
+
     private void updateGltfModelPosition() {
         // Simple positioning for GLTF models that preserves their original positions
         getModelInstance().transform.idt();
@@ -475,7 +484,7 @@ public class PlayerObject extends WorldObject {
             if (velocity != null) {
                 velocity.setZero();
             }
-            
+
             // Reset fly velocity
             if (flyVelocity != null) {
                 flyVelocity.setZero();
@@ -496,20 +505,20 @@ public class PlayerObject extends WorldObject {
             e.printStackTrace();
         }
     }
-    
+
     // Fly mode controls
-    
+
     /**
      * Toggles fly mode on/off for debugging purposes.
      */
     public void toggleFlyMode() {
         flyModeEnabled = !flyModeEnabled;
-        
+
         if (flyModeEnabled) {
             // Stop all physics movement when entering fly mode
             velocity.setZero();
             flyVelocity.setZero();
-            
+
             // Disable character controller physics influence
             if (characterController != null) {
                 characterController.setWalkDirection(tempVector.set(0, 0, 0));
@@ -517,24 +526,25 @@ public class PlayerObject extends WorldObject {
                 position.set(characterController.getGhostObject().getWorldTransform().getTranslation(tempVector));
                 updateModelTransform();
             }
-            
+
             Log.info("PlayerObject", "Fly mode ENABLED for player: " + entityId);
         } else {
             // Stop all fly movement when exiting fly mode
             flyVelocity.setZero();
-            
+
             // Re-sync character controller position with our current position
             if (characterController != null && position != null) {
-                // Update physics body to match our current fly position
+                // Update physics body to match our current fly position while maintaining upright orientation
                 com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4();
                 transform.setToTranslation(position);
+                // Ensure the capsule remains upright (identity rotation = upright)
                 characterController.getGhostObject().setWorldTransform(transform);
             }
-            
+
             Log.info("PlayerObject", "Fly mode DISABLED for player: " + entityId);
         }
     }
-    
+
     /**
      * Enables fly mode.
      */
@@ -543,7 +553,7 @@ public class PlayerObject extends WorldObject {
             toggleFlyMode();
         }
     }
-    
+
     /**
      * Disables fly mode.
      */
@@ -552,14 +562,14 @@ public class PlayerObject extends WorldObject {
             toggleFlyMode();
         }
     }
-    
+
     /**
      * Checks if fly mode is currently enabled.
      */
     public boolean isFlyModeEnabled() {
         return flyModeEnabled;
     }
-    
+
     /**
      * Moves down in fly mode (directly down on world Y axis).
      */
@@ -568,7 +578,7 @@ public class PlayerObject extends WorldObject {
             flyVelocity.y = -getFlySpeed();
         }
     }
-    
+
     /**
      * Gets the current fly speed, accounting for speed boost modifiers.
      */
@@ -576,7 +586,7 @@ public class PlayerObject extends WorldObject {
         // Check if shift is held for fast flying (handled in input controller)
         return FLY_SPEED;
     }
-    
+
     /**
      * Sets the vertical component of fly velocity directly.
      * Used for continuous vertical movement while keys are held.
@@ -586,14 +596,14 @@ public class PlayerObject extends WorldObject {
             flyVelocity.y = verticalVelocity;
         }
     }
-    
+
     /**
      * Gets the fast fly speed for when shift is held.
      */
     public float getFastFlySpeed() {
         return FLY_SPEED_FAST;
     }
-    
+
     /**
      * Sets fly speed multiplier for fast flying.
      */
