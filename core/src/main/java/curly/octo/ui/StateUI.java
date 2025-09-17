@@ -15,7 +15,7 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.game.state.GameState;
 import curly.octo.game.state.StateContext;
 import curly.octo.ui.screens.StateScreen;
-import curly.octo.ui.screens.MapRegenerationScreen;
+import curly.octo.ui.screens.MapTransferScreen;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
@@ -122,13 +122,16 @@ public class StateUI {
     
     private void createScreens() {
         // Create screens for states that need UI
-        MapRegenerationScreen mapRegenScreen = new MapRegenerationScreen(skin);
-        
-        // Register screens for all map regeneration states
-        screens.put(GameState.MAP_REGENERATION_CLEANUP, mapRegenScreen);
-        screens.put(GameState.MAP_REGENERATION_DOWNLOADING, mapRegenScreen);
-        screens.put(GameState.MAP_REGENERATION_REBUILDING, mapRegenScreen);
-        screens.put(GameState.MAP_REGENERATION_COMPLETE, mapRegenScreen);
+        MapTransferScreen mapTransferScreen = new MapTransferScreen(skin);
+
+        // Register screen for all map processing states (both regeneration and transfer)
+        screens.put(GameState.MAP_REGENERATION_CLEANUP, mapTransferScreen);
+        screens.put(GameState.MAP_REGENERATION_DOWNLOADING, mapTransferScreen);
+        screens.put(GameState.MAP_REGENERATION_REBUILDING, mapTransferScreen);
+        screens.put(GameState.MAP_REGENERATION_COMPLETE, mapTransferScreen);
+        screens.put(GameState.MAP_TRANSFER_DOWNLOADING, mapTransferScreen);
+        screens.put(GameState.MAP_TRANSFER_REBUILDING, mapTransferScreen);
+        screens.put(GameState.MAP_TRANSFER_COMPLETE, mapTransferScreen);
         
         Log.info("StateUI", "Created state screens for " + screens.size() + " states");
     }

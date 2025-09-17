@@ -66,7 +66,9 @@ public class HostGameWorld extends GameWorld {
      * @return true if the host has an initial map available for distribution
      */
     public boolean hasInitialMap() {
-        return getMapManager() != null && !deferredMapGeneration;
+        // If we have a map manager, we have a map available regardless of deferred generation setting
+        // The deferredMapGeneration flag only affects whether we generate a map at startup
+        return getMapManager() != null;
     }
 
     @Override

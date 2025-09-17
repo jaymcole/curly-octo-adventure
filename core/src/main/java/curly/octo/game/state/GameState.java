@@ -11,12 +11,17 @@ public enum GameState {
     CONNECTING("Connecting", "Connecting to server..."),
     CONNECTED("Connected", "Connected to server"),
     
-    // Map regeneration states - the focus of Phase 1
+    // Map regeneration states - used when server actually regenerates a new map
     MAP_REGENERATION_PREPARING("Preparing", "Server is preparing new map..."),
     MAP_REGENERATION_CLEANUP("Cleaning Up", "Cleaning up current resources..."),
     MAP_REGENERATION_DOWNLOADING("Downloading", "Downloading new map data..."),
     MAP_REGENERATION_REBUILDING("Rebuilding", "Rebuilding world from new map..."),
     MAP_REGENERATION_COMPLETE("Complete", "Map regeneration complete"),
+
+    // Map transfer states - used when client joins existing game and receives current map
+    MAP_TRANSFER_DOWNLOADING("Downloading Map", "Downloading map data from server..."),
+    MAP_TRANSFER_REBUILDING("Loading Map", "Loading map into game world..."),
+    MAP_TRANSFER_COMPLETE("Map Loaded", "Map transfer complete"),
     
     // Normal gameplay
     PLAYING("Playing", "In game"),
@@ -51,11 +56,27 @@ public enum GameState {
      * Checks if this state is part of the map regeneration process
      */
     public boolean isMapRegenerationState() {
-        return this == MAP_REGENERATION_PREPARING || 
-               this == MAP_REGENERATION_CLEANUP || 
-               this == MAP_REGENERATION_DOWNLOADING || 
+        return this == MAP_REGENERATION_PREPARING ||
+               this == MAP_REGENERATION_CLEANUP ||
+               this == MAP_REGENERATION_DOWNLOADING ||
                this == MAP_REGENERATION_REBUILDING ||
                this == MAP_REGENERATION_COMPLETE;
+    }
+
+    /**
+     * Checks if this state is part of the map transfer process (client joining existing game)
+     */
+    public boolean isMapTransferState() {
+        return this == MAP_TRANSFER_DOWNLOADING ||
+               this == MAP_TRANSFER_REBUILDING ||
+               this == MAP_TRANSFER_COMPLETE;
+    }
+
+    /**
+     * Checks if this state involves any map-related loading/processing (regeneration or transfer)
+     */
+    public boolean isMapProcessingState() {
+        return isMapRegenerationState() || isMapTransferState();
     }
     
     /**

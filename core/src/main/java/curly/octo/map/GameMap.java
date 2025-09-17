@@ -405,7 +405,7 @@ public class GameMap {
             playerRigidBody = null;
         }
 
-        btCapsuleShapeZ capsule = new btCapsuleShapeZ(radius, height);
+        btCapsuleShape capsule = new btCapsuleShape(radius, height);
         // Position capsule so its bottom sits on the ground, not its center
         Matrix4 transform = new Matrix4().setToTranslation(x, y + height/2f, z);
 

@@ -592,11 +592,11 @@ public class GameServer {
                 Vector3 spawnPosition;
                 if (spawnTile != null) {
                     // Spawn well above the tile to avoid clipping into floor
-                    spawnPosition = new Vector3(spawnTile.x, spawnTile.y + 5f, spawnTile.z);
+                    spawnPosition = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
                     Log.info("GameServer", "Player spawn position calculated: " + spawnPosition + " (tile Y: " + spawnTile.y + ")");
                 } else {
                     Log.warn("GameServer", "Could not find spawn tile for hint, using default position");
-                    spawnPosition = new Vector3(15, 25, 15);
+                    spawnPosition = new Vector3(15, 1, 15);
                 }
 
                 // Send reset message to specific client

@@ -117,6 +117,10 @@ public class TemplateGenerator extends MapGenerator {
         replaceInvalidRooms();
         replaceDeadends();
 
+
+
+
+
         copyRoomTemplates();
         closeMap();
 
