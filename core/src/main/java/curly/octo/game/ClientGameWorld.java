@@ -173,8 +173,8 @@ public class ClientGameWorld extends GameWorld {
                 if (!spawnHints.isEmpty()) {
                     MapTile spawnTile = getMapManager().getTile(spawnHints.get(0).tileLookupKey);
                     if (spawnTile != null) {
-                        // Spawn above the tile, not at the tile position
-                        playerStart = new Vector3(spawnTile.x, spawnTile.y + 5f, spawnTile.z);
+                        // Spawn directly on the tile - physics will handle proper ground positioning
+                        playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
                     }
                 }
 
@@ -191,7 +191,7 @@ public class ClientGameWorld extends GameWorld {
             if (!spawnHints.isEmpty()) {
                 MapTile spawnTile = getMapManager().getTile(spawnHints.get(0).tileLookupKey);
                 if (spawnTile != null) {
-                    playerStart = new Vector3(spawnTile.x, spawnTile.y + 5f, spawnTile.z);
+                    playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
                 }
             }
             getGameObjectManager().localPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
@@ -582,7 +582,7 @@ public class ClientGameWorld extends GameWorld {
                     MapTile spawnTile = mapManager.getTile(spawnHints.get(0).tileLookupKey);
                     if (spawnTile != null) {
                         // Use spawn position well above the tile
-                        safePos = new Vector3(spawnTile.x, spawnTile.y + 8f, spawnTile.z); // Extra height for safety
+                        safePos = new Vector3(spawnTile.x, spawnTile.y + 3f, spawnTile.z); // Minimal height for safety
                         Log.info("ClientGameWorld", "Using spawn hint position: " + safePos);
                     }
                 }
