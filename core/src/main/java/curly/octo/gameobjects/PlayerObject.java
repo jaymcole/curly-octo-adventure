@@ -261,8 +261,8 @@ public class PlayerObject extends WorldObject {
             // Check if we can jump (character controller handles ground detection)
             onGround = characterController.canJump();
 
-            // Apply jump if requested and on ground
-            if (velocity.y > 0 && onGround) {
+            // Apply jump if requested (ground check already done in jump() method)
+            if (velocity.y > 0) {
                 characterController.jump(tempVector.set(0, velocity.y, 0));
                 velocity.y = 0; // Reset jump velocity after applying
             }
@@ -333,8 +333,11 @@ public class PlayerObject extends WorldObject {
             // In fly mode, jump means move directly up (world Y axis)
             flyVelocity.y = getFlySpeed();
         } else {
-            // Set jump velocity - will be applied in update() if on ground
-            this.velocity.y = JUMP_FORCE;
+            // Only allow jumping if player is on ground - no queuing of jump actions
+            if (characterController != null && characterController.canJump()) {
+                this.velocity.y = JUMP_FORCE;
+            }
+            // If not on ground, ignore the jump input completely
         }
     }
 
