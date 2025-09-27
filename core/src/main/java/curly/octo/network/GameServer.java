@@ -74,8 +74,8 @@ public class GameServer {
             public void connected(Connection connection) {
                 // Check if we have an initial map or need to generate one
                 if (hasInitialMap()) {
-                    // Standard flow: send existing map, then assign player immediately
-                    sendMapRefreshToUser(connection);
+                    // Standard flow: send existing map in background thread, then assign player immediately
+                    sendMapRefreshToUserAsync(connection);
 
                     PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
                     players.add(newPlayer);
@@ -309,7 +309,7 @@ public class GameServer {
             MapTransferStartMessage startMessage = new MapTransferStartMessage(mapId, totalChunks, mapData.length);
             server.sendToTCP(connection.getID(), startMessage);
 
-            // Send chunks in sequence
+            // Send chunks in sequence with flow control
             for (int i = 0; i < totalChunks; i++) {
                 int offset = i * CHUNK_SIZE;
                 int chunkLength = Math.min(CHUNK_SIZE, mapData.length - offset);
@@ -318,11 +318,18 @@ public class GameServer {
                 System.arraycopy(mapData, offset, chunkData, 0, chunkLength);
 
                 MapChunkMessage chunkMessage = new MapChunkMessage(mapId, i, totalChunks, chunkData);
+
+                // Wait for buffer to drain before sending next chunk
+                while (!connection.isIdle()) {
+                    Thread.sleep(1); // 1ms polling interval
+                }
+
                 server.sendToTCP(connection.getID(), chunkMessage);
 
-                // Small delay between chunks to prevent buffer overflow
-                if (i > 0 && i % 5 == 0) {
-                    Thread.sleep(MAP_TRANSFER_CHUNK_DELAY);
+                // Log buffer status for debugging
+                if (i % 100 == 0) {
+                    Log.info("Server", "Chunk " + i + "/" + totalChunks +
+                             ", buffer size: " + connection.getTcpWriteBufferSize() + " bytes");
                 }
             }
 
@@ -336,6 +343,23 @@ public class GameServer {
             Log.error("Server", "Error sending chunked map data to client " + connection.getID() + ": " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Asynchronously sends the current map data to a specific user in chunks.
+     * This method runs the map transfer in a background thread to avoid blocking
+     * the KryoNet connection thread.
+     */
+    private void sendMapRefreshToUserAsync(Connection connection) {
+        // Run the map transfer in a background thread
+        new Thread(() -> {
+            try {
+                sendMapRefreshToUser(connection);
+            } catch (Exception e) {
+                Log.error("Server", "Error in async map transfer to client " + connection.getID() + ": " + e.getMessage());
+                e.printStackTrace();
+            }
+        }, "MapTransfer-Client" + connection.getID()).start();
     }
 
     /**
