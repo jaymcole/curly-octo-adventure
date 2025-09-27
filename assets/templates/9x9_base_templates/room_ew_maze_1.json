@@ -5,5 +5,8 @@
   "validConnections": [
 
   ],
-  "roomWeight": 0.25
+  "exitDirections": [
+    "EAST",
+    "WEST"
+  ]
 }

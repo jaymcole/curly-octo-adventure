@@ -3,7 +3,11 @@
     "9x9_base_templates"
   ],
   "validConnections": [
-
   ],
-  "roomWeight": 0.25
+  "exitDirections": [
+    "EAST",
+    "SOUTH",
+    "WEST"
+  ],
+  "tags": ["corridor"]
 }

@@ -70,7 +70,7 @@ public abstract class MapGenerator {
         lightHint.color_r = random.nextFloat();  // Warm white light
         lightHint.color_g = random.nextFloat();
         lightHint.color_b = random.nextFloat();
-        lightHint.intensity = random.nextInt(9) + 1;  // Much lower intensity
+        lightHint.intensity = random.nextInt(5) + 1;  // Much lower intensity
         lightHint.flicker = LightPresets.LIGHT_FLICKER_1;
 
         map.registerHint(lightHint);

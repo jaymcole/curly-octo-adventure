@@ -147,7 +147,7 @@ public class TemplateGenerator extends MapGenerator {
                     }
                 }
             }
-            if (random.nextFloat() > 0.8f) {
+            if (random.nextFloat() > 0.9f) {
                 addLight(new Vector3(baseZ + 5,baseY + 6,  baseX + 5));
             }
         }

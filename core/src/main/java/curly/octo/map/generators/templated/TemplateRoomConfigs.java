@@ -1,5 +1,9 @@
 package curly.octo.map.generators.templated;
 
+import curly.octo.map.enums.Direction;
+
+import java.util.HashSet;
+
 public class TemplateRoomConfigs {
     // Collections this room can connect to
     public String[] validCollections;
@@ -7,6 +11,5 @@ public class TemplateRoomConfigs {
     // Specific room templates that this room can connect to
     public String[] validConnections;
 
-    // Weight to be used when making random choice
-    public float roomWeight;
+    public HashSet<Direction>[] exitDirections;
 }
