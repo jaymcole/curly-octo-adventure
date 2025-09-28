@@ -32,6 +32,13 @@ import curly.octo.gameobjects.PlayerObject;
 import java.net.InetAddress;
 import java.util.ArrayList;
 
+// Server will have state too.
+// Clients will need to respect server states
+// Like when servers is in map transfer mode, client should switch to transferring mode
+
+
+
+
 /**
  * Base class for network-related functionality.
  * Contains common code for both client and server.
