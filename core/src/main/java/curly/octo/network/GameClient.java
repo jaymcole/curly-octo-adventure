@@ -1,18 +1,15 @@
 package curly.octo.network;
 
 import curly.octo.Constants;
-import com.badlogic.gdx.math.Quaternion;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.stateV2.MapTransferState.MapTransferInitiatedState;
 import curly.octo.game.stateV2.StateManager;
 import curly.octo.network.messages.*;
-import curly.octo.network.messages.MapReceivedListener;
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ConcurrentHashMap;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
-import curly.octo.network.messages.mapTransferMessages.MapTransferBeginListener;
 import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 
 import java.io.IOException;
@@ -24,17 +21,7 @@ public class GameClient {
     private final Client client;
     private final NetworkListener networkListener;
     private final String host;
-    private MapReceivedListener mapReceivedListener;
-    private PlayerAssignmentListener playerAssignmentListener;
-    private PlayerRosterListener playerRosterListener;
-    private PlayerUpdateListener playerUpdateListener;
-    private PlayerDisconnectListener playerDisconnectListener;
-    private MapRegenerationStartListener mapRegenerationStartListener;
-    private PlayerResetListener playerResetListener;
-    private MapTransferStartListener mapTransferStartListener;
-    private MapTransferBeginListener mapTransferBeginListener;
-    private MapChunkListener mapChunkListener;
-    private MapTransferCompleteListener mapTransferCompleteListener;
+    // Legacy listener fields removed - all messages now handled by NetworkManager
 
     // Chunked map transfer support
     private final ConcurrentHashMap<String, MapTransferState> activeTransfers = new ConcurrentHashMap<>();
@@ -83,59 +70,18 @@ public class GameClient {
         // Register all network classes
         Network.register(client);
 
+        // Initialize the new NetworkManager
+        NetworkManager.initialize(client);
+
         // Create network listener with client reference
-        networkListener = new NetworkListener(client);
+        networkListener = new NetworkListener(null); // Client doesn't need server callbacks
 
-        networkListener.setPlayerAssignmentListener(playerAssignment -> {
-            if (this.playerAssignmentListener != null) {
-                this.playerAssignmentListener.onPlayerAssignmentReceived(playerAssignment);
-            }
-        });
+        // Handle all messages using the new NetworkManager pattern
+        NetworkManager.onReceive(MapTransferBeginMessage.class, this::handleMapTransferBegin);
+        NetworkManager.onReceive(MapChunkMessage.class, this::handleMapChunk);
+        NetworkManager.onReceive(MapTransferCompleteMessage.class, this::handleMapTransferComplete);
 
-        networkListener.setPlayerRosterListener(playerRoster -> {
-            if (this.playerRosterListener != null) {
-                this.playerRosterListener.onPlayerRosterReceived(playerRoster);
-            }
-        });
-
-        networkListener.setPlayerUpdateListener(playerUpdate -> {
-            if (this.playerUpdateListener != null) {
-                this.playerUpdateListener.onPlayerUpdateReceived(playerUpdate);
-            }
-        });
-
-
-        // Handle chunked map transfer messages
-        networkListener.setMapTransferStartListener(this::handleMapTransferStart);
-        networkListener.setMapTransferBeginListener(this::handleMapTransferBegin);
-        networkListener.setMapChunkListener(this::handleMapChunk);
-        networkListener.setMapTransferCompleteListener(this::handleMapTransferComplete);
-
-        // Keep old map listener for backwards compatibility (though it won't be used)
-        networkListener.setMapReceivedListener(map -> {
-            if (this.mapReceivedListener != null) {
-                this.mapReceivedListener.onMapReceived(map);
-            }
-        });
-
-        networkListener.setPlayerDisconnectListener(playerDisconnect -> {
-            if (this.playerDisconnectListener != null) {
-                this.playerDisconnectListener.onPlayerDisconnected(playerDisconnect);
-            }
-        });
-
-        // Map regeneration listeners
-        networkListener.setMapRegenerationStartListener(mapRegenerationStart -> {
-            if (this.mapRegenerationStartListener != null) {
-                this.mapRegenerationStartListener.onMapRegenerationStart(mapRegenerationStart);
-            }
-        });
-
-        networkListener.setPlayerResetListener(playerReset -> {
-            if (this.playerResetListener != null) {
-                this.playerResetListener.onPlayerReset(playerReset);
-            }
-        });
+        // Legacy message handlers removed - ClientGameMode will handle these directly via NetworkManager
 
         // Add network listener
         client.addListener(networkListener);
@@ -290,10 +236,7 @@ public class GameClient {
         return client;
     }
 
-    public void setMapReceivedListener(MapReceivedListener listener) {
-        this.mapReceivedListener = listener;
-        this.networkListener.setMapReceivedListener(listener);
-    }
+    // Legacy setter methods removed - use NetworkManager.onReceive() directly
 
     /**
      * Get transfer information for debugging/progress tracking
@@ -305,77 +248,11 @@ public class GameClient {
         return state != null ? state.getTotalChunks() : null;
     }
 
-    public void setPlayerAssignmentListener(PlayerAssignmentListener listener) {
-        this.playerAssignmentListener = listener;
-        this.networkListener.setPlayerAssignmentListener(listener);
-    }
-
-    public void setPlayerRosterListener(PlayerRosterListener listener) {
-        this.playerRosterListener = listener;
-        this.networkListener.setPlayerRosterListener(listener);
-    }
-
-    public void setPlayerUpdateListener(PlayerUpdateListener listener) {
-        this.playerUpdateListener = listener;
-        this.networkListener.setPlayerUpdateListener(listener);
-    }
-
-    public void setPlayerDisconnectListener(PlayerDisconnectListener listener) {
-        this.playerDisconnectListener = listener;
-        this.networkListener.setPlayerDisconnectListener(listener);
-    }
-
-    public void setMapRegenerationStartListener(MapRegenerationStartListener listener) {
-        this.mapRegenerationStartListener = listener;
-        this.networkListener.setMapRegenerationStartListener(listener);
-    }
-
-    public void setPlayerResetListener(PlayerResetListener listener) {
-        this.playerResetListener = listener;
-        this.networkListener.setPlayerResetListener(listener);
-    }
-
-    public void setMapTransferStartListener(MapTransferStartListener listener) {
-        this.mapTransferStartListener = listener;
-    }
-
-    public void setMapTransferBeginListener(MapTransferBeginListener listener) {
-        this.mapTransferBeginListener = listener;
-    }
-
-
-    public void setMapChunkListener(MapChunkListener listener) {
-        this.mapChunkListener = listener;
-    }
-
-    public void setMapTransferCompleteListener(MapTransferCompleteListener listener) {
-        this.mapTransferCompleteListener = listener;
-    }
-
-    /**
-     * Handles the start of a chunked map transfer
-     */
-    private void handleMapTransferStart(MapTransferStartMessage message) {
-        Log.info("GameClient", "Starting map transfer: " + message.mapId +
-                " (" + message.totalChunks + " chunks, " + message.totalSize + " bytes)");
-
-        MapTransferState state = new MapTransferState(message.mapId, message.totalChunks, message.totalSize);
-        activeTransfers.put(message.mapId, state);
-
-        // Notify listener for progress tracking
-        if (mapTransferStartListener != null) {
-            mapTransferStartListener.onMapTransferStart(message);
-        }
-    }
-
     private void handleMapTransferBegin(MapTransferBeginMessage message) {
         Log.info("GameClient", "Beginning map transfer: " + message.mapId +
             " (" + message.totalChunks + " chunks, " + message.totalSize + " bytes)");
-
-        // Notify listener for progress tracking
-        if (mapTransferBeginListener != null) {
-            mapTransferBeginListener.onMapTransferBegin(message);
-        }
+        Log.info("JAY", "JAYJAYJAY");
+        StateManager.setCurrentState(MapTransferInitiatedState.class);
     }
 
     /**
@@ -395,13 +272,9 @@ public class GameClient {
         Log.info("GameClient", "Received chunk " + message.chunkIndex + "/" + message.totalChunks +
                 " for " + message.mapId + " (" + (int)(state.getProgress() * 100) + "% complete)");
 
-        // Notify listener for progress tracking
-        if (mapChunkListener != null) {
-            Log.info("GameClient", "Calling mapChunkListener.onMapChunk for chunk " + message.chunkIndex);
-            mapChunkListener.onMapChunk(message);
-        } else {
-            Log.warn("GameClient", "No mapChunkListener set, cannot notify progress");
-        }
+        // Listener callback removed during NetworkManager migration
+        // Progress tracking now handled through state management system
+        Log.info("GameClient", "Chunk progress: " + message.chunkIndex + "/" + message.totalChunks);
     }
 
     /**
@@ -446,15 +319,10 @@ public class GameClient {
 
                 Log.info("GameClient", "Map successfully deserialized using Kryo, notifying listener");
 
-                // Notify transfer complete listener first
-                if (mapTransferCompleteListener != null) {
-                    mapTransferCompleteListener.onMapTransferComplete(message);
-                }
+                // Listener callback removed during NetworkManager migration
+                // Transfer completion now handled through state management system
 
-                // Notify the listener that the map is ready
-                if (this.mapReceivedListener != null) {
-                    this.mapReceivedListener.onMapReceived(map);
-                }
+                // Map ready notification removed - ClientGameMode handles MapTransferCompleteMessage directly via NetworkManager
             }
 
         } catch (Exception e) {
@@ -462,4 +330,6 @@ public class GameClient {
             e.printStackTrace();
         }
     }
+
+    // Legacy handler methods removed - ClientGameMode now handles messages directly via NetworkManager
 }

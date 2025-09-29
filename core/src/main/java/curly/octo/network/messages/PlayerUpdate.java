@@ -1,9 +1,9 @@
 package curly.octo.network.messages;
 
 import com.badlogic.gdx.math.Vector3;
+import curly.octo.network.NetworkMessage;
 
-
-public class PlayerUpdate {
+public class PlayerUpdate extends NetworkMessage {
     public String playerId;
     public float x, y, z;
     public float yaw, pitch;

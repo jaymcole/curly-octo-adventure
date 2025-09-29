@@ -1,10 +1,12 @@
 package curly.octo.network.messages;
 
+import curly.octo.network.NetworkMessage;
+
 /**
  * Message containing a chunk of map data for chunked map transfer.
  * Maps are broken into small chunks to avoid large network buffers.
  */
-public class MapChunkMessage {
+public class MapChunkMessage extends NetworkMessage {
     public String mapId;          // Unique identifier for this map transfer
     public int chunkIndex;        // Index of this chunk (0-based)
     public int totalChunks;       // Total number of chunks for this map

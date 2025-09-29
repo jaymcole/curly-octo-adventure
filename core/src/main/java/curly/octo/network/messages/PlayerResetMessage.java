@@ -1,12 +1,13 @@
 package curly.octo.network.messages;
 
 import com.badlogic.gdx.math.Vector3;
+import curly.octo.network.NetworkMessage;
 
 /**
  * Sent by the server to reset player state for new map.
  * Contains new spawn position and any state resets needed.
  */
-public class PlayerResetMessage {
+public class PlayerResetMessage extends NetworkMessage {
     
     /** The player ID being reset */
     public String playerId;

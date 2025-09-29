@@ -12,7 +12,6 @@ import curly.octo.game.stateV2.BaseScreen;
 import curly.octo.game.stateV2.MainMenuState.MainMenuScreen;
 import curly.octo.game.stateV2.StateManager;
 import curly.octo.ui.DebugUI;
-import curly.octo.game.state.GameStateManager;
 import curly.octo.game.state.GameState;
 
 import java.io.IOException;
@@ -90,42 +89,6 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
         if (clientGameMode == null) {
             return;
         }
-
-        GameStateManager stateManager = clientGameMode.getStateManager();
-        if (stateManager != null) {
-            // Add a state change listener that updates the UI
-            stateManager.addStateChangeListener(new GameStateManager.StateChangeListener() {
-                @Override
-                public void onStateChanged(curly.octo.game.state.GameState oldState,
-                                          curly.octo.game.state.GameState newState,
-                                          curly.octo.game.state.StateContext context) {
-
-//                    Log.info("Main", String.format("STATE TRANSITION: %s -> %s",
-//                        oldState.getDisplayName(), newState.getDisplayName()));
-//
-//                    // Update UI on the main thread
-//                    Gdx.app.postRunnable(() -> {
-//                        if (newState.isMapRegenerationState()) {
-//                            // Show the regeneration screen
-//                            stateUI.showStateScreen(newState, context);
-//                        } else {
-//                            // Hide state screens for normal states
-//                            stateUI.hideAllScreens();
-//                        }
-//                    });
-                }
-
-                @Override
-                public void onStateProgressUpdated(curly.octo.game.state.StateContext context) {
-//                    Log.info("Main", "STATE PROGRESS UPDATED - Progress: " + context.getProgress() + ", State: " + context.getCurrentState());
-//                    // Update progress on the main thread
-//                    Gdx.app.postRunnable(() -> {
-//                        Log.info("Main", "Executing UI update on main thread");
-//                        stateUI.updateProgress(context);
-//                    });
-                }
-            });
-        }
     }
 
     @Override
@@ -198,14 +161,6 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
         if (Constants.DEBUG_SHOW_FPS) {
             boolean showDebugUI = true;
 
-            // Hide debug UI during map regeneration states
-            if (clientGameMode != null && clientGameMode.getStateManager() != null) {
-                GameState currentState = clientGameMode.getStateManager().getCurrentState();
-                if (currentState.isMapRegenerationState()) {
-                    showDebugUI = false;
-                }
-            }
-
             if (showDebugUI && gameIsPlaying) {
                 debugUI.update(deltaTime);
                 debugUI.render();
@@ -273,6 +228,18 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
 
     @Override
     public void dispose() {
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "DISPOSE");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+
         long startTime = System.currentTimeMillis();
         Log.info("Main", "Disposing resources...");
 

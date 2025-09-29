@@ -1,10 +1,12 @@
 package curly.octo.network.messages;
 
+import curly.octo.network.NetworkMessage;
+
 /**
  * Message to indicate the start of a chunked map transfer.
  * Sent before any MapChunkMessage to prepare the client.
  */
-public class MapTransferStartMessage {
+public class MapTransferStartMessage extends NetworkMessage {
     public String mapId;          // Unique identifier for this map transfer
     public int totalChunks;       // Total number of chunks to expect
     public long totalSize;        // Total size of the map in bytes

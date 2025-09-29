@@ -5,8 +5,9 @@ import com.esotericsoftware.kryo.KryoSerializable;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import curly.octo.map.GameMap;
+import curly.octo.network.NetworkMessage;
 
-public class MapDataUpdate implements KryoSerializable {
+public class MapDataUpdate extends NetworkMessage implements KryoSerializable {
     public GameMap map;
 
     public MapDataUpdate() {

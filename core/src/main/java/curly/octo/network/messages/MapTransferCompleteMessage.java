@@ -1,10 +1,12 @@
 package curly.octo.network.messages;
 
+import curly.octo.network.NetworkMessage;
+
 /**
  * Message to indicate that a chunked map transfer is complete.
  * Sent after all MapChunkMessages have been transmitted.
  */
-public class MapTransferCompleteMessage {
+public class MapTransferCompleteMessage extends NetworkMessage {
     public String mapId;          // Unique identifier for this map transfer
     
     // Required for Kryo serialization

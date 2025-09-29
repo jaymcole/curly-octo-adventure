@@ -50,15 +50,8 @@ public class DebugUI {
 
         // Create skin
         Skin skin;
-        try {
-            skin = UIAssetCache.getDefaultSkin();
-            Log.info("DebugUI", "Successfully loaded UI skin");
-        } catch (Exception e) {
-            Log.error("DebugUI", "Failed to load UI skin: " + e.getMessage());
-            e.printStackTrace();
-            // Create a basic skin as fallback
-            skin = new Skin();
-        }
+        skin = UIAssetCache.getDefaultSkin();
+
 
         // Create debug table
         Table debugTable = new Table();
@@ -74,31 +67,18 @@ public class DebugUI {
         debugClientIPAddressLabel = new Label("Client IP: N/A", skin);
         debugTable.add(debugClientIPAddressLabel).pad(10).row();
 
-        // Map Generation Seed Button
         currentMapSeed = Constants.MAP_GENERATION_SEED;
         mapSeedButton = new TextButton("Map Seed: " + currentMapSeed, skin);
-
-        // Debug: Log button creation
-        Log.info("DebugUI", "Created map seed button with text: " + mapSeedButton.getText());
-
-        // Make button more obvious for debugging
-//        mapSeedButton.setColor(1f, 0.5f, 0.5f, 1f); // Reddish color to make it stand out
-//        mapSeedButton.setSize(200, 50); // Explicit size
-
         mapSeedButton.addListener(new ClickListener() {
 
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                Log.info("DebugUI", "Map seed button clicked! Seed: " + currentMapSeed);
-                Log.info("DebugUI", "Click coordinates: x=" + x + ", y=" + y);
-
                 // Copy seed to clipboard
                 try {
                     String seedString = String.valueOf(currentMapSeed);
                     StringSelection stringSelection = new StringSelection(seedString);
                     Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                     clipboard.setContents(stringSelection, null);
-                    Log.info("DebugUI", "Map seed copied to clipboard: " + seedString);
                 } catch (Exception e) {
                     Log.error("DebugUI", "Failed to copy seed to clipboard: " + e.getMessage());
                 }
@@ -106,12 +86,6 @@ public class DebugUI {
                 // Show feedback to user
                 final String originalText = mapSeedButton.getText().toString();
                 mapSeedButton.setText("Copied: " + currentMapSeed);
-
-                // Log the seed to console for easy copying
-                System.out.println("=== MAP SEED ===");
-                System.out.println("Seed: " + currentMapSeed);
-                System.out.println("Copied to clipboard!");
-                System.out.println("================");
 
                 // Revert text after delay
                 new Thread(() -> {
@@ -127,28 +101,24 @@ public class DebugUI {
 
             @Override
             public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                Log.info("DebugUI", "Map seed button touchUp: x=" + x + ", y=" + y + ", pointer=" + pointer + ", button=" + button);
                 // Restore original color
                 mapSeedButton.setColor(1f, 0.5f, 0.5f, 1f); // Back to reddish
             }
 
             @Override
             public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
-                Log.info("DebugUI", "Map seed button enter: x=" + x + ", y=" + y);
                 // Make button brighter on hover
                 mapSeedButton.setColor(1f, 0.7f, 0.7f, 1f); // Brighter reddish
             }
 
             @Override
             public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
-                Log.info("DebugUI", "Map seed button exit: x=" + x + ", y=" + y);
                 // Restore original color
                 mapSeedButton.setColor(1f, 0.5f, 0.5f, 1f); // Back to original reddish
             }
         });
 
         // Debug: Log button addition to table
-        Log.info("DebugUI", "Adding map seed button to debug table");
         debugTable.add(mapSeedButton).size(200, 50).pad(10).row();
 
         // Map Regeneration Button
@@ -249,16 +219,6 @@ public class DebugUI {
                 return false; // Don't consume the event
             }
         });
-
-        // Debug: Log stage and table setup
-        Log.info("DebugUI", "Created debug UI");
-        Log.info("DebugUI", "Stage viewport: " + stage.getViewport().getScreenWidth() + "x" + stage.getViewport().getScreenHeight());
-        Log.info("DebugUI", "Table bounds: " + debugTable.getX() + "," + debugTable.getY() + " " +
-                debugTable.getWidth() + "x" + debugTable.getHeight());
-        if (mapSeedButton != null) {
-            Log.info("DebugUI", "Button bounds: " + mapSeedButton.getX() + "," + mapSeedButton.getY() + " " +
-                    mapSeedButton.getWidth() + "x" + mapSeedButton.getHeight());
-        }
     }
 
     public void update(float deltaTime) {
@@ -266,14 +226,6 @@ public class DebugUI {
 
         // Update FPS
         fpsLabel.setText("FPS: " + Gdx.graphics.getFramesPerSecond());
-
-        // Debug: Log button state occasionally
-        if (mapSeedButton != null && System.currentTimeMillis() % 5000 < 50) { // Log every ~5 seconds
-            Log.info("DebugUI", "Button state - Text: " + mapSeedButton.getText() +
-                    ", Visible: " + mapSeedButton.isVisible() +
-                    ", Touchable: " + mapSeedButton.isTouchable() +
-                    ", Stage: " + (mapSeedButton.getStage() != null ? "attached" : "not attached"));
-        }
 
         // Handle keyboard input for debug toggles
         if (debugListener != null) {

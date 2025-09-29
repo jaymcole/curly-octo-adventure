@@ -1,6 +1,8 @@
 package curly.octo.network.messages;
 
-public class PlayerDisconnectUpdate {
+import curly.octo.network.NetworkMessage;
+
+public class PlayerDisconnectUpdate extends NetworkMessage {
     public String playerId;
 
     public PlayerDisconnectUpdate() {

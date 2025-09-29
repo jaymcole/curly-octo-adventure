@@ -1,10 +1,12 @@
 package curly.octo.network.messages;
 
+import curly.octo.network.NetworkMessage;
+
 /**
  * Sent by the server to notify clients that a new map is being generated
  * and they should prepare for resource cleanup and new map transfer.
  */
-public class MapRegenerationStartMessage {
+public class MapRegenerationStartMessage extends NetworkMessage {
     
     /** Unique ID for this regeneration request (for client synchronization) */
     public long regenerationId;
