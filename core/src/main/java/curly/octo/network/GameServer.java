@@ -7,14 +7,11 @@ import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameWorld;
 import curly.octo.game.HostGameWorld;
+import curly.octo.game.gameServerObjects.ClientProfile;
 import curly.octo.map.GameMap;
+import curly.octo.network.messages.*;
 import curly.octo.network.messages.legacyMessages.MapRegenerationStartMessage;
 import curly.octo.network.messages.legacyMessages.ClientReadyForMapMessage;
-import curly.octo.network.messages.PlayerResetMessage;
-import curly.octo.network.messages.PlayerAssignmentUpdate;
-import curly.octo.network.messages.PlayerDisconnectUpdate;
-import curly.octo.network.messages.PlayerObjectRosterUpdate;
-import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.gameobjects.PlayerObject;
 import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 import curly.octo.player.PlayerUtilities;
@@ -51,6 +48,10 @@ public class GameServer {
     private static final int CHUNK_SIZE = Constants.NETWORK_CHUNK_SIZE; // 8KB chunks
     private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
 
+
+    private HashMap<String, ClientProfile> clientProfileHashMap;
+
+
     public GameServer(Random random, GameMap map, List<PlayerObject> players, GameWorld gameWorld) {
         this.map = map;
         this.players = players;
@@ -59,12 +60,12 @@ public class GameServer {
         this.server = new Server(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE);
         this.networkListener = new NetworkListener(this);
 
+        clientProfileHashMap = new HashMap<>();
+
         Network.register(server);
         NetworkManager.initialize(server);
         NetworkManager.onReceive(PlayerUpdate.class, this::handlePlayerUpdate);
-
-
-        Log.info("GameServer", "Starting GameServer JAY");
+        NetworkManager.onReceive(ClientStateChangeMessage.class, this::handleClientStateChangeMessage);
 
         server.addListener(networkListener);
 
@@ -80,6 +81,17 @@ public class GameServer {
 //            }
 
         server.addListener(networkListener);
+    }
+
+    public void handleClientStateChangeMessage(Connection connection, ClientStateChangeMessage stateChangeMessage) {
+        String clientKey = constructClientProfileKey(connection);
+        if (!clientProfileHashMap.containsKey(clientKey)) {
+            Log.error("handleClientStateChangeMessage", "Client somehow wasn't already registered");
+        } else {
+            Log.info("handleClientStateChangeMessage", "Client (" + clientKey + ") transitioned from [" + stateChangeMessage.oldState + "] to [" + stateChangeMessage.newState + "]");
+            ClientProfile profile = clientProfileHashMap.get(clientKey);
+            profile.currentState = stateChangeMessage.newState;
+        }
     }
 
     public void handlePlayerUpdate(Connection connection, PlayerUpdate update) {
@@ -618,9 +630,16 @@ public class GameServer {
      * Handles a client connection event from NetworkListener
      */
     public void handleClientConnected(Connection connection) {
+        String clientKey = constructClientProfileKey(connection);
+        if (!clientProfileHashMap.containsKey(clientKey)) {
+            Log.info("handleClientConnected", "Registering new player under: " + clientKey);
+            clientProfileHashMap.put(clientKey, new ClientProfile());
+        }
+
         // Check if we have an initial map or need to generate one
         if (hasInitialMap()) {
             Log.info("connected", "Player is connecting to server");
+
             // Standard flow: send existing map, then assign player immediately
             sendMapRefreshToUser(connection);
 
@@ -685,5 +704,9 @@ public class GameServer {
                 Log.info("Server", "Player " + disconnectedPlayer.entityId + " disconnected");
             }
         }
+    }
+
+    public String constructClientProfileKey(Connection connection) {
+        return connection.getRemoteAddressTCP().toString();
     }
 }

@@ -11,7 +11,7 @@ public class ClientStateChangeMessage extends NetworkMessage  {
     }
 
     public ClientStateChangeMessage(Class newState, Class oldState) {
-        this.newState = newState.getName();
-        this.oldState = oldState.getName();
+        this.newState = newState.getSimpleName();
+        this.oldState = oldState.getSimpleName();
     }
 }

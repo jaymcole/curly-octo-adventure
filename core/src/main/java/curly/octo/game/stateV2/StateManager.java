@@ -6,6 +6,8 @@ import curly.octo.Main;
 import curly.octo.game.stateV2.MainMenuState.MainMenuScreen;
 import curly.octo.game.stateV2.MainMenuState.MainMenuState;
 import curly.octo.game.stateV2.MapTransferState.*;
+import curly.octo.network.NetworkManager;
+import curly.octo.network.messages.ClientStateChangeMessage;
 
 import java.util.HashMap;
 
@@ -66,9 +68,15 @@ public class StateManager{
             currentState.end();
         }
 
+        BaseGameState oldState = currentState;
+
         currentState = cachedStates.get(nextState);
         currentState.start();
         mainGame.setScreen(currentState.getStateScreen(), currentState.getGamePlaying());
+
+        if (oldState != null) {
+            NetworkManager.sendToServer(new ClientStateChangeMessage(oldState.getClass(), currentState.getClass()));
+        }
     }
 
     public static BaseScreen getCachedScreen(Class screenClass) {

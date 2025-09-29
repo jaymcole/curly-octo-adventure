@@ -2,6 +2,7 @@ package curly.octo.network;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.network.messages.ClientStateChangeMessage;
 import curly.octo.network.messages.legacyMessages.*;
 
 import java.util.HashSet;
@@ -56,6 +57,8 @@ public class NetworkMessageRegistry {
 
         // Legacy player messages (not NetworkMessage types yet)
         registerMessage(kryo, curly.octo.network.messages.PlayerUpdate.class);
+
+        registerMessage(kryo, ClientStateChangeMessage.class);
     }
 
     /**
