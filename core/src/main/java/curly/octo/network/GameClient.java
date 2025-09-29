@@ -5,11 +5,13 @@ import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.stateV2.MapTransferState.MapTransferInitiatedState;
 import curly.octo.game.stateV2.StateManager;
-import curly.octo.network.messages.*;
+
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ConcurrentHashMap;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
+import curly.octo.network.messages.legacyMessages.MapChunkMessage;
+import curly.octo.network.messages.legacyMessages.MapTransferCompleteMessage;
 import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 
 import java.io.IOException;

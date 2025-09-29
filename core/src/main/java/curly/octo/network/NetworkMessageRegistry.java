@@ -2,6 +2,7 @@ package curly.octo.network;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.network.messages.legacyMessages.*;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -37,15 +38,15 @@ public class NetworkMessageRegistry {
         registerMessage(kryo, NetworkMessage.class);
 
         // Map transfer messages
-        registerMessage(kryo, curly.octo.network.messages.MapTransferStartMessage.class);
+        registerMessage(kryo, MapTransferStartMessage.class);
         registerMessage(kryo, curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage.class);
-        registerMessage(kryo, curly.octo.network.messages.MapChunkMessage.class);
-        registerMessage(kryo, curly.octo.network.messages.MapTransferCompleteMessage.class);
+        registerMessage(kryo, MapChunkMessage.class);
+        registerMessage(kryo, MapTransferCompleteMessage.class);
 
         // Map and game messages
-        registerMessage(kryo, curly.octo.network.messages.MapDataUpdate.class);
-        registerMessage(kryo, curly.octo.network.messages.MapRegenerationStartMessage.class);
-        registerMessage(kryo, curly.octo.network.messages.ClientReadyForMapMessage.class);
+        registerMessage(kryo, MapDataUpdate.class);
+        registerMessage(kryo, MapRegenerationStartMessage.class);
+        registerMessage(kryo, ClientReadyForMapMessage.class);
 
         // Player messages (now NetworkMessage types)
         registerMessage(kryo, curly.octo.network.messages.PlayerAssignmentUpdate.class);

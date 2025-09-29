@@ -3,18 +3,13 @@ package curly.octo.network;
 import curly.octo.Constants;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.kryonet.Connection;
-import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameWorld;
 import curly.octo.game.HostGameWorld;
 import curly.octo.map.GameMap;
-import curly.octo.network.messages.MapDataUpdate;
-import curly.octo.network.messages.MapChunkMessage;
-import curly.octo.network.messages.MapTransferStartMessage;
-import curly.octo.network.messages.MapTransferCompleteMessage;
-import curly.octo.network.messages.MapRegenerationStartMessage;
-import curly.octo.network.messages.ClientReadyForMapMessage;
+import curly.octo.network.messages.legacyMessages.MapRegenerationStartMessage;
+import curly.octo.network.messages.legacyMessages.ClientReadyForMapMessage;
 import curly.octo.network.messages.PlayerResetMessage;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerDisconnectUpdate;
@@ -30,8 +25,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Output;
-
-import static curly.octo.Constants.MAP_TRANSFER_CHUNK_DELAY;
 
 /**
  * Handles server-side network operations.
@@ -63,50 +56,49 @@ public class GameServer {
         this.players = players;
         this.gameWorld = gameWorld;
         // Large buffers to handle chunked map transfers without overflow
-        this.server = new Server(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE); // 128KB read/write buffers
+        this.server = new Server(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE);
         this.networkListener = new NetworkListener(this);
 
-        // Register all network classes
         Network.register(server);
-
-        // Initialize the new NetworkManager
         NetworkManager.initialize(server);
+        NetworkManager.onReceive(PlayerUpdate.class, this::handlePlayerUpdate);
+
 
         Log.info("GameServer", "Starting GameServer JAY");
 
         server.addListener(networkListener);
 
-        // Add connection listener for logging
-//        server.addListener(new Listener() {//
 //            @Override
 //            public void received(Connection connection, Object object) {
 //                if (object instanceof PlayerUpdate) {
-//                    // Received a player position update, broadcast to all other clients
-//                    PlayerUpdate update = (PlayerUpdate) object;
-//                    for (PlayerObject player : players) {
-//                        if (player.entityId.equals(update.playerId)) {
-//                            player.setPosition(new Vector3(update.x, update.y, update.z));
-//                            player.setYaw(update.yaw);
-//                            player.setPitch(update.pitch);
-//                            break;
-//                        }
-//                    }
 //
-//                    // Only broadcast to OTHER clients (exclude the sender)
-//                    for (Connection conn : server.getConnections()) {
-//                        if (readyClients.contains(conn.getID()) && conn.getID() != connection.getID()) {
-//                            conn.sendUDP(update);
-//                        }
-//                    }
 //                } else if (object instanceof ClientReadyForMapMessage) {
 //                    // Client is ready to receive new map data
 //                    ClientReadyForMapMessage readyMessage = (ClientReadyForMapMessage) object;
 //                    handleClientReadyForMap(connection, readyMessage);
 //                }
 //            }
-//        });
 
         server.addListener(networkListener);
+    }
+
+    public void handlePlayerUpdate(Connection connection, PlayerUpdate update) {
+        // Received a player position update, broadcast to all other clients
+        for (PlayerObject player : players) {
+            if (player.entityId.equals(update.playerId)) {
+                player.setPosition(new Vector3(update.x, update.y, update.z));
+                player.setYaw(update.yaw);
+                player.setPitch(update.pitch);
+                break;
+            }
+        }
+
+        // Only broadcast to OTHER clients (exclude the sender)
+        for (Connection conn : server.getConnections()) {
+            if (readyClients.contains(conn.getID()) && conn.getID() != connection.getID()) {
+                conn.sendUDP(update);
+            }
+        }
     }
 
     /**

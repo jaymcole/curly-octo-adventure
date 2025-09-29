@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * Simplified network message system that replaces the complex listener pattern.
@@ -19,6 +20,8 @@ public class NetworkManager {
 
     // Storage for message handlers by message type
     private static final Map<Class<?>, List<Consumer<Object>>> handlers = new HashMap<>();
+    // Storage for connection-aware message handlers by message type
+    private static final Map<Class<?>, List<BiConsumer<Connection, Object>>> connectionHandlers = new HashMap<>();
 
     // Network endpoints
     private static Server server;
@@ -54,6 +57,21 @@ public class NetworkManager {
                 .add(obj -> handler.accept((T) obj));
 
         Log.info("NetworkManager", "Registered handler for " + messageType.getSimpleName());
+    }
+
+    /**
+     * Register a connection-aware handler for a specific message type.
+     * Multiple handlers can be registered for the same message type.
+     *
+     * @param messageType The class of the message to handle
+     * @param handler The handler function to call when this message type is received (receives connection and message)
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends NetworkMessage> void onReceive(Class<T> messageType, BiConsumer<Connection, T> handler) {
+        connectionHandlers.computeIfAbsent(messageType, k -> new ArrayList<>())
+                .add((conn, obj) -> handler.accept(conn, (T) obj));
+
+        Log.info("NetworkManager", "Registered connection-aware handler for " + messageType.getSimpleName());
     }
 
     /**
@@ -100,7 +118,7 @@ public class NetworkManager {
      * This method is called by NetworkListener when a message is received.
      */
     @SuppressWarnings("unchecked")
-    public static void routeMessage(Object message) {
+    public static void routeMessage(Connection connection, Object message) {
         if (!(message instanceof NetworkMessage)) {
             // For backwards compatibility, ignore non-NetworkMessage objects
             return;
@@ -108,21 +126,39 @@ public class NetworkManager {
 
         Class<?> messageType = message.getClass();
         List<Consumer<Object>> messageHandlers = handlers.get(messageType);
+        List<BiConsumer<Connection, Object>> connectionMessageHandlers = connectionHandlers.get(messageType);
 
-        if (messageHandlers == null || messageHandlers.isEmpty()) {
+        int totalHandlers = (messageHandlers != null ? messageHandlers.size() : 0) +
+                           (connectionMessageHandlers != null ? connectionMessageHandlers.size() : 0);
+
+        if (totalHandlers == 0) {
             Log.warn("NetworkManager", "No handlers registered for " + messageType.getSimpleName());
             return;
         }
 
-        Log.info("NetworkManager", "Routing " + messageType.getSimpleName() + " to " + messageHandlers.size() + " handler(s)");
+        Log.info("NetworkManager", "Routing " + messageType.getSimpleName() + " to " + totalHandlers + " handler(s)");
 
-        // Call all registered handlers for this message type
-        for (Consumer<Object> handler : messageHandlers) {
-            try {
-                handler.accept(message);
-            } catch (Exception e) {
-                Log.error("NetworkManager", "Error handling " + messageType.getSimpleName() + ": " + e.getMessage());
-                e.printStackTrace();
+        // Call all registered message-only handlers
+        if (messageHandlers != null) {
+            for (Consumer<Object> handler : messageHandlers) {
+                try {
+                    handler.accept(message);
+                } catch (Exception e) {
+                    Log.error("NetworkManager", "Error handling " + messageType.getSimpleName() + " (message-only): " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        // Call all registered connection-aware handlers
+        if (connectionMessageHandlers != null) {
+            for (BiConsumer<Connection, Object> handler : connectionMessageHandlers) {
+                try {
+                    handler.accept(connection, message);
+                } catch (Exception e) {
+                    Log.error("NetworkManager", "Error handling " + messageType.getSimpleName() + " (connection-aware): " + e.getMessage());
+                    e.printStackTrace();
+                }
             }
         }
     }
@@ -132,6 +168,7 @@ public class NetworkManager {
      */
     public static void clearHandlers() {
         handlers.clear();
+        connectionHandlers.clear();
         Log.info("NetworkManager", "Cleared all message handlers");
     }
 
@@ -140,6 +177,11 @@ public class NetworkManager {
      */
     public static int getHandlerCount(Class<? extends NetworkMessage> messageType) {
         List<Consumer<Object>> messageHandlers = handlers.get(messageType);
-        return messageHandlers != null ? messageHandlers.size() : 0;
+        List<BiConsumer<Connection, Object>> connectionMessageHandlers = connectionHandlers.get(messageType);
+
+        int messageOnlyCount = messageHandlers != null ? messageHandlers.size() : 0;
+        int connectionAwareCount = connectionMessageHandlers != null ? connectionMessageHandlers.size() : 0;
+
+        return messageOnlyCount + connectionAwareCount;
     }
 }

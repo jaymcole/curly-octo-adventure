@@ -1,4 +1,4 @@
-package curly.octo.network.messages;
+package curly.octo.network.messages.legacyMessages;
 
 import curly.octo.network.NetworkMessage;
 
@@ -11,20 +11,20 @@ public class MapChunkMessage extends NetworkMessage {
     public int chunkIndex;        // Index of this chunk (0-based)
     public int totalChunks;       // Total number of chunks for this map
     public byte[] chunkData;      // The actual chunk data (max 8KB)
-    
+
     // Required for Kryo serialization
     public MapChunkMessage() {}
-    
+
     public MapChunkMessage(String mapId, int chunkIndex, int totalChunks, byte[] chunkData) {
         this.mapId = mapId;
         this.chunkIndex = chunkIndex;
         this.totalChunks = totalChunks;
         this.chunkData = chunkData;
     }
-    
+
     @Override
     public String toString() {
-        return "MapChunkMessage{mapId='" + mapId + "', chunk=" + chunkIndex + "/" + totalChunks + 
+        return "MapChunkMessage{mapId='" + mapId + "', chunk=" + chunkIndex + "/" + totalChunks +
                ", size=" + (chunkData != null ? chunkData.length : 0) + " bytes}";
     }
 }

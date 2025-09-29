@@ -1,4 +1,4 @@
-package curly.octo.network.messages;
+package curly.octo.network.messages.legacyMessages;
 
 import curly.octo.network.NetworkMessage;
 
@@ -10,19 +10,19 @@ public class MapTransferStartMessage extends NetworkMessage {
     public String mapId;          // Unique identifier for this map transfer
     public int totalChunks;       // Total number of chunks to expect
     public long totalSize;        // Total size of the map in bytes
-    
+
     // Required for Kryo serialization
     public MapTransferStartMessage() {}
-    
+
     public MapTransferStartMessage(String mapId, int totalChunks, long totalSize) {
         this.mapId = mapId;
         this.totalChunks = totalChunks;
         this.totalSize = totalSize;
     }
-    
+
     @Override
     public String toString() {
-        return "MapTransferStartMessage{mapId='" + mapId + "', totalChunks=" + totalChunks + 
+        return "MapTransferStartMessage{mapId='" + mapId + "', totalChunks=" + totalChunks +
                ", totalSize=" + totalSize + " bytes}";
     }
 }

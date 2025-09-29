@@ -1,4 +1,4 @@
-package curly.octo.network.messages;
+package curly.octo.network.messages.legacyMessages;
 
 import curly.octo.map.GameMap;
 
