@@ -1,12 +1,13 @@
 package curly.octo.game.stateV2.MainMenuState;
 
 import curly.octo.game.stateV2.BaseGameState;
+import curly.octo.game.stateV2.BaseScreen;
 import curly.octo.game.stateV2.StateManager;
 
 public class MainMenuState extends BaseGameState {
 
-    public MainMenuState() {
-        this.stateScreen = StateManager.getCachedScreen(MainMenuScreen.class);
+    public MainMenuState(BaseScreen screen) {
+        super(screen);
     }
 
     @Override

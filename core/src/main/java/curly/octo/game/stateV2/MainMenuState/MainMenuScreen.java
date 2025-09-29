@@ -1,6 +1,5 @@
 package curly.octo.game.stateV2.MainMenuState;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
@@ -9,6 +8,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.stateV2.BaseScreen;
+import curly.octo.ui.UIAssetCache;
 
 public class MainMenuScreen extends BaseScreen {
 
@@ -34,16 +34,7 @@ public class MainMenuScreen extends BaseScreen {
         stage = new Stage(new ScreenViewport());
 
         // Create skin
-        Skin skin;
-        try {
-            skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
-            Log.info("LobbyUI", "Successfully loaded UI skin");
-        } catch (Exception e) {
-            Log.error("LobbyUI", "Failed to load UI skin: " + e.getMessage());
-            e.printStackTrace();
-            // Create a basic skin as fallback
-            skin = new Skin();
-        }
+        Skin skin = UIAssetCache.getDefaultSkin();
 
         // Create main table
         Table mainTable = new Table();

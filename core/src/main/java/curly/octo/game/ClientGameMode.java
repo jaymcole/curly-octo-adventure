@@ -7,6 +7,8 @@ import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.stateV2.MapTransferState.MapTransferInitiatedState;
+import curly.octo.game.stateV2.StateManager;
 import curly.octo.network.GameClient;
 import curly.octo.network.messages.PlayerUpdate;
 import curly.octo.gameobjects.PlayerObject;
@@ -586,6 +588,14 @@ public class ClientGameMode implements GameMode {
             });
         });
 
+        gameClient.setMapTransferBeginListener(message -> {
+            Log.info("ClientGameMode", "MAP TRANSFER START LISTENER CALLED: mapId=" + message.mapId + ", totalChunks=" + message.totalChunks + ", thread=" + Thread.currentThread().getName());
+            Gdx.app.postRunnable(() -> {
+                Log.info("ClientGameMode", "POSTING MAP TRANSFER START TO MAIN THREAD");
+                onMapTransferBegin(message.mapId, message.totalChunks, message.totalSize);
+            });
+        });
+
         gameClient.setMapChunkListener(message -> {
             // Process chunk data immediately on network thread to avoid lag
             // Only post UI updates to main thread
@@ -1000,6 +1010,10 @@ public class ClientGameMode implements GameMode {
         Log.info("ClientGameMode", "Map transfer setup complete, expecting " + totalChunks + " chunks");
     }
 
+
+    public void onMapTransferBegin(String mapId, int totalChunks, long totalSize) {
+        StateManager.setCurrentState(MapTransferInitiatedState.class);
+    }
     /**
      * Called by GameClient when a chunk is received - update state context with progress
      */

@@ -12,6 +12,7 @@ import curly.octo.map.enums.MapTileMaterial;
 import curly.octo.map.hints.LightHint;
 import curly.octo.map.hints.MapHint;
 import curly.octo.map.hints.SpawnPointHint;
+import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 import org.bitlet.weupnp.GatewayDevice;
 import org.bitlet.weupnp.GatewayDiscover;
 import curly.octo.map.GameMap;
@@ -93,6 +94,7 @@ public class Network {
         kryo.register(MapDataUpdate.class);
         kryo.register(MapChunkMessage.class);
         kryo.register(MapTransferStartMessage.class);
+        kryo.register(MapTransferBeginMessage.class);
         kryo.register(MapTransferCompleteMessage.class);
         kryo.register(MapRegenerationStartMessage.class);
         kryo.register(ClientReadyForMapMessage.class);

@@ -4,13 +4,16 @@ import curly.octo.Constants;
 import com.badlogic.gdx.math.Quaternion;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.stateV2.MapTransferState.MapTransferInitiatedState;
+import curly.octo.game.stateV2.StateManager;
 import curly.octo.network.messages.*;
 import curly.octo.network.messages.MapReceivedListener;
 import java.io.ByteArrayInputStream;
-import java.io.ObjectInputStream;
 import java.util.concurrent.ConcurrentHashMap;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
+import curly.octo.network.messages.mapTransferMessages.MapTransferBeginListener;
+import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 
 import java.io.IOException;
 
@@ -29,6 +32,7 @@ public class GameClient {
     private MapRegenerationStartListener mapRegenerationStartListener;
     private PlayerResetListener playerResetListener;
     private MapTransferStartListener mapTransferStartListener;
+    private MapTransferBeginListener mapTransferBeginListener;
     private MapChunkListener mapChunkListener;
     private MapTransferCompleteListener mapTransferCompleteListener;
 
@@ -100,8 +104,10 @@ public class GameClient {
             }
         });
 
+
         // Handle chunked map transfer messages
         networkListener.setMapTransferStartListener(this::handleMapTransferStart);
+        networkListener.setMapTransferBeginListener(this::handleMapTransferBegin);
         networkListener.setMapChunkListener(this::handleMapChunk);
         networkListener.setMapTransferCompleteListener(this::handleMapTransferComplete);
 
@@ -333,6 +339,11 @@ public class GameClient {
         this.mapTransferStartListener = listener;
     }
 
+    public void setMapTransferBeginListener(MapTransferBeginListener listener) {
+        this.mapTransferBeginListener = listener;
+    }
+
+
     public void setMapChunkListener(MapChunkListener listener) {
         this.mapChunkListener = listener;
     }
@@ -354,6 +365,16 @@ public class GameClient {
         // Notify listener for progress tracking
         if (mapTransferStartListener != null) {
             mapTransferStartListener.onMapTransferStart(message);
+        }
+    }
+
+    private void handleMapTransferBegin(MapTransferBeginMessage message) {
+        Log.info("GameClient", "Beginning map transfer: " + message.mapId +
+            " (" + message.totalChunks + " chunks, " + message.totalSize + " bytes)");
+
+        // Notify listener for progress tracking
+        if (mapTransferBeginListener != null) {
+            mapTransferBeginListener.onMapTransferBegin(message);
         }
     }
 

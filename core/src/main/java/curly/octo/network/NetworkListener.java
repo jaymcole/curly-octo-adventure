@@ -12,6 +12,8 @@ import curly.octo.network.messages.MapTransferStartListener;
 import curly.octo.network.messages.MapChunkListener;
 import curly.octo.network.messages.MapTransferCompleteListener;
 import curly.octo.network.messages.PlayerDisconnectListener;
+import curly.octo.network.messages.mapTransferMessages.MapTransferBeginListener;
+import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 
 /**
  * Handles incoming network messages and connection events.
@@ -21,6 +23,7 @@ public class NetworkListener implements Listener {
     private ConnectionListener connectionListener;
     private MapReceivedListener mapReceivedListener;
     private MapTransferStartListener mapTransferStartListener;
+    private MapTransferBeginListener mapTransferBeginListener;
     private MapChunkListener mapChunkListener;
     private MapTransferCompleteListener mapTransferCompleteListener;
     private PlayerAssignmentListener playerAssignmentListener;
@@ -59,27 +62,31 @@ public class NetworkListener implements Listener {
     public void setPlayerDisconnectListener(PlayerDisconnectListener listener) {
         this.playerDisconnectListener = listener;
     }
-    
+
     public void setMapTransferStartListener(MapTransferStartListener listener) {
         this.mapTransferStartListener = listener;
     }
-    
+
+    public void setMapTransferBeginListener(MapTransferBeginListener listener) {
+        this.mapTransferBeginListener = listener;
+    }
+
     public void setMapChunkListener(MapChunkListener listener) {
         this.mapChunkListener = listener;
     }
-    
+
     public void setMapTransferCompleteListener(MapTransferCompleteListener listener) {
         this.mapTransferCompleteListener = listener;
     }
-    
+
     public void setMapRegenerationStartListener(MapRegenerationStartListener listener) {
         this.mapRegenerationStartListener = listener;
     }
-    
+
     public void setPlayerResetListener(PlayerResetListener listener) {
         this.playerResetListener = listener;
     }
-    
+
     /**
      * Called when a connection is received from a client (server-side)
      * or when connected to a server (client-side).
@@ -142,6 +149,12 @@ public class NetworkListener implements Listener {
             if (mapTransferStartListener != null) {
                 mapTransferStartListener.onMapTransferStart(message);
             }
+        } else if (object instanceof MapTransferBeginMessage) {
+            MapTransferBeginMessage message = (MapTransferBeginMessage) object;
+            Log.info("Network", "Received map transfer start: " + message.mapId);
+            if (mapTransferBeginListener != null) {
+                mapTransferBeginListener.onMapTransferBegin(message);
+            }
         } else if (object instanceof MapChunkMessage) {
             MapChunkMessage message = (MapChunkMessage) object;
             if (mapChunkListener != null) {
@@ -163,7 +176,7 @@ public class NetworkListener implements Listener {
             }
         } else if (object instanceof MapRegenerationStartMessage) {
             MapRegenerationStartMessage message = (MapRegenerationStartMessage) object;
-            Log.info("Network", "Received map regeneration start with seed: " + message.newMapSeed + 
+            Log.info("Network", "Received map regeneration start with seed: " + message.newMapSeed +
                      " (Reason: " + message.reason + ")");
             if (mapRegenerationStartListener != null) {
                 mapRegenerationStartListener.onMapRegenerationStart(message);
@@ -172,7 +185,7 @@ public class NetworkListener implements Listener {
             }
         } else if (object instanceof PlayerResetMessage) {
             PlayerResetMessage message = (PlayerResetMessage) object;
-            Log.info("Network", "Received player reset for player " + message.playerId + 
+            Log.info("Network", "Received player reset for player " + message.playerId +
                      " to position (" + message.spawnX + ", " + message.spawnY + ", " + message.spawnZ + ")");
             if (playerResetListener != null) {
                 playerResetListener.onPlayerReset(message);

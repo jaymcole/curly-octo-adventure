@@ -1,13 +1,12 @@
 package curly.octo.game.stateV2;
 
-import com.badlogic.gdx.Screen;
-
 public abstract class BaseGameState {
 
     protected BaseScreen stateScreen;
-    private boolean renderGameInBackground;
+    protected boolean renderGameInBackground;
 
-    public BaseGameState() {
+    public BaseGameState(BaseScreen screen) {
+        this.stateScreen = screen;
     }
 
     public BaseScreen getStateScreen() {

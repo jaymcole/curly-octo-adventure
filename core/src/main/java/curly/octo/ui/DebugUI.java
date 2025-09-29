@@ -51,7 +51,7 @@ public class DebugUI {
         // Create skin
         Skin skin;
         try {
-            skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
+            skin = UIAssetCache.getDefaultSkin();
             Log.info("DebugUI", "Successfully loaded UI skin");
         } catch (Exception e) {
             Log.error("DebugUI", "Failed to load UI skin: " + e.getMessage());
@@ -157,18 +157,18 @@ public class DebugUI {
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
                 Log.info("DebugUI", "Map regeneration button clicked!");
-                
+
                 // Trigger regeneration
                 if (debugListener != null) {
                     debugListener.onRegenerateMap();
                 } else {
                     Log.warn("DebugUI", "No debug listener set for map regeneration");
                 }
-                
+
                 // Show feedback to user
                 final String originalText = mapRegenerateButton.getText().toString();
                 mapRegenerateButton.setText("Regenerating...");
-                
+
                 // Revert text after delay
                 new Thread(() -> {
                     try {
@@ -178,11 +178,11 @@ public class DebugUI {
                         Thread.currentThread().interrupt();
                     }
                 }).start();
-                
+
                 return super.touchDown(event, x, y, pointer, button);
             }
         });
-        
+
         debugTable.add(mapRegenerateButton).size(200, 50).pad(10).row();
 
         // Lighting System Limits
