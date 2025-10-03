@@ -7,7 +7,7 @@ import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameWorld;
 import curly.octo.game.HostGameWorld;
-import curly.octo.game.gameServerObjects.ClientProfile;
+import curly.octo.game.serverObjects.ClientProfile;
 import curly.octo.map.GameMap;
 import curly.octo.network.messages.*;
 import curly.octo.network.messages.legacyMessages.MapRegenerationStartMessage;

@@ -1,4 +1,4 @@
-package curly.octo.game.gameServerObjects;
+package curly.octo.game.serverObjects;
 
 public class ClientProfile {
 

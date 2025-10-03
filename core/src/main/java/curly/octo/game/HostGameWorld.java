@@ -1,6 +1,7 @@
 package curly.octo.game;
 
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.serverStates.ServerStateManager;
 import curly.octo.map.GameMap;
 
 import java.util.HashMap;
@@ -14,7 +15,6 @@ import static curly.octo.Constants.MAP_GENERATION_SEED;
  */
 public class HostGameWorld extends GameWorld {
 
-    public static final String WORLD_OWNERSHIP = "owned by world";
     private HashMap<String, String> entityIdToEntityOwnerMap;
     private boolean deferredMapGeneration = false;
 
@@ -56,13 +56,6 @@ public class HostGameWorld extends GameWorld {
     }
 
     /**
-     * @return true if map generation is deferred (no initial map created)
-     */
-    public boolean isDeferredMapGeneration() {
-        return deferredMapGeneration;
-    }
-
-    /**
      * @return true if the host has an initial map available for distribution
      */
     public boolean hasInitialMap() {
@@ -73,47 +66,30 @@ public class HostGameWorld extends GameWorld {
 
     @Override
     public void update(float deltaTime) {
-        updateServerOnly(deltaTime);
-    }
-
-    /**
-     * Host-specific update that skips physics simulation and rendering preparation.
-     * Used to avoid duplicate physics calculations while maintaining network sync timing.
-     */
-    public void updateServerOnly(float deltaTime) {
-        // Host only needs to update game objects for network synchronization
-        // Skip physics (client handles authoritative physics)
-        // Skip light flickering (purely visual)
-        // Skip player controller updates (client handles input/camera)
-
-        // Update server-side game objects if any
-        // Note: Currently minimal since we don't have many server-only objects yet
-
-        // Keep position update timer for network sync timing
         incrementPositionUpdateTimer(deltaTime);
     }
-    
+
     @Override
     public void regenerateMap(long newSeed) {
         Log.info("HostGameWorld", "Regenerating host map with seed: " + newSeed);
-        
+
         try {
             // Dispose current map if it exists
             if (mapManager != null) {
                 mapManager.dispose();
                 Log.info("HostGameWorld", "Disposed old map");
             }
-            
+
             // Create new map with new seed (server-only mode)
             GameMap newMap = new GameMap(newSeed, true);
             Log.info("HostGameWorld", "Generated new host map with seed: " + newSeed);
             Log.info("HostGameWorld", "New map has " + newMap.getAllTiles().size() + " tiles, hash: " + newMap.hashCode());
-            
+
             // Set the new map
             setMapManager(newMap);
-            
+
             Log.info("HostGameWorld", "Host map regeneration completed successfully");
-            
+
         } catch (Exception e) {
             Log.error("HostGameWorld", "Failed to regenerate host map: " + e.getMessage());
             e.printStackTrace();

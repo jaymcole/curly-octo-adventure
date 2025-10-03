@@ -1,10 +1,9 @@
-package curly.octo.game.stateV2.MainMenuState;
+package curly.octo.game.clientStates.MainMenuState;
 
-import curly.octo.game.stateV2.BaseGameState;
-import curly.octo.game.stateV2.BaseScreen;
-import curly.octo.game.stateV2.StateManager;
+import curly.octo.game.clientStates.BaseGameStateClient;
+import curly.octo.game.clientStates.BaseScreen;
 
-public class MainMenuState extends BaseGameState {
+public class MainMenuState extends BaseGameStateClient {
 
     public MainMenuState(BaseScreen screen) {
         super(screen);

@@ -1,19 +1,18 @@
-package curly.octo.game.stateV2;
+package curly.octo.game.clientStates;
 
-import com.badlogic.gdx.Screen;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.Main;
-import curly.octo.game.stateV2.MainMenuState.MainMenuScreen;
-import curly.octo.game.stateV2.MainMenuState.MainMenuState;
-import curly.octo.game.stateV2.MapTransferState.*;
+import curly.octo.game.clientStates.MainMenuState.MainMenuScreen;
+import curly.octo.game.clientStates.MainMenuState.MainMenuState;
+import curly.octo.game.clientStates.mapTransfer.*;
 import curly.octo.network.NetworkManager;
 import curly.octo.network.messages.ClientStateChangeMessage;
 
 import java.util.HashMap;
 
 public class StateManager{
-    private static BaseGameState currentState;
-    private static HashMap<Class, BaseGameState> cachedStates;
+    private static BaseGameStateClient currentState;
+    private static HashMap<Class, BaseGameStateClient> cachedStates;
     private static HashMap<Class, BaseScreen> cachedScreens;
     private static Main mainGame;
 
@@ -68,7 +67,7 @@ public class StateManager{
             currentState.end();
         }
 
-        BaseGameState oldState = currentState;
+        BaseGameStateClient oldState = currentState;
 
         currentState = cachedStates.get(nextState);
         currentState.start();
@@ -94,7 +93,7 @@ public class StateManager{
             screen.dispose();
         }
 
-        for(BaseGameState state : cachedStates.values()) {
+        for(BaseGameStateClient state : cachedStates.values()) {
             state.dispose();
         }
     }

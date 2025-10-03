@@ -3,8 +3,8 @@ package curly.octo.network;
 import curly.octo.Constants;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.game.stateV2.MapTransferState.MapTransferInitiatedState;
-import curly.octo.game.stateV2.StateManager;
+import curly.octo.game.clientStates.mapTransfer.MapTransferInitiatedState;
+import curly.octo.game.clientStates.StateManager;
 
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ConcurrentHashMap;

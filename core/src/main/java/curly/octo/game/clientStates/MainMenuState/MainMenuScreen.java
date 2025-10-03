@@ -1,4 +1,4 @@
-package curly.octo.game.stateV2.MainMenuState;
+package curly.octo.game.clientStates.MainMenuState;
 
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -7,7 +7,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.game.stateV2.BaseScreen;
+import curly.octo.game.clientStates.BaseScreen;
 import curly.octo.ui.UIAssetCache;
 
 public class MainMenuScreen extends BaseScreen {

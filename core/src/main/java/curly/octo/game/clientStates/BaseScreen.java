@@ -1,4 +1,4 @@
-package curly.octo.game.stateV2;
+package curly.octo.game.clientStates;
 
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.scenes.scene2d.Stage;

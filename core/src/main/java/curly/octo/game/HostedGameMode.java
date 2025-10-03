@@ -3,6 +3,7 @@ package curly.octo.game;
 import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.serverStates.ServerStateManager;
 import curly.octo.network.GameServer;
 
 import java.io.IOException;
@@ -68,6 +69,7 @@ public class HostedGameMode implements GameMode {
 
     @Override
     public void update(float deltaTime) throws IOException {
+        ServerStateManager.update(deltaTime);
         if (!serverStarted) return;
         serverGameWorld.update(deltaTime);
         if (!active && clientGameMode != null) {
@@ -133,7 +135,7 @@ public class HostedGameMode implements GameMode {
     public ClientGameMode getClientGameMode() {
         return clientGameMode;
     }
-    
+
     /**
      * Triggers map regeneration with a random seed.
      * This is a debug/admin function for testing map regeneration.
@@ -146,10 +148,10 @@ public class HostedGameMode implements GameMode {
             Log.error("HostedGameMode", "Cannot regenerate map - game server is null");
         }
     }
-    
+
     /**
      * Triggers map regeneration with a specific seed.
-     * 
+     *
      * @param seed The seed for the new map
      * @param reason Optional reason for regeneration
      */

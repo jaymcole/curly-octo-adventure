@@ -1,11 +1,11 @@
-package curly.octo.game.stateV2;
+package curly.octo.game.clientStates;
 
-public abstract class BaseGameState {
+public abstract class BaseGameStateClient {
 
     protected BaseScreen stateScreen;
     protected boolean renderGameInBackground;
 
-    public BaseGameState(BaseScreen screen) {
+    public BaseGameStateClient(BaseScreen screen) {
         this.stateScreen = screen;
     }
 

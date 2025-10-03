@@ -8,11 +8,10 @@ import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.*;
-import curly.octo.game.stateV2.BaseScreen;
-import curly.octo.game.stateV2.MainMenuState.MainMenuScreen;
-import curly.octo.game.stateV2.StateManager;
+import curly.octo.game.clientStates.BaseScreen;
+import curly.octo.game.clientStates.MainMenuState.MainMenuScreen;
+import curly.octo.game.clientStates.StateManager;
 import curly.octo.ui.DebugUI;
-import curly.octo.game.state.GameState;
 
 import java.io.IOException;
 import java.util.Random;

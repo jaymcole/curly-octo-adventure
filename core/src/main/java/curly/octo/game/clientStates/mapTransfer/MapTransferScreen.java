@@ -1,4 +1,4 @@
-package curly.octo.game.stateV2.MapTransferState;
+package curly.octo.game.clientStates.mapTransfer;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -6,7 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
-import curly.octo.game.stateV2.BaseScreen;
+import curly.octo.game.clientStates.BaseScreen;
 import curly.octo.ui.UIAssetCache;
 
 
@@ -36,7 +36,7 @@ public class MapTransferScreen extends BaseScreen {
     }
 
     public static void setPhaseMessage(String message) {
-
+        transferStateName.setText("Current State: " + message);
     }
 
     public static void setStateName(String stateName) {
