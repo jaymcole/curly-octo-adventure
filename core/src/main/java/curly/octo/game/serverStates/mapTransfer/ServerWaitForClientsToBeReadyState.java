@@ -30,23 +30,13 @@ public class ServerWaitForClientsToBeReadyState extends BaseGameStateServer {
 
         boolean allClientsReady = true;
         for(Map.Entry<String, ClientProfile> client : hostGameWorld.clientProfiles.entrySet()) {
-
-            Log.info("update", "Client Current State: " + client.getKey());
-            Log.info("update", "Client Current State: " + client.getValue().currentState);
-            Log.info("update", "Client Current State: " + client.getValue().connectionStatus);
             if (client.getValue().connectionStatus == ConnectionStatus.CONNECTED) {
                 if (!Objects.equals(client.getValue().currentState, MapTransferCompleteState.class.getSimpleName())) {
                     allClientsReady = false;
-    //                break;
+                    break;
                 }
             }
         }
-
-        Log.info("update", "");
-        Log.info("update", "");
-        Log.info("update", "");
-        Log.info("update", "");
-
 
         if (allClientsReady) {
             ServerStateManager.setServerState(ServerPlayingState.class);
