@@ -11,7 +11,6 @@ public class MapTransferBuildAssetsState extends BaseGameStateClient {
     @Override
     public void start() {
         MapTransferScreen.setPhaseMessage(MapTransferBuildAssetsState.class.getSimpleName());
-
     }
 
     @Override

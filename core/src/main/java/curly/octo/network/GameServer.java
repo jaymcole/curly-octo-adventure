@@ -222,48 +222,16 @@ public class GameServer {
     }
 
     public void sendMapRefreshToUser(Connection connection) {
-        String mapId = "map_" + System.currentTimeMillis(); // Unique map ID
-        Log.info("Server", "Starting chunked map transfer to client " + connection.getID() + " (mapId: " + mapId + ")");
+        Log.info("GameServer", "Initiating map transfer for client " + connection.getID());
 
-        try {
-            Log.info("Server: sendMapRefreshToUser", "hello being???");
-            // Serialize the map (with caching)
-//            byte[] mapData = getSerializedMapData();
-//            int totalChunks = (int) Math.ceil((double) mapData.length / CHUNK_SIZE);
-//            Log.info("Server", "Map size: " + mapData.length + " bytes, " + totalChunks + " chunks");
-//            Log.info("sendMapRefreshToUser", "JAY sending map refresh message");
+        // Ensure we're in map transfer state
+        if (!(ServerStateManager.getCurrentState() instanceof ServerMapTransferState)) {
             ServerStateManager.setServerState(ServerMapTransferState.class);
-//            MapTransferBeginMessage startMessage = new MapTransferBeginMessage(mapId, totalChunks, mapData.length);
-//            NetworkManager.sendToClient(connection.getID(), startMessage);
-
-
-            // Send chunks in sequence
-//            for (int i = 0; i < totalChunks; i++) {
-//                int offset = i * CHUNK_SIZE;
-//                int chunkLength = Math.min(CHUNK_SIZE, mapData.length - offset);
-//
-//                byte[] chunkData = new byte[chunkLength];
-//                System.arraycopy(mapData, offset, chunkData, 0, chunkLength);
-//
-//                MapChunkMessage chunkMessage = new MapChunkMessage(mapId, i, totalChunks, chunkData);
-//                server.sendToTCP(connection.getID(), chunkMessage);
-//
-//                // Small delay between chunks to prevent buffer overflow
-//                if (i > 0 && i % 5 == 0) {
-//                    Thread.sleep(MAP_TRANSFER_CHUNK_DELAY);
-//                }
-//            }
-
-            // Send transfer complete message
-//            MapTransferCompleteMessage completeMessage = new MapTransferCompleteMessage(mapId);
-//            server.sendToTCP(connection.getID(), completeMessage);
-
-//            Log.info("Server", "Chunked map transfer completed to client " + connection.getID());
-
-        } catch (Exception e) {
-            Log.error("Server: sendMapRefreshToUser", "Error sending chunked map data to client " + connection.getID() + ": " + e.getMessage());
-            e.printStackTrace();
         }
+
+        // Get the transfer state and start worker for this client
+        ServerMapTransferState transferState = (ServerMapTransferState) ServerStateManager.getCurrentState();
+        transferState.startTransferForClient(connection);
     }
 
 

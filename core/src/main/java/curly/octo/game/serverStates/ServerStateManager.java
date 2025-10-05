@@ -30,6 +30,10 @@ public class ServerStateManager {
         }
     }
 
+    public static BaseGameStateServer getCurrentState() {
+        return currentState;
+    }
+
     public static void setServerState(Class newState) {
         if (currentState != null) {
             currentState.end();

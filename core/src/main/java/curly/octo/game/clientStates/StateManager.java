@@ -5,6 +5,7 @@ import curly.octo.Main;
 import curly.octo.game.clientStates.MainMenuState.MainMenuScreen;
 import curly.octo.game.clientStates.MainMenuState.MainMenuState;
 import curly.octo.game.clientStates.mapTransfer.*;
+import curly.octo.network.GameClient;
 import curly.octo.network.NetworkManager;
 import curly.octo.network.messages.ClientStateChangeMessage;
 
@@ -15,6 +16,7 @@ public class StateManager{
     private static HashMap<Class, BaseGameStateClient> cachedStates;
     private static HashMap<Class, BaseScreen> cachedScreens;
     private static Main mainGame;
+    private static GameClient gameClient;
 
     public static void initialize(Main main) {
         mainGame = main;
@@ -78,6 +80,10 @@ public class StateManager{
         }
     }
 
+    public static BaseGameStateClient getCachedState(Class clientStateClass) {
+        return cachedStates.get(clientStateClass);
+    }
+
     public static BaseScreen getCachedScreen(Class screenClass) {
         return cachedScreens.get(screenClass);
     }
@@ -88,6 +94,23 @@ public class StateManager{
         }
     }
 
+    /**
+     * Sets the GameClient reference for map transfer states to use.
+     * Should be called after GameClient is initialized.
+     */
+    public static void setGameClient(GameClient client) {
+        gameClient = client;
+        Log.info("StateManager", "GameClient reference set for map transfer states");
+    }
+
+    /**
+     * Gets the GameClient reference.
+     * @return the GameClient instance, or null if not set
+     */
+    public static GameClient getGameClient() {
+        return gameClient;
+    }
+
     public static void dispose() {
         for(BaseScreen screen : cachedScreens.values()) {
             screen.dispose();
@@ -96,5 +119,7 @@ public class StateManager{
         for(BaseGameStateClient state : cachedStates.values()) {
             state.dispose();
         }
+
+        gameClient = null; // Clear reference
     }
 }

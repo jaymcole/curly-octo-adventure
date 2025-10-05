@@ -3,13 +3,10 @@ package curly.octo.network;
 import curly.octo.Constants;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.clientStates.mapTransfer.MapTransferCompleteState;
 import curly.octo.game.clientStates.mapTransfer.MapTransferInitiatedState;
+import curly.octo.game.clientStates.mapTransfer.MapTransferTransferState;
 import curly.octo.game.clientStates.StateManager;
-
-import java.io.ByteArrayInputStream;
-import java.util.concurrent.ConcurrentHashMap;
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Input;
 import curly.octo.network.messages.legacyMessages.MapChunkMessage;
 import curly.octo.network.messages.legacyMessages.MapTransferCompleteMessage;
 import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
@@ -25,40 +22,6 @@ public class GameClient {
     private final String host;
     // Legacy listener fields removed - all messages now handled by NetworkManager
 
-    // Chunked map transfer support
-    private final ConcurrentHashMap<String, MapTransferState> activeTransfers = new ConcurrentHashMap<>();
-
-    // Inner class to track map transfer state
-    private static class MapTransferState {
-        final String mapId;
-        final int totalChunks;
-        final long totalSize;
-        final byte[][] chunks;
-        int chunksReceived = 0;
-
-        MapTransferState(String mapId, int totalChunks, long totalSize) {
-            this.mapId = mapId;
-            this.totalChunks = totalChunks;
-            this.totalSize = totalSize;
-            this.chunks = new byte[totalChunks][];
-        }
-
-        boolean isComplete() {
-            return chunksReceived == totalChunks;
-        }
-
-        float getProgress() {
-            return (float) chunksReceived / totalChunks;
-        }
-
-        int getTotalChunks() {
-            return totalChunks;
-        }
-
-        int getChunksReceived() {
-            return chunksReceived;
-        }
-    }
 
     /**
      * Creates a new game client that will connect to the specified host.
@@ -240,97 +203,19 @@ public class GameClient {
 
     // Legacy setter methods removed - use NetworkManager.onReceive() directly
 
-    /**
-     * Get transfer information for debugging/progress tracking
-     * @param mapId the map ID to get transfer info for
-     * @return total chunks for the transfer, or null if not found
-     */
-    public Integer getCurrentTransferTotalChunks(String mapId) {
-        MapTransferState state = activeTransfers.get(mapId);
-        return state != null ? state.getTotalChunks() : null;
-    }
-
     private void handleMapTransferBegin(MapTransferBeginMessage message) {
-        Log.info("GameClient", "Beginning map transfer: " + message.mapId +
-            " (" + message.totalChunks + " chunks, " + message.totalSize + " bytes)");
-        Log.info("JAY", "JAYJAYJAY");
-        StateManager.setCurrentState(MapTransferInitiatedState.class);
+        MapTransferInitiatedState state = (MapTransferInitiatedState) StateManager.getCachedState(MapTransferInitiatedState.class);
+        state.handleMapTransferBegin(message);
     }
 
-    /**
-     * Handles receiving a chunk of map data
-     */
     private void handleMapChunk(MapChunkMessage message) {
-        MapTransferState state = activeTransfers.get(message.mapId);
-        if (state == null) {
-            Log.warn("GameClient", "Received chunk for unknown transfer: " + message.mapId);
-            return;
-        }
-
-        // Store the chunk
-        state.chunks[message.chunkIndex] = message.chunkData;
-        state.chunksReceived++;
-
-        Log.info("GameClient", "Received chunk " + message.chunkIndex + "/" + message.totalChunks +
-                " for " + message.mapId + " (" + (int)(state.getProgress() * 100) + "% complete)");
-
-        // Listener callback removed during NetworkManager migration
-        // Progress tracking now handled through state management system
-        Log.info("GameClient", "Chunk progress: " + message.chunkIndex + "/" + message.totalChunks);
+        MapTransferTransferState state = (MapTransferTransferState) StateManager.getCachedState(MapTransferTransferState.class);
+        state.handleMapChunk(message);
     }
 
-    /**
-     * Handles completion of a chunked map transfer
-     */
     private void handleMapTransferComplete(MapTransferCompleteMessage message) {
-        MapTransferState state = activeTransfers.remove(message.mapId);
-        if (state == null) {
-            Log.warn("GameClient", "Received completion for unknown transfer: " + message.mapId);
-            return;
-        }
-
-        if (!state.isComplete()) {
-            Log.error("GameClient", "Transfer marked complete but missing chunks: " +
-                     state.chunksReceived + "/" + state.totalChunks);
-            return;
-        }
-
-        Log.info("GameClient", "Map transfer complete: " + message.mapId + ", reassembling...");
-
-        try {
-            // Reassemble the chunks into the original map data
-            int totalLength = 0;
-            for (byte[] chunk : state.chunks) {
-                totalLength += chunk.length;
-            }
-
-            byte[] completeData = new byte[totalLength];
-            int offset = 0;
-            for (byte[] chunk : state.chunks) {
-                System.arraycopy(chunk, 0, completeData, offset, chunk.length);
-                offset += chunk.length;
-            }
-
-            // Deserialize the map using Kryo (same as KryoNet uses)
-            try (ByteArrayInputStream bais = new ByteArrayInputStream(completeData);
-                 Input input = new Input(bais)) {
-
-                // Get the client's Kryo instance (already configured with our registrations)
-                Kryo kryo = client.getKryo();
-                curly.octo.map.GameMap map = kryo.readObject(input, curly.octo.map.GameMap.class);
-
-                Log.info("GameClient", "Map successfully deserialized using Kryo, notifying listener");
-
-                // Listener callback removed during NetworkManager migration
-                // Transfer completion now handled through state management system
-
-                // Map ready notification removed - ClientGameMode handles MapTransferCompleteMessage directly via NetworkManager
-            }
-
-        } catch (Exception e) {
-            Log.error("GameClient", "Error reassembling map from chunks: " + e.getMessage());
-            e.printStackTrace();
-        }
+        MapTransferCompleteState state = (MapTransferCompleteState) StateManager.getCachedState(MapTransferCompleteState.class);
+        state.handleMapTransferComplete(message);
     }
 
     // Legacy handler methods removed - ClientGameMode now handles messages directly via NetworkManager

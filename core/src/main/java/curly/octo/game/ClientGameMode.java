@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.clientStates.StateManager;
 import curly.octo.network.GameClient;
 import curly.octo.network.NetworkManager;
 import curly.octo.network.messages.PlayerUpdate;
@@ -218,6 +219,9 @@ public class ClientGameMode implements GameMode {
 
             gameClient = new GameClient(host);
             setupNetworkListeners();
+
+            // Set GameClient in StateManager for map transfer states
+            StateManager.setGameClient(gameClient);
 
             // Connect to server
             gameClient.connect(5000);
