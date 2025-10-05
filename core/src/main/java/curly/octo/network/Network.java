@@ -26,13 +26,6 @@ import curly.octo.gameobjects.PlayerObject;
 import java.net.InetAddress;
 import java.util.ArrayList;
 
-// Server will have state too.
-// Clients will need to respect server states
-// Like when servers is in map transfer mode, client should switch to transferring mode
-
-
-
-
 /**
  * Base class for network-related functionality.
  * Contains common code for both client and server.
@@ -51,6 +44,11 @@ public class Network {
         kryo.setRegistrationRequired(true); // Require explicit registration for better error messages
         kryo.setReferences(false); // Disable reference tracking to avoid cross-message reference errors
         kryo.setAutoReset(false);
+
+        // CRITICAL: Disable generic type optimization to prevent corruption with complex nested generics
+        // This fixes the "Cannot read field 'arguments' because 'genericType' is null" error
+        // that occurs with GameMap's HashMap<Class, HashMap<Long, ArrayList<MapHint>>> field
+        kryo.setOptimizedGenerics(false);
 
         // Register primitive arrays first
         kryo.register(byte[].class);

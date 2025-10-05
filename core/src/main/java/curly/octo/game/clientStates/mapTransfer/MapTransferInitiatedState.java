@@ -27,10 +27,27 @@ public class MapTransferInitiatedState extends BaseGameStateClient {
             Log.info("MapTransferInitiatedState", "Paused network updates and input for map transfer");
         }
 
+        // OPTIMIZATION: Check if we already have this map (e.g., player joining existing session)
+        // If we do, skip the entire transfer process and jump to ready state
+        ClientGameWorld clientWorld = StateManager.getClientGameWorld();
+        String incomingMapId = (message != null) ? message.mapId : null;
+        String currentMapId = (clientWorld != null && clientWorld.getMapManager() != null)
+            ? clientWorld.getMapManager().getMapId() : null;
+
+        if (incomingMapId != null && incomingMapId.equals(currentMapId)) {
+            Log.info("MapTransferInitiatedState", "Already have map " + incomingMapId + " - skipping transfer entirely");
+            Log.info("MapTransferInitiatedState", "Transitioning directly to ready state");
+            StateManager.setCurrentState(MapTransferCompleteState.class);
+            return;
+        }
+
+        // Different map or no existing map - proceed with normal transfer flow
+        Log.info("MapTransferInitiatedState", "Map IDs differ (incoming: " + incomingMapId +
+            ", current: " + currentMapId + ") - performing full transfer");
+
         // CRITICAL: Dispose old map assets BEFORE starting new map transfer
         // This prevents crashes from physics/rendering conflicts between old and new maps
         // BUT: Only if we actually have an existing map (not first transfer)
-        ClientGameWorld clientWorld = StateManager.getClientGameWorld();
         if (clientWorld != null && clientWorld.getMapManager() != null) {
             Log.info("MapTransferInitiatedState", "Disposing old map assets before transfer");
             clientWorld.cleanupForMapRegeneration();

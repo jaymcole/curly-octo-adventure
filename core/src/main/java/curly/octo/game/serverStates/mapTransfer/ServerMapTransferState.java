@@ -70,6 +70,30 @@ public class ServerMapTransferState extends BaseGameStateServer {
                 " (total active: " + activeWorkers.size() + ")");
     }
 
+    /**
+     * Notifies all OTHER clients (excluding the one currently downloading) to enter the transfer screen.
+     * Existing clients will skip the download (same mapId) but wait in MapTransferCompleteState.
+     * This ensures all clients wait together until the new player finishes downloading.
+     */
+    public void notifyAllOtherClients(Connection excludeConnection) {
+        String currentMapId = hostGameWorld.getMapManager().getMapId();
+
+        // Create a "fake" transfer begin message with 0 chunks (existing clients will skip download)
+        curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage message =
+            new curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage(currentMapId, 0, 0);
+
+        int notifiedCount = 0;
+        for (com.esotericsoftware.kryonet.Connection conn : gameServer.getServer().getConnections()) {
+            if (conn.getID() != excludeConnection.getID()) {
+                conn.sendTCP(message);
+                notifiedCount++;
+            }
+        }
+
+        Log.info("ServerMapTransferState", "Notified " + notifiedCount +
+            " existing client(s) to enter transfer screen (they will skip download)");
+    }
+
     @Override
     public void update(float delta) {
         // Update all active workers

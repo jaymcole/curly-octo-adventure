@@ -14,15 +14,11 @@ import curly.octo.network.messages.*;
 import curly.octo.network.messages.legacyMessages.MapRegenerationStartMessage;
 import curly.octo.network.messages.legacyMessages.ClientReadyForMapMessage;
 import curly.octo.gameobjects.PlayerObject;
-import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
-import java.io.ByteArrayOutputStream;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Output;
 
 /**
  * Handles server-side network operations.
@@ -230,7 +226,14 @@ public class GameServer {
         }
 
         ServerMapTransferState transferState = (ServerMapTransferState) ServerStateManager.getCurrentState();
+
+        // Start the actual transfer for the new client
         transferState.startTransferForClient(connection);
+
+        // CRITICAL: Notify all OTHER existing clients to enter the transfer screen
+        // They will skip downloading (same mapId) but wait in MapTransferCompleteState
+        // This ensures all clients synchronize and wait together for the new player
+        transferState.notifyAllOtherClients(connection);
     }
 
 
