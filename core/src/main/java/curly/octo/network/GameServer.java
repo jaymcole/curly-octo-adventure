@@ -220,17 +220,19 @@ public class GameServer {
     public void sendMapRefreshToUser(Connection connection) {
         Log.info("GameServer", "Initiating map transfer for client " + connection.getID());
 
-        // Ensure we're in the correct state (safe to call multiple times)
-        if (!(ServerStateManager.getCurrentState() instanceof ServerMapTransferState)) {
+        boolean wasAlreadyInTransferState = ServerStateManager.getCurrentState() instanceof ServerMapTransferState;
+
+        // Ensure we're in the correct state
+        if (!wasAlreadyInTransferState) {
+            // Transition to transfer state - start() will create workers for ALL clients
             ServerStateManager.setServerState(ServerMapTransferState.class);
+        } else {
+            // Already in transfer state (mid-transfer join scenario)
+            // Explicitly create worker for this new client only
+            // The start() method won't run again, so we need to handle it here
+            ServerMapTransferState transferState = (ServerMapTransferState) ServerStateManager.getCurrentState();
+            transferState.startTransferForClient(connection);
         }
-
-        ServerMapTransferState transferState = (ServerMapTransferState) ServerStateManager.getCurrentState();
-
-        // Start the transfer for the client
-        // Note: Clients already in transfer states will ignore the MapTransferBeginMessage
-        // via state-aware filtering in GameClient.handleMapTransferBegin()
-        transferState.startTransferForClient(connection);
     }
 
 

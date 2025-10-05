@@ -39,18 +39,6 @@ public class ClientGameWorld extends GameWorld {
                 (mapRenderer != null ? "exists" : "null") +
                 ", current mapManager: " + (mapManager != null ? "exists" : "null"));
 
-        // Force garbage collection to ensure old physics objects are cleaned up
-        // before creating new ones to prevent Bullet Physics conflicts
-        Log.info("ClientGameWorld", "Forcing garbage collection before new map setup");
-        System.gc();
-
-        // Add a small delay to ensure cleanup is complete
-        try {
-            Thread.sleep(50);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
         // Call parent setMap which should recreate everything
         try {
             Log.info("ClientGameWorld", "Calling parent setMap to initialize new map");
@@ -345,33 +333,18 @@ public class ClientGameWorld extends GameWorld {
             }
 
             // Step 4: Clean up map renderer (textures, models, shaders, etc.)
+            // NOTE: This should only be called from OpenGL thread (via MapTransferDisposeState)
             if (mapRenderer != null) {
                 Log.info("ClientGameWorld", "Disposing map renderer");
                 try {
-                    // CRITICAL: Ensure renderer disposal happens on OpenGL thread
-                    final curly.octo.map.GameMapRenderer rendererToDispose = mapRenderer;
-                    mapRenderer = null; // Clear reference first to prevent use during disposal
+                    mapRenderer.disposeAll();
+                    mapRenderer = null;
 
-                    // Dispose on OpenGL thread to prevent rendering issues
-                    com.badlogic.gdx.Gdx.app.postRunnable(() -> {
-                        try {
-                            Log.info("ClientGameWorld", "Disposing renderer on OpenGL thread");
-                            rendererToDispose.disposeAll();
+                    // Force OpenGL state cleanup after disposal
+                    com.badlogic.gdx.Gdx.gl.glFlush();
+                    com.badlogic.gdx.Gdx.gl.glFinish();
 
-                            // Force OpenGL state cleanup after disposal
-                            com.badlogic.gdx.Gdx.gl.glFlush();
-                            com.badlogic.gdx.Gdx.gl.glFinish();
-
-                            Log.info("ClientGameWorld", "Renderer disposal completed successfully");
-                        } catch (Exception e) {
-                            Log.error("ClientGameWorld", "Error disposing renderer on OpenGL thread: " + e.getMessage());
-                            e.printStackTrace();
-                        }
-                    });
-
-                    // Renderer disposal will complete asynchronously on OpenGL thread
-                    // No need to block main thread waiting for it
-
+                    Log.info("ClientGameWorld", "Renderer disposal completed successfully");
                 } catch (Exception e) {
                     Log.error("ClientGameWorld", "Error during renderer disposal: " + e.getMessage());
                     e.printStackTrace();

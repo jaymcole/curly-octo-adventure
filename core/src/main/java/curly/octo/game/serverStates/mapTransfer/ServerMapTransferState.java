@@ -44,7 +44,16 @@ public class ServerMapTransferState extends BaseGameStateServer {
             Log.info("ServerMapTransferState", "Cached map data: " + cachedMapData.length + " bytes");
         } else {
             Log.error("ServerMapTransferState", "Failed to serialize map data");
+            return;
         }
+
+        // Create workers for ALL currently connected clients
+        // This handles initial entry and mid-game joins where existing clients need to be notified
+        for (Connection conn : gameServer.getServer().getConnections()) {
+            startTransferForClient(conn);
+        }
+
+        Log.info("ServerMapTransferState", "Initialized " + activeWorkers.size() + " transfer worker(s)");
     }
 
     /**

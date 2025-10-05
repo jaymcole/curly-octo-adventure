@@ -52,7 +52,9 @@ public class MapTransferInitiatedState extends BaseGameStateClient {
             MapTransferSharedStatics.setMapId(message.mapId);
             MapTransferSharedStatics.setTotalChunks(message.totalChunks);
             MapTransferSharedStatics.setTotalSize(message.totalSize);
-            StateManager.setCurrentState(MapTransferTransferState.class);
+
+            // Transition to disposal state first to clean up old map on OpenGL thread
+            StateManager.setCurrentState(MapTransferDisposeState.class);
         }
     }
 
