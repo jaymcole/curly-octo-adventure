@@ -58,8 +58,8 @@ public class NetworkMessageRegistry {
 
         // Legacy player messages (not NetworkMessage types yet)
         registerMessage(kryo, curly.octo.network.messages.PlayerUpdate.class);
-
         registerMessage(kryo, ClientStateChangeMessage.class);
+        registerMessage(kryo, curly.octo.network.messages.ClientIdentificationMessage.class);
     }
 
     /**

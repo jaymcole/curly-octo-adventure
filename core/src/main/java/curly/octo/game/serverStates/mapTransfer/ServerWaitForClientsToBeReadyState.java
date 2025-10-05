@@ -1,6 +1,5 @@
 package curly.octo.game.serverStates.mapTransfer;
 
-import com.esotericsoftware.minlog.Log;
 import curly.octo.game.HostGameWorld;
 import curly.octo.game.clientStates.mapTransfer.MapTransferCompleteState;
 import curly.octo.game.serverObjects.ClientProfile;

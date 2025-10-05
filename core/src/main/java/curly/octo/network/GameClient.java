@@ -7,11 +7,13 @@ import curly.octo.game.clientStates.BaseGameStateClient;
 import curly.octo.game.clientStates.mapTransfer.*;
 import curly.octo.game.clientStates.StateManager;
 import curly.octo.game.clientStates.playing.ClientPlayingState;
+import curly.octo.network.messages.ClientIdentificationMessage;
 import curly.octo.network.messages.legacyMessages.MapChunkMessage;
 import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 import curly.octo.network.messages.mapTransferMessages.MapTransferCompleteMessage;
 
 import java.io.IOException;
+import java.util.UUID;
 
 /**
  * Handles client-side network operations.
@@ -20,9 +22,7 @@ public class GameClient {
     private final Client client;
     private final NetworkListener networkListener;
     private final String host;
-    // Legacy listener fields removed - all messages now handled by NetworkManager
-
-
+    private final String clientUniqueId;
     /**
      * Creates a new game client that will connect to the specified host.
      * @param host the server hostname or IP address to connect to
@@ -50,6 +50,9 @@ public class GameClient {
 
         // Add network listener
         client.addListener(networkListener);
+
+        this.clientUniqueId = UUID.randomUUID().toString();
+
     }
 
     private boolean connecting = false;
@@ -90,6 +93,8 @@ public class GameClient {
         if (client.isConnected()) {
             connecting = false;
             Log.info("Client", "Successfully connected to server at " + host + ":" + Network.TCP_PORT);
+            // Immediately send client identification
+            sendClientIdentification();
             return true;
         }
 
@@ -192,6 +197,19 @@ public class GameClient {
      */
     public void sendUDP(Object message) {
         client.sendUDP(message);
+    }
+
+
+
+    public void sendClientIdentification() {
+        if (client != null && client.isConnected()) {
+            ClientIdentificationMessage message =
+                new ClientIdentificationMessage(clientUniqueId, "Jay");
+            client.sendTCP(message);
+            Log.info("GameClient", "Sent client identification: " + clientUniqueId);
+        } else {
+            Log.warn("GameClient", "Cannot send identification - client not connected");
+        }
     }
 
     /**

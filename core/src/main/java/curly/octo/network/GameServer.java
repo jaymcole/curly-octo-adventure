@@ -58,6 +58,7 @@ public class GameServer {
         NetworkManager.initialize(server);
         NetworkManager.onReceive(PlayerUpdate.class, this::handlePlayerUpdate);
         NetworkManager.onReceive(ClientStateChangeMessage.class, this::handleClientStateChangeMessage);
+        NetworkManager.onReceive(curly.octo.network.messages.ClientIdentificationMessage.class, this::handleClientIdentification);
 
         server.addListener(networkListener);
 
@@ -82,6 +83,23 @@ public class GameServer {
             hostWorld.updateClientState(clientKey, stateChangeMessage.oldState, stateChangeMessage.newState);
         } else {
             Log.error("handleClientStateChangeMessage", "GameWorld is not a HostGameWorld - cannot update client state");
+        }
+    }
+
+    public void handleClientIdentification(Connection connection, curly.octo.network.messages.ClientIdentificationMessage identificationMessage) {
+        if (gameWorld instanceof HostGameWorld) {
+            String clientKey = constructClientProfileKey(connection);
+            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
+            curly.octo.game.serverObjects.ClientProfile profile = hostWorld.getClientProfile(clientKey);
+            if (profile != null) {
+                profile.clientUniqueId = identificationMessage.clientUniqueId;
+                profile.userName = identificationMessage.clientName;
+                Log.info("GameServer", "Client " + connection.getID() + " identified with uniqueId: " + identificationMessage.clientUniqueId);
+            } else {
+                Log.warn("GameServer", "Received identification from unknown client: " + connection.getID());
+            }
+        } else {
+            Log.error("GameServer", "GameWorld is not a HostGameWorld - cannot store client unique ID");
         }
     }
 
