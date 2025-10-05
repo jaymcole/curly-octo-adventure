@@ -63,6 +63,10 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
         // Set the regeneration listener on the client mode
         if (clientGameMode != null) {
             clientGameMode.setMapRegenerationListener(this);
+
+            // Register with StateManager for playing state access
+            StateManager.setClientGameMode(clientGameMode);
+
             // Connect the state UI to the state manager
             connectStateUIToClient(clientGameMode);
         }
@@ -74,6 +78,9 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
 
         clientGameMode = new ClientGameMode(host, random);
         clientGameMode.setMapRegenerationListener(this); // Set ourselves as the listener
+
+        // Register with StateManager for playing state access
+        StateManager.setClientGameMode(clientGameMode);
 
         // Connect the state UI to the state manager
         connectStateUIToClient(clientGameMode);

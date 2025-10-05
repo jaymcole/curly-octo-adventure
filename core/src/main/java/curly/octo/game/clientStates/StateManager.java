@@ -20,6 +20,7 @@ public class StateManager{
     private static Main mainGame;
     private static GameClient gameClient;
     private static curly.octo.game.ClientGameWorld clientGameWorld;
+    private static curly.octo.game.ClientGameMode clientGameMode;
 
     public static void initialize(Main main) {
         mainGame = main;
@@ -134,6 +135,23 @@ public class StateManager{
         return clientGameWorld;
     }
 
+    /**
+     * Sets the ClientGameMode reference for playing state to use.
+     * Should be called after ClientGameMode is initialized.
+     */
+    public static void setClientGameMode(curly.octo.game.ClientGameMode mode) {
+        clientGameMode = mode;
+        Log.info("StateManager", "ClientGameMode reference set for playing state");
+    }
+
+    /**
+     * Gets the ClientGameMode reference.
+     * @return the ClientGameMode instance, or null if not set
+     */
+    public static curly.octo.game.ClientGameMode getClientGameMode() {
+        return clientGameMode;
+    }
+
     public static void dispose() {
         for(BaseScreen screen : cachedScreens.values()) {
             screen.dispose();
@@ -145,5 +163,6 @@ public class StateManager{
 
         gameClient = null;
         clientGameWorld = null;
+        clientGameMode = null;
     }
 }

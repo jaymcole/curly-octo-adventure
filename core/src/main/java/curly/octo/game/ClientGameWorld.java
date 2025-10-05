@@ -8,6 +8,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.graphics.GL20;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
+import curly.octo.map.GameMapRenderer;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.hints.MapHint;
@@ -224,14 +225,17 @@ public class ClientGameWorld extends GameWorld {
     }
 
     public void render(ModelBatch modelBatch, PerspectiveCamera camera) {
-        if (getMapRenderer() != null && camera != null) {
+        // Store local reference to prevent null pointer if renderer is disposed during rendering
+        GameMapRenderer renderer = getMapRenderer();
+
+        if (renderer != null && camera != null) {
             // Set post-processing effect based on local player's current tile
             if (getGameObjectManager().localPlayer != null) {
-                getMapRenderer().setPostProcessingEffect(getGameObjectManager().localPlayer.getCurrentTileFillType());
+                renderer.setPostProcessingEffect(getGameObjectManager().localPlayer.getCurrentTileFillType());
             }
 
             // Step 1: Render scene with bloom effects first
-            getMapRenderer().beginBloomRender();
+            renderer.beginBloomRender();
 
             // Collect other players' ModelInstances for shadow casting
             Array<ModelInstance> playerInstances = new Array<>();
@@ -253,7 +257,7 @@ public class ClientGameWorld extends GameWorld {
             allInstances.addAll(getGameObjectManager().getRenderQueue());
 
             // Render the map with players and WorldObjects
-            getMapRenderer().render(camera, getEnvironment(), getMapRenderer().getBloomFrameBuffer(), allInstances);
+            renderer.render(camera, getEnvironment(), renderer.getBloomFrameBuffer(), allInstances);
 
             // Render physics debug information if enabled
             if (getMapManager() != null) {
@@ -261,7 +265,7 @@ public class ClientGameWorld extends GameWorld {
             }
 
             // End bloom render (this renders bloom result to screen)
-            getMapRenderer().endBloomRender();
+            renderer.endBloomRender();
 
             // Step 2: Apply post-processing effects to the bloom result
             // Only apply post-processing if we have an effect to apply
@@ -269,7 +273,7 @@ public class ClientGameWorld extends GameWorld {
                 getGameObjectManager().localPlayer.getCurrentTileFillType() != MapTileFillType.AIR) {
 
                 // Apply post-processing overlay to the current screen (with bloom)
-                getMapRenderer().applyPostProcessingToScreen();
+                renderer.applyPostProcessingToScreen();
             }
         }
     }
@@ -365,8 +369,8 @@ public class ClientGameWorld extends GameWorld {
                         }
                     });
 
-                    // Small delay to ensure disposal completes before continuing
-                    Thread.sleep(100);
+                    // Renderer disposal will complete asynchronously on OpenGL thread
+                    // No need to block main thread waiting for it
 
                 } catch (Exception e) {
                     Log.error("ClientGameWorld", "Error during renderer disposal: " + e.getMessage());
@@ -374,15 +378,8 @@ public class ClientGameWorld extends GameWorld {
                 }
             }
 
-            // Step 5: CRITICAL DELAY - Allow physics to settle before disposal
-            Log.info("ClientGameWorld", "Waiting for physics to settle before disposal");
-            try {
-                Thread.sleep(100); // Give physics time to complete any ongoing operations
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
-            // Step 6: Clean up map manager (physics world, collision shapes, etc.) LAST
+            // Step 5: Clean up map manager (physics world, collision shapes, etc.)
+            // Physics is already disabled via physicsDisabled flag, safe to dispose immediately
             if (mapManager != null) {
                 Log.info("ClientGameWorld", "Disposing map manager safely - ALL REFERENCES REMOVED");
                 try {
