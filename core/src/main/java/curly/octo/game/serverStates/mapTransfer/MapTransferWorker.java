@@ -23,6 +23,7 @@ public class MapTransferWorker {
     private boolean transferComplete = false;
     private int chunksSentThisFrame = 0;
     private static final int MAX_CHUNKS_PER_FRAME = 5; // Rate limiting
+    private static final int MAX_BUFFER_THRESHOLD = 16384; // Only send if TCP buffer < 16KB
 
     public MapTransferWorker(Connection connection, GameServer gameServer, byte[] mapData) {
         this.connection = connection;
@@ -45,8 +46,18 @@ public class MapTransferWorker {
 
         chunksSentThisFrame = 0;
 
-        // Send chunks with rate limiting
+        // Send chunks with rate limiting and buffer monitoring
         while (currentChunkIndex < totalChunks && chunksSentThisFrame < MAX_CHUNKS_PER_FRAME) {
+            // Check if TCP write buffer has room for another chunk
+            int pendingBytes = connection.getTcpWriteBufferSize();
+            if (pendingBytes >= MAX_BUFFER_THRESHOLD) {
+                // Buffer is too full, wait for it to drain
+                if (chunksSentThisFrame == 0 && currentChunkIndex % 20 == 0) {
+                    Log.debug("MapTransferWorker", "Buffer full (" + pendingBytes + " bytes), waiting for drain");
+                }
+                break;
+            }
+
             sendChunk(currentChunkIndex);
             currentChunkIndex++;
             chunksSentThisFrame++;
