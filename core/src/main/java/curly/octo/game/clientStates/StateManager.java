@@ -17,6 +17,7 @@ public class StateManager{
     private static HashMap<Class, BaseScreen> cachedScreens;
     private static Main mainGame;
     private static GameClient gameClient;
+    private static curly.octo.game.ClientGameWorld clientGameWorld;
 
     public static void initialize(Main main) {
         mainGame = main;
@@ -37,6 +38,7 @@ public class StateManager{
         cachedStates.put(MapTransferInitiatedState.class, new MapTransferInitiatedState(mapTransferScreen));
         cachedStates.put(MapTransferDisposeState.class, new MapTransferDisposeState(mapTransferScreen));
         cachedStates.put(MapTransferTransferState.class, new MapTransferTransferState(mapTransferScreen));
+        cachedStates.put(MapTransferReassemblyState.class, new MapTransferReassemblyState(mapTransferScreen));
         cachedStates.put(MapTransferBuildAssetsState.class, new MapTransferBuildAssetsState(mapTransferScreen));
         cachedStates.put(MapTransferCompleteState.class, new MapTransferCompleteState(mapTransferScreen));
     }
@@ -111,6 +113,23 @@ public class StateManager{
         return gameClient;
     }
 
+    /**
+     * Sets the ClientGameWorld reference for map transfer states to use.
+     * Should be called after ClientGameWorld is initialized.
+     */
+    public static void setClientGameWorld(curly.octo.game.ClientGameWorld world) {
+        clientGameWorld = world;
+        Log.info("StateManager", "ClientGameWorld reference set for map transfer states");
+    }
+
+    /**
+     * Gets the ClientGameWorld reference.
+     * @return the ClientGameWorld instance, or null if not set
+     */
+    public static curly.octo.game.ClientGameWorld getClientGameWorld() {
+        return clientGameWorld;
+    }
+
     public static void dispose() {
         for(BaseScreen screen : cachedScreens.values()) {
             screen.dispose();
@@ -120,6 +139,7 @@ public class StateManager{
             state.dispose();
         }
 
-        gameClient = null; // Clear reference
+        gameClient = null;
+        clientGameWorld = null;
     }
 }

@@ -3,7 +3,7 @@ package curly.octo.network;
 import curly.octo.Constants;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.game.clientStates.mapTransfer.MapTransferCompleteState;
+import curly.octo.game.clientStates.mapTransfer.MapTransferReassemblyState;
 import curly.octo.game.clientStates.mapTransfer.MapTransferInitiatedState;
 import curly.octo.game.clientStates.mapTransfer.MapTransferTransferState;
 import curly.octo.game.clientStates.StateManager;
@@ -201,11 +201,10 @@ public class GameClient {
         return client;
     }
 
-    // Legacy setter methods removed - use NetworkManager.onReceive() directly
-
     private void handleMapTransferBegin(MapTransferBeginMessage message) {
         MapTransferInitiatedState state = (MapTransferInitiatedState) StateManager.getCachedState(MapTransferInitiatedState.class);
-        state.handleMapTransferBegin(message);
+        state.message = message;
+        StateManager.setCurrentState(MapTransferInitiatedState.class);
     }
 
     private void handleMapChunk(MapChunkMessage message) {
@@ -214,9 +213,7 @@ public class GameClient {
     }
 
     private void handleMapTransferComplete(MapTransferCompleteMessage message) {
-        MapTransferCompleteState state = (MapTransferCompleteState) StateManager.getCachedState(MapTransferCompleteState.class);
+        MapTransferReassemblyState state = (MapTransferReassemblyState) StateManager.getCachedState(MapTransferReassemblyState.class);
         state.handleMapTransferComplete(message);
     }
-
-    // Legacy handler methods removed - ClientGameMode now handles messages directly via NetworkManager
 }

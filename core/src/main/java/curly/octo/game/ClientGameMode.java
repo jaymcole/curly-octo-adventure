@@ -220,8 +220,8 @@ public class ClientGameMode implements GameMode {
             gameClient = new GameClient(host);
             setupNetworkListeners();
 
-            // Set GameClient in StateManager for map transfer states
             StateManager.setGameClient(gameClient);
+            StateManager.setClientGameWorld(gameWorld);
 
             // Connect to server
             gameClient.connect(5000);
