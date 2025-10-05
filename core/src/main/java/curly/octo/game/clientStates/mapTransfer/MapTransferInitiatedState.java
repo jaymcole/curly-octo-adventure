@@ -45,17 +45,6 @@ public class MapTransferInitiatedState extends BaseGameStateClient {
         Log.info("MapTransferInitiatedState", "Map IDs differ (incoming: " + incomingMapId +
             ", current: " + currentMapId + ") - performing full transfer");
 
-        // CRITICAL: Dispose old map assets BEFORE starting new map transfer
-        // This prevents crashes from physics/rendering conflicts between old and new maps
-        // BUT: Only if we actually have an existing map (not first transfer)
-        if (clientWorld != null && clientWorld.getMapManager() != null) {
-            Log.info("MapTransferInitiatedState", "Disposing old map assets before transfer");
-            clientWorld.cleanupForMapRegeneration();
-            Log.info("MapTransferInitiatedState", "Old map assets disposed successfully");
-        } else {
-            Log.info("MapTransferInitiatedState", "No existing map to clean up (first transfer)");
-        }
-
         if (message != null) {
             MapTransferSharedStatics.resetProgressVariables();
             Log.info("MapTransferInitiatedState", "Map transfer initiated: " + message.mapId +

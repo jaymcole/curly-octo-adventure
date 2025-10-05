@@ -227,13 +227,10 @@ public class GameServer {
 
         ServerMapTransferState transferState = (ServerMapTransferState) ServerStateManager.getCurrentState();
 
-        // Start the actual transfer for the new client
+        // Start the transfer for the client
+        // Note: Clients already in transfer states will ignore the MapTransferBeginMessage
+        // via state-aware filtering in GameClient.handleMapTransferBegin()
         transferState.startTransferForClient(connection);
-
-        // CRITICAL: Notify all OTHER existing clients to enter the transfer screen
-        // They will skip downloading (same mapId) but wait in MapTransferCompleteState
-        // This ensures all clients synchronize and wait together for the new player
-        transferState.notifyAllOtherClients(connection);
     }
 
 

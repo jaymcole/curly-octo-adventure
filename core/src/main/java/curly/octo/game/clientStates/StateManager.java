@@ -72,6 +72,10 @@ public class StateManager{
 
         Log.info("StateManager", "Old game state: " + currentStateString + ", new game state: " + nextStateString);
 
+        if (currentState == cachedStates.get(nextState)) {
+            return;
+        }
+
         if (currentState != null) {
             currentState.end();
         }
@@ -108,6 +112,14 @@ public class StateManager{
     public static void setGameClient(GameClient client) {
         gameClient = client;
         Log.info("StateManager", "GameClient reference set for map transfer states");
+    }
+
+    /**
+     * Gets the current client state.
+     * @return the current BaseGameStateClient instance, or null if not set
+     */
+    public static BaseGameStateClient getCurrentState() {
+        return currentState;
     }
 
     /**
