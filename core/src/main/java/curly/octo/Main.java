@@ -23,6 +23,7 @@ import java.util.Random;
 public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuListener, DebugUI.DebugListener, ClientGameMode.MapRegenerationListener {
 
     public static Random random = new Random();
+    public static boolean isHostClient = false;
     private ModelBatch modelBatch;
 
     // UI Components
@@ -104,6 +105,7 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
             this.modelBatch = new ModelBatch();
             this.debugUI = new DebugUI();
             debugUI.setDebugListener(this);
+            debugUI.setMainInstance(this);
             updateInputMultiplexer();
             Log.info("Main", "Initialized successfully");
         } catch (Exception e) {
@@ -115,6 +117,7 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
 
     @Override
     public void render() {
+        isHostClient = hostedGameMode != null;
         float deltaTime = Gdx.graphics.getDeltaTime();
 
         // Clear screen
@@ -182,7 +185,7 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
         this.gameIsPlaying = gameIsPlaying;
     }
 
-    private void updateInputMultiplexer() {
+    public void updateInputMultiplexer() {
         InputMultiplexer multiplexer = new InputMultiplexer();
 
         if (activeScreen != null) {

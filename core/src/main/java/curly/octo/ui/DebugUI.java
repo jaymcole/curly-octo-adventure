@@ -12,6 +12,8 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.esotericsoftware.minlog.Log;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import curly.octo.Main;
+
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Clipboard;
@@ -32,6 +34,8 @@ public class DebugUI {
     private Label shadowLightsLabel;
     private Label physicsDebugLabel;
     private Label physicsStrategyLabel;
+    private Table debugTable;
+    private Main mainInstance;
 
     // Callback for debug toggles
     public interface DebugListener {
@@ -52,9 +56,8 @@ public class DebugUI {
         Skin skin;
         skin = UIAssetCache.getDefaultSkin();
 
-
         // Create debug table
-        Table debugTable = new Table();
+        debugTable = new Table();
         debugTable.setFillParent(true);
         debugTable.top().right().pad(10);
 
@@ -119,7 +122,9 @@ public class DebugUI {
         });
 
         // Debug: Log button addition to table
-        debugTable.add(mapSeedButton).size(200, 50).pad(10).row();
+        if (Main.isHostClient) {
+            debugTable.add(mapSeedButton).size(200, 50).pad(10).row();
+        }
 
         // Map Regeneration Button
         mapRegenerateButton = new TextButton("Regenerate Map", skin);
@@ -153,49 +158,13 @@ public class DebugUI {
             }
         });
 
-        debugTable.add(mapRegenerateButton).size(200, 50).pad(10).row();
-
-        // Lighting System Limits
-        Label lightingLimitsLabel = new Label("Lighting: " + Constants.LIGHTING_ENHANCED_SHADER_LIGHTS + "/" +
-                                            Constants.LIGHTING_MAX_FALLBACK_LIGHTS + " (Enhanced/Fallback)", skin);
-        debugTable.add(lightingLimitsLabel).pad(5).row();
-
-        // Physics Settings
-        Label physicsSettingsLabel = new Label("Physics: " + Math.round(Constants.PHYSICS_GRAVITY) +
-                                             " gravity, " + Constants.PHYSICS_MAX_SUBSTEPS + " substeps", skin);
-        debugTable.add(physicsSettingsLabel).pad(5).row();
-
-        // Network & Performance Settings
-        Label networkSettingsLabel = new Label("Network: " + (1000_000_000L / Constants.NETWORK_POSITION_UPDATE_INTERVAL_NS) +
-                                             " FPS updates, Target: " + Constants.GAME_TARGET_FPS + " FPS", skin);
-        debugTable.add(networkSettingsLabel).pad(5).row();
+        if (Main.isHostClient) {
+            debugTable.add(mapRegenerateButton).size(200, 50).pad(10).row();
+        }
 
         // FPS
         fpsLabel = new Label("FPS: ...", skin);
         debugTable.add(fpsLabel).pad(10).row();
-
-        // Player position
-        playerPositionLabel = new Label("Position: ...", skin);
-        debugTable.add(playerPositionLabel).pad(10).row();
-
-        // Light count information
-        lightsLabel = new Label("Lights: ...", skin);
-        debugTable.add(lightsLabel).pad(10).row();
-
-        shadowLightsLabel = new Label("Shadow Lights: ...", skin);
-        debugTable.add(shadowLightsLabel).pad(10).row();
-
-        // Physics debug info
-        physicsDebugLabel = new Label("Physics Debug: OFF", skin);
-        debugTable.add(physicsDebugLabel).pad(10).row();
-
-        physicsStrategyLabel = new Label("Physics Strategy: ...", skin);
-        debugTable.add(physicsStrategyLabel).pad(10).row();
-
-        // Instructions
-        Label instructionsLabel = new Label("F1: Physics Debug | F2: Physics Strategy | F3: Render Strategy", skin);
-        instructionsLabel.setAlignment(Align.center);
-        debugTable.add(instructionsLabel).pad(10).row();
 
         stage.addActor(debugTable);
 
@@ -221,9 +190,18 @@ public class DebugUI {
         });
     }
 
+    private boolean isHostClientLastStatus = Boolean.valueOf(Main.isHostClient);
     public void update(float deltaTime) {
-        stage.act(deltaTime);
+        if (isHostClientLastStatus != Main.isHostClient) {
+            isHostClientLastStatus = Boolean.valueOf(Main.isHostClient);
+            createStage();
+            // Re-register the new stage with the input multiplexer
+            if (mainInstance != null) {
+                mainInstance.updateInputMultiplexer();
+            }
+        }
 
+        stage.act(deltaTime);
         // Update FPS
         fpsLabel.setText("FPS: " + Gdx.graphics.getFramesPerSecond());
 
@@ -251,7 +229,7 @@ public class DebugUI {
     }
 
     public void setPlayerPosition(float x, float y, float z) {
-        playerPositionLabel.setText("Position: " + Math.round(x) + ", " + Math.round(y) + ", " + Math.round(z));
+//        playerPositionLabel.setText("Position: " + Math.round(x) + ", " + Math.round(y) + ", " + Math.round(z));
     }
 
     public void setClientIP(String ip) {
@@ -259,20 +237,24 @@ public class DebugUI {
     }
 
     public void setLightCounts(int totalLights, int shadowLights) {
-        lightsLabel.setText("Lights: " + totalLights);
-        shadowLightsLabel.setText("Shadow Lights: " + shadowLights);
+//        lightsLabel.setText("Lights: " + totalLights);
+//        shadowLightsLabel.setText("Shadow Lights: " + shadowLights);
     }
 
     public void setDebugListener(DebugListener listener) {
         this.debugListener = listener;
     }
 
+    public void setMainInstance(Main mainInstance) {
+        this.mainInstance = mainInstance;
+    }
+
     public void setPhysicsDebugEnabled(boolean enabled) {
-        physicsDebugLabel.setText("Physics Debug: " + (enabled ? "ON" : "OFF"));
+//        physicsDebugLabel.setText("Physics Debug: " + (enabled ? "ON" : "OFF"));
     }
 
     public void setPhysicsStrategy(String strategy, long triangleCount) {
-        physicsStrategyLabel.setText("Physics: " + strategy + " (" + triangleCount + " triangles)");
+//        physicsStrategyLabel.setText("Physics: " + strategy + " (" + triangleCount + " triangles)");
     }
 
     public void setMapSeed(long seed) {

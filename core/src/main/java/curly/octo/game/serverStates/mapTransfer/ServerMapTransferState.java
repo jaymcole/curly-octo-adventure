@@ -85,7 +85,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
             return;
         }
 
-        MapTransferWorker worker = new MapTransferWorker(connection, gameServer, cachedMapData);
+        MapTransferWorker worker = new MapTransferWorker(connection, gameServer, cachedMapData, hostGameWorld.getMapManager().getMapId());
         activeWorkers.put(connection.getID(), worker);
         worker.start();
         hasStartedTransfers = true; // Mark that we've started at least one transfer

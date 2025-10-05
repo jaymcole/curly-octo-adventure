@@ -25,11 +25,11 @@ public class MapTransferWorker {
     private static final int MAX_CHUNKS_PER_FRAME = 5; // Rate limiting
     private static final int MAX_BUFFER_THRESHOLD = 16384; // Only send if TCP buffer < 16KB
 
-    public MapTransferWorker(Connection connection, GameServer gameServer, byte[] mapData) {
+    public MapTransferWorker(Connection connection, GameServer gameServer, byte[] mapData, String mapId) {
         this.connection = connection;
         this.gameServer = gameServer;
         this.mapData = mapData;
-        this.mapId = "map_" + System.currentTimeMillis() + "_" + connection.getID();
+        this.mapId = mapId;
         this.totalChunks = (int) Math.ceil((double) mapData.length / Constants.NETWORK_CHUNK_SIZE);
     }
 

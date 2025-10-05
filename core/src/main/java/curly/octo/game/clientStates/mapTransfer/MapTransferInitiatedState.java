@@ -1,6 +1,7 @@
 package curly.octo.game.clientStates.mapTransfer;
 
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.ClientGameMode;
 import curly.octo.game.ClientGameWorld;
 import curly.octo.game.clientStates.BaseGameStateClient;
 import curly.octo.game.clientStates.BaseScreen;
@@ -20,15 +21,13 @@ public class MapTransferInitiatedState extends BaseGameStateClient {
         MapTransferScreen.setPhaseMessage(MapTransferInitiatedState.class.getSimpleName());
 
         // CRITICAL: Pause position updates to prevent Kryo corruption during transfer
-        curly.octo.game.ClientGameMode clientGameMode = StateManager.getClientGameMode();
+        ClientGameMode clientGameMode = StateManager.getClientGameMode();
         if (clientGameMode != null) {
             clientGameMode.pauseNetworkUpdates();
             clientGameMode.disableInput();
             Log.info("MapTransferInitiatedState", "Paused network updates and input for map transfer");
         }
 
-        // OPTIMIZATION: Check if we already have this map (e.g., player joining existing session)
-        // If we do, skip the entire transfer process and jump to ready state
         ClientGameWorld clientWorld = StateManager.getClientGameWorld();
         String incomingMapId = (message != null) ? message.mapId : null;
         String currentMapId = (clientWorld != null && clientWorld.getMapManager() != null)
