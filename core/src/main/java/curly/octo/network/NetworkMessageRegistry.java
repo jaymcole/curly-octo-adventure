@@ -41,8 +41,8 @@ public class NetworkMessageRegistry {
         // Map transfer messages
         registerMessage(kryo, MapTransferStartMessage.class);
         registerMessage(kryo, curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage.class);
+        registerMessage(kryo, curly.octo.network.messages.mapTransferMessages.MapTransferCompleteMessage.class);
         registerMessage(kryo, MapChunkMessage.class);
-        registerMessage(kryo, MapTransferCompleteMessage.class);
 
         // Map and game messages
         registerMessage(kryo, MapDataUpdate.class);
@@ -53,6 +53,7 @@ public class NetworkMessageRegistry {
         registerMessage(kryo, curly.octo.network.messages.PlayerAssignmentUpdate.class);
         registerMessage(kryo, curly.octo.network.messages.PlayerObjectRosterUpdate.class);
         registerMessage(kryo, curly.octo.network.messages.PlayerDisconnectUpdate.class);
+        registerMessage(kryo, curly.octo.network.messages.PlayerResetMessage.class);
         registerMessage(kryo, curly.octo.network.messages.PlayerResetMessage.class);
 
         // Legacy player messages (not NetworkMessage types yet)

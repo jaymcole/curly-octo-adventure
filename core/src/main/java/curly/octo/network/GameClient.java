@@ -3,13 +3,13 @@ package curly.octo.network;
 import curly.octo.Constants;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.game.clientStates.mapTransfer.MapTransferReassemblyState;
 import curly.octo.game.clientStates.mapTransfer.MapTransferInitiatedState;
 import curly.octo.game.clientStates.mapTransfer.MapTransferTransferState;
 import curly.octo.game.clientStates.StateManager;
+import curly.octo.game.clientStates.playing.ClientPlayingState;
 import curly.octo.network.messages.legacyMessages.MapChunkMessage;
-import curly.octo.network.messages.legacyMessages.MapTransferCompleteMessage;
 import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
+import curly.octo.network.messages.mapTransferMessages.MapTransferCompleteMessage;
 
 import java.io.IOException;
 
@@ -213,7 +213,19 @@ public class GameClient {
     }
 
     private void handleMapTransferComplete(MapTransferCompleteMessage message) {
-        MapTransferReassemblyState state = (MapTransferReassemblyState) StateManager.getCachedState(MapTransferReassemblyState.class);
-        state.handleMapTransferComplete(message);
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        Log.info("handleMapTransferComplete", "transfer is complete, lets start playing again");
+        StateManager.setCurrentState(ClientPlayingState.class);
     }
 }

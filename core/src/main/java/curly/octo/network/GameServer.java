@@ -224,12 +224,11 @@ public class GameServer {
     public void sendMapRefreshToUser(Connection connection) {
         Log.info("GameServer", "Initiating map transfer for client " + connection.getID());
 
-        // Ensure we're in map transfer state
+        // Ensure we're in the correct state (safe to call multiple times)
         if (!(ServerStateManager.getCurrentState() instanceof ServerMapTransferState)) {
             ServerStateManager.setServerState(ServerMapTransferState.class);
         }
 
-        // Get the transfer state and start worker for this client
         ServerMapTransferState transferState = (ServerMapTransferState) ServerStateManager.getCurrentState();
         transferState.startTransferForClient(connection);
     }

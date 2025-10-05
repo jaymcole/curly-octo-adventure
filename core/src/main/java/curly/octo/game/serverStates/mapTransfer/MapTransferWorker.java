@@ -6,7 +6,6 @@ import curly.octo.Constants;
 import curly.octo.network.GameServer;
 import curly.octo.network.NetworkManager;
 import curly.octo.network.messages.legacyMessages.MapChunkMessage;
-import curly.octo.network.messages.legacyMessages.MapTransferCompleteMessage;
 import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 
 /**
@@ -76,8 +75,6 @@ public class MapTransferWorker {
     }
 
     private void complete() {
-        MapTransferCompleteMessage completeMsg = new MapTransferCompleteMessage(mapId);
-        gameServer.getServer().sendToTCP(connection.getID(), completeMsg);
         transferComplete = true;
         Log.info("MapTransferWorker", "Transfer complete to client " + connection.getID());
     }

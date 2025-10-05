@@ -6,6 +6,7 @@ import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.HostGameWorld;
 import curly.octo.game.serverStates.BaseGameStateServer;
+import curly.octo.game.serverStates.ServerStateManager;
 import curly.octo.map.GameMap;
 import curly.octo.network.GameServer;
 
@@ -23,6 +24,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
 
     private byte[] cachedMapData; // Serialize once, reuse for all clients
     private HashMap<Integer, MapTransferWorker> activeWorkers; // connectionId -> worker
+    private boolean hasStartedTransfers = false; // Track if any transfers have been initiated
 
     public ServerMapTransferState(GameServer gameServer, HostGameWorld hostGameWorld) {
         super(gameServer, hostGameWorld);
@@ -32,6 +34,9 @@ public class ServerMapTransferState extends BaseGameStateServer {
     @Override
     public void start() {
         Log.info("ServerMapTransferState", "Entering map transfer state");
+
+        // Reset transfer tracking
+        hasStartedTransfers = false;
 
         // Serialize map once
         cachedMapData = getSerializedMapData();
@@ -59,6 +64,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
         MapTransferWorker worker = new MapTransferWorker(connection, gameServer, cachedMapData);
         activeWorkers.put(connection.getID(), worker);
         worker.start();
+        hasStartedTransfers = true; // Mark that we've started at least one transfer
 
         Log.info("ServerMapTransferState", "Started transfer worker for client " + connection.getID() +
                 " (total active: " + activeWorkers.size() + ")");
@@ -82,9 +88,11 @@ public class ServerMapTransferState extends BaseGameStateServer {
             }
         }
 
-        // If all transfers complete and no active workers, could transition out of state
-        if (activeWorkers.isEmpty()) {
-            Log.debug("ServerMapTransferState", "All transfers complete, state idle");
+        // When all transfers complete, transition to wait for clients to confirm readiness
+        // Only transition if we actually started transfers (prevents premature transition on state entry)
+        if (hasStartedTransfers && activeWorkers.isEmpty()) {
+            Log.info("ServerMapTransferState", "All transfers complete, transitioning to wait for clients");
+            ServerStateManager.setServerState(ServerWaitForClientsToBeReadyState.class);
         }
     }
 

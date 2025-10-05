@@ -18,7 +18,7 @@ public class HostGameWorld extends GameWorld {
 
     private HashMap<String, String> entityIdToEntityOwnerMap;
     private boolean deferredMapGeneration = false;
-    private HashMap<String, ClientProfile> clientProfiles;
+    public HashMap<String, ClientProfile> clientProfiles;
 
 
     public HostGameWorld(Random random) {

@@ -5,9 +5,11 @@ import curly.octo.Main;
 import curly.octo.game.clientStates.MainMenuState.MainMenuScreen;
 import curly.octo.game.clientStates.MainMenuState.MainMenuState;
 import curly.octo.game.clientStates.mapTransfer.*;
+import curly.octo.game.clientStates.playing.ClientPlayingState;
 import curly.octo.network.GameClient;
 import curly.octo.network.NetworkManager;
 import curly.octo.network.messages.ClientStateChangeMessage;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.HashMap;
 
@@ -29,6 +31,7 @@ public class StateManager{
         cachedStates.put(MainMenuState.class, new MainMenuState(mainMenuScreen));
         setCurrentState(MainMenuState.class);
 
+        cachedStates.put(ClientPlayingState.class, new ClientPlayingState(null));
         cacheMapTransferStates();
     }
 
@@ -63,6 +66,7 @@ public class StateManager{
 
         if (!cachedStates.containsKey(nextState)) {
             Log.error("StateManager", "Cannot switch from " + currentStateString + " to " + nextStateString + " because it does not exist in cached states");
+            throw new NotImplementedException();
         }
 
         Log.info("StateManager", "Old game state: " + currentStateString + ", new game state: " + nextStateString);
@@ -78,7 +82,7 @@ public class StateManager{
         mainGame.setScreen(currentState.getStateScreen(), currentState.getGamePlaying());
 
         if (oldState != null) {
-            NetworkManager.sendToServer(new ClientStateChangeMessage(oldState.getClass(), currentState.getClass()));
+            NetworkManager.sendToServer(new ClientStateChangeMessage(currentState.getClass(), oldState.getClass()));
         }
     }
 

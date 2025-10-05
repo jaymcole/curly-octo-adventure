@@ -7,27 +7,23 @@ import curly.octo.game.clientStates.BaseGameStateClient;
 import curly.octo.game.clientStates.BaseScreen;
 import curly.octo.game.clientStates.StateManager;
 import curly.octo.map.GameMap;
-import curly.octo.network.messages.legacyMessages.MapTransferCompleteMessage;
 
 import java.io.ByteArrayInputStream;
 
+import static curly.octo.game.clientStates.mapTransfer.MapTransferSharedStatics.chunks;
+
 public class MapTransferReassemblyState extends BaseGameStateClient {
-    private byte[][] chunksToReassemble;
     private GameMap receivedMap;
 
     public MapTransferReassemblyState(BaseScreen screen) {
         super(screen);
     }
 
-    public void handleMapTransferComplete(MapTransferCompleteMessage message) {
-        Log.info("MapTransferReassemblyState", "Received transfer complete confirmation for: " + message.mapId);
-    }
-
     @Override
     public void start() {
         MapTransferScreen.setPhaseMessage(MapTransferReassemblyState.class.getSimpleName());
 
-        if (chunksToReassemble != null) {
+        if (chunks != null) {
             reassembleAndDeserialize();
         } else {
             Log.error("MapTransferReassemblyState", "No chunks to reassemble!");
@@ -40,14 +36,14 @@ public class MapTransferReassemblyState extends BaseGameStateClient {
 
             // Calculate total size
             int totalLength = 0;
-            for (byte[] chunk : chunksToReassemble) {
+            for (byte[] chunk : chunks) {
                 totalLength += chunk.length;
             }
 
             // Reassemble chunks
             byte[] completeData = new byte[totalLength];
             int offset = 0;
-            for (byte[] chunk : chunksToReassemble) {
+            for (byte[] chunk : chunks) {
                 System.arraycopy(chunk, 0, completeData, offset, chunk.length);
                 offset += chunk.length;
             }
@@ -64,15 +60,11 @@ public class MapTransferReassemblyState extends BaseGameStateClient {
 
                 Log.info("MapTransferReassemblyState", "Map successfully deserialized: " + receivedMap.hashCode() +
                         " (" + receivedMap.getAllTiles().size() + " tiles)");
-
-                // TODO: Store map in ClientGameWorld or appropriate location
-
-                // Transition to build assets state
                 StateManager.setCurrentState(MapTransferBuildAssetsState.class);
             }
 
             // Clear chunks to free memory
-            chunksToReassemble = null;
+            MapTransferSharedStatics.chunks = null;
 
         } catch (Exception e) {
             Log.error("MapTransferReassemblyState", "Error reassembling map: " + e.getMessage());
