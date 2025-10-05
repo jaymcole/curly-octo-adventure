@@ -599,6 +599,17 @@ public class GameServer {
      * Handles a client disconnection event from NetworkListener
      */
     public void handleClientDisconnected(Connection connection) {
+        // Update client profile status to disconnected
+        if (gameWorld instanceof HostGameWorld) {
+            String clientKey = constructClientProfileKey(connection);
+            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
+            curly.octo.game.serverObjects.ClientProfile profile = hostWorld.getClientProfile(clientKey);
+            if (profile != null) {
+                profile.connectionStatus = curly.octo.game.serverObjects.ConnectionStatus.DISCONNECTED;
+                Log.info("GameServer", "Client profile marked as disconnected: " + clientKey);
+            }
+        }
+
         // Remove from ready clients
         readyClients.remove(connection.getID());
 
@@ -635,6 +646,6 @@ public class GameServer {
     }
 
     public String constructClientProfileKey(Connection connection) {
-        return connection.getRemoteAddressTCP().toString();
+        return String.valueOf(connection.getID());
     }
 }

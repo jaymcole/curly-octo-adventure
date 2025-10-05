@@ -50,6 +50,13 @@ public class ServerMapTransferState extends BaseGameStateServer {
         // Create workers for ALL currently connected clients
         // This handles initial entry and mid-game joins where existing clients need to be notified
         for (Connection conn : gameServer.getServer().getConnections()) {
+            // Skip disconnected clients
+            String clientKey = gameServer.constructClientProfileKey(conn);
+            curly.octo.game.serverObjects.ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+            if (profile != null && profile.connectionStatus == curly.octo.game.serverObjects.ConnectionStatus.DISCONNECTED) {
+                Log.info("ServerMapTransferState", "Skipping transfer for disconnected client " + conn.getID());
+                continue;
+            }
             startTransferForClient(conn);
         }
 
@@ -60,6 +67,14 @@ public class ServerMapTransferState extends BaseGameStateServer {
      * Start transfer for a specific client
      */
     public void startTransferForClient(Connection connection) {
+        // Check if client is disconnected
+        String clientKey = gameServer.constructClientProfileKey(connection);
+        curly.octo.game.serverObjects.ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+        if (profile != null && profile.connectionStatus == curly.octo.game.serverObjects.ConnectionStatus.DISCONNECTED) {
+            Log.info("ServerMapTransferState", "Skipping transfer for disconnected client " + connection.getID());
+            return;
+        }
+
         if (activeWorkers.containsKey(connection.getID())) {
             Log.warn("ServerMapTransferState", "Transfer already in progress for client " + connection.getID());
             return;

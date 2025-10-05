@@ -19,18 +19,13 @@ public class MapTransferTransferState extends BaseGameStateClient {
         if (chunks == null) {
             MapTransferSharedStatics.setTotalChunks(message.totalChunks);
             chunks = new byte[MapTransferSharedStatics.getTotalChunks()][];
-            Log.info("MapTransferTransferState", "Initialized chunk storage for " + MapTransferSharedStatics.getTotalChunks() + " chunks");
         }
 
         // Store the chunk
         chunks[message.chunkIndex] = message.chunkData;
         MapTransferSharedStatics.setChunksReceived(MapTransferSharedStatics.getChunksReceived() + 1);
 
-        Log.info("MapTransferTransferState", "Received chunk " + message.chunkIndex + "/" + MapTransferSharedStatics.getTotalChunks() +
-                " (" + MapTransferSharedStatics.getChunksReceived() + " total received, " + (int)((float)MapTransferSharedStatics.getChunksReceived() / MapTransferSharedStatics.getTotalChunks() * 100) + "%)");
-
         if (MapTransferSharedStatics.getChunksReceived() == MapTransferSharedStatics.getTotalChunks()) {
-            Log.info("MapTransferTransferState", "All chunks received, transitioning to reassembly state");
             StateManager.setCurrentState(MapTransferReassemblyState.class);
         }
     }

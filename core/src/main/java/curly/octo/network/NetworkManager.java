@@ -136,8 +136,6 @@ public class NetworkManager {
             return;
         }
 
-        Log.info("NetworkManager", "Routing " + messageType.getSimpleName() + " to " + totalHandlers + " handler(s)");
-
         // Call all registered message-only handlers
         if (messageHandlers != null) {
             for (Consumer<Object> handler : messageHandlers) {

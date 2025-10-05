@@ -48,7 +48,6 @@ public class NetworkListener implements Listener {
      */
     @Override
     public void received(Connection connection, Object object) {
-        // First try the new NetworkManager routing system
         NetworkManager.routeMessage(connection, object);
     }
 }
