@@ -30,6 +30,7 @@ import java.util.Random;
  */
 public class GameMap {
 
+    private String mapId;
     private HashMap<Long, MapTile> map;
     private HashMap<Class, HashMap<Long, ArrayList<MapHint>>> hints;
 
@@ -124,9 +125,8 @@ public class GameMap {
      */
     public void generateDungeonServerOnly() {
         Log.info("GameMap.generateDungeonServerOnly", "Generating tiles (server-only)");
-
-//        SnailMapGenerator generator = new SnailMapGenerator(random, this);
         TemplateGenerator generator = new TemplateGenerator(random, this);
+        this.mapId = String.valueOf(System.currentTimeMillis());
         generator.generate();
     }
 
@@ -447,6 +447,10 @@ public class GameMap {
             return transform.getTranslation(new Vector3());
         }
         return new Vector3();
+    }
+
+    public String getMapId() {
+        return mapId;
     }
 
     public void dispose() {

@@ -47,6 +47,9 @@ public class HostedGameMode implements GameMode {
             gameServer.start();
             serverStarted = true;
 
+            // Initialize ServerStateManager with dependencies
+            ServerStateManager.initializeManager(gameServer, serverGameWorld);
+
             Log.info("HostedGameMode", "Server started, now connecting as client to localhost");
 
             // Brief wait for server to be ready
@@ -69,7 +72,6 @@ public class HostedGameMode implements GameMode {
 
     @Override
     public void update(float deltaTime) throws IOException {
-        ServerStateManager.update(deltaTime);
         if (!serverStarted) return;
         serverGameWorld.update(deltaTime);
         if (!active && clientGameMode != null) {

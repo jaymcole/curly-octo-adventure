@@ -1,6 +1,7 @@
 package curly.octo.game;
 
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.serverObjects.ClientProfile;
 import curly.octo.game.serverStates.ServerStateManager;
 import curly.octo.map.GameMap;
 
@@ -17,12 +18,14 @@ public class HostGameWorld extends GameWorld {
 
     private HashMap<String, String> entityIdToEntityOwnerMap;
     private boolean deferredMapGeneration = false;
+    private HashMap<String, ClientProfile> clientProfiles;
 
 
     public HostGameWorld(Random random) {
         super(random, true); // true = server-only mode
         Log.info("HostGameWorld", "Created host game world");
         entityIdToEntityOwnerMap = new HashMap<>();
+        clientProfiles = new HashMap<>();
     }
 
     /**
@@ -64,9 +67,54 @@ public class HostGameWorld extends GameWorld {
         return getMapManager() != null;
     }
 
+    /**
+     * Get all client profiles.
+     * @return HashMap of client profiles keyed by client key
+     */
+    public HashMap<String, ClientProfile> getClientProfiles() {
+        return clientProfiles;
+    }
+
+    /**
+     * Get a specific client profile by client key.
+     * @param clientKey The client identifier
+     * @return ClientProfile or null if not found
+     */
+    public ClientProfile getClientProfile(String clientKey) {
+        return clientProfiles.get(clientKey);
+    }
+
+    /**
+     * Register a new client profile.
+     * @param clientKey The client identifier
+     */
+    public void registerClientProfile(String clientKey) {
+        if (!clientProfiles.containsKey(clientKey)) {
+            clientProfiles.put(clientKey, new ClientProfile());
+            Log.info("HostGameWorld", "Registered new client profile: " + clientKey);
+        }
+    }
+
+    /**
+     * Update a client's state.
+     * @param clientKey The client identifier
+     * @param oldState The previous state
+     * @param newState The new state
+     */
+    public void updateClientState(String clientKey, String oldState, String newState) {
+        ClientProfile profile = clientProfiles.get(clientKey);
+        if (profile != null) {
+            profile.currentState = newState;
+            Log.info("HostGameWorld", "Client (" + clientKey + ") transitioned from [" + oldState + "] to [" + newState + "]");
+        } else {
+            Log.error("HostGameWorld", "Cannot update state - client profile not found: " + clientKey);
+        }
+    }
+
     @Override
     public void update(float deltaTime) {
         incrementPositionUpdateTimer(deltaTime);
+        ServerStateManager.update(deltaTime);
     }
 
     @Override

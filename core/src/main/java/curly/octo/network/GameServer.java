@@ -7,7 +7,8 @@ import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameWorld;
 import curly.octo.game.HostGameWorld;
-import curly.octo.game.serverObjects.ClientProfile;
+import curly.octo.game.serverStates.ServerStateManager;
+import curly.octo.game.serverStates.mapTransfer.ServerMapTransferState;
 import curly.octo.map.GameMap;
 import curly.octo.network.messages.*;
 import curly.octo.network.messages.legacyMessages.MapRegenerationStartMessage;
@@ -49,9 +50,6 @@ public class GameServer {
     private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
 
 
-    private HashMap<String, ClientProfile> clientProfileHashMap;
-
-
     public GameServer(Random random, GameMap map, List<PlayerObject> players, GameWorld gameWorld) {
         this.map = map;
         this.players = players;
@@ -59,8 +57,6 @@ public class GameServer {
         // Large buffers to handle chunked map transfers without overflow
         this.server = new Server(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE);
         this.networkListener = new NetworkListener(this);
-
-        clientProfileHashMap = new HashMap<>();
 
         Network.register(server);
         NetworkManager.initialize(server);
@@ -84,13 +80,12 @@ public class GameServer {
     }
 
     public void handleClientStateChangeMessage(Connection connection, ClientStateChangeMessage stateChangeMessage) {
-        String clientKey = constructClientProfileKey(connection);
-        if (!clientProfileHashMap.containsKey(clientKey)) {
-            Log.error("handleClientStateChangeMessage", "Client somehow wasn't already registered");
+        if (gameWorld instanceof HostGameWorld) {
+            String clientKey = constructClientProfileKey(connection);
+            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
+            hostWorld.updateClientState(clientKey, stateChangeMessage.oldState, stateChangeMessage.newState);
         } else {
-            Log.info("handleClientStateChangeMessage", "Client (" + clientKey + ") transitioned from [" + stateChangeMessage.oldState + "] to [" + stateChangeMessage.newState + "]");
-            ClientProfile profile = clientProfileHashMap.get(clientKey);
-            profile.currentState = stateChangeMessage.newState;
+            Log.error("handleClientStateChangeMessage", "GameWorld is not a HostGameWorld - cannot update client state");
         }
     }
 
@@ -232,17 +227,15 @@ public class GameServer {
 
         try {
             Log.info("Server: sendMapRefreshToUser", "hello being???");
-
             // Serialize the map (with caching)
-            byte[] mapData = getSerializedMapData();
-            int totalChunks = (int) Math.ceil((double) mapData.length / CHUNK_SIZE);
+//            byte[] mapData = getSerializedMapData();
+//            int totalChunks = (int) Math.ceil((double) mapData.length / CHUNK_SIZE);
+//            Log.info("Server", "Map size: " + mapData.length + " bytes, " + totalChunks + " chunks");
+//            Log.info("sendMapRefreshToUser", "JAY sending map refresh message");
+            ServerStateManager.setServerState(ServerMapTransferState.class);
+//            MapTransferBeginMessage startMessage = new MapTransferBeginMessage(mapId, totalChunks, mapData.length);
+//            NetworkManager.sendToClient(connection.getID(), startMessage);
 
-            Log.info("Server", "Map size: " + mapData.length + " bytes, " + totalChunks + " chunks");
-
-            Log.info("sendMapRefreshToUser", "JAY sending map refresh message");
-            // Send transfer start message using NetworkManager
-            MapTransferBeginMessage startMessage = new MapTransferBeginMessage(mapId, totalChunks, mapData.length);
-            NetworkManager.sendToClient(connection.getID(), startMessage);
 
             // Send chunks in sequence
 //            for (int i = 0; i < totalChunks; i++) {
@@ -273,42 +266,7 @@ public class GameServer {
         }
     }
 
-    /**
-     * Serializes the map data using Kryo and caches it for reuse.
-     * @return serialized map data as byte array
-     */
-    private byte[] getSerializedMapData() throws IOException {
-        // Get the current map from the game world (not the constructor field)
-        GameMap currentMap = (gameWorld != null && gameWorld.getMapManager() != null) ?
-                            gameWorld.getMapManager() : map;
 
-        // Create cache key based on map hash to ensure new maps get fresh serialization
-        String cacheKey = "map_" + currentMap.hashCode();
-
-        byte[] cachedData = serializedMaps.get(cacheKey);
-        if (cachedData != null) {
-            Log.info("Server", "Using cached map data for hash " + currentMap.hashCode() +
-                     " (" + cachedData.length + " bytes)");
-            return cachedData;
-        }
-
-        // Serialize the current map using Kryo (same as KryoNet uses)
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             Output output = new Output(baos)) {
-
-            // Get the server's Kryo instance (already configured with our registrations)
-            Kryo kryo = server.getKryo();
-            kryo.writeObject(output, currentMap);
-            output.flush();
-
-            byte[] mapData = baos.toByteArray();
-            serializedMaps.put(cacheKey, mapData); // Cache with hash-based key
-
-            Log.info("Server", "Serialized and cached NEW map data with hash " + currentMap.hashCode() +
-                     " (" + mapData.length + " bytes, " + currentMap.getAllTiles().size() + " tiles)");
-            return mapData;
-        }
-    }
 
     // =====================================
     // INITIAL MAP GENERATION SUPPORT
@@ -630,10 +588,11 @@ public class GameServer {
      * Handles a client connection event from NetworkListener
      */
     public void handleClientConnected(Connection connection) {
-        String clientKey = constructClientProfileKey(connection);
-        if (!clientProfileHashMap.containsKey(clientKey)) {
-            Log.info("handleClientConnected", "Registering new player under: " + clientKey);
-            clientProfileHashMap.put(clientKey, new ClientProfile());
+        // Register client profile in HostGameWorld
+        if (gameWorld instanceof HostGameWorld) {
+            String clientKey = constructClientProfileKey(connection);
+            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
+            hostWorld.registerClientProfile(clientKey);
         }
 
         // Check if we have an initial map or need to generate one

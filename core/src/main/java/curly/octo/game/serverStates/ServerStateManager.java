@@ -1,7 +1,9 @@
 package curly.octo.game.serverStates;
 
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.HostGameWorld;
 import curly.octo.game.serverStates.mapTransfer.ServerMapTransferState;
+import curly.octo.network.GameServer;
 
 import java.util.HashMap;
 
@@ -11,9 +13,15 @@ public class ServerStateManager {
 
     private static HashMap<Class, BaseGameStateServer> cachedServerStates;
 
-    public static void initializeManager() {
+    private static GameServer gameServer;
+    private static HostGameWorld hostGameWorld;
+
+    public static void initializeManager(GameServer server, HostGameWorld world) {
+        gameServer = server;
+        hostGameWorld = world;
+
         cachedServerStates = new HashMap<>();
-        cachedServerStates.put(ServerMapTransferState.class, new ServerMapTransferState());
+        cachedServerStates.put(ServerMapTransferState.class, new ServerMapTransferState(gameServer, hostGameWorld));
     }
 
     public static void update(float delta) {
@@ -31,7 +39,7 @@ public class ServerStateManager {
             currentState = cachedServerStates.get(newState);
             currentState.start();
         } else {
-            Log.info("setServerState", "Server is missing cached state: " + newState.getClass());
+            Log.error("setServerState", "Server is missing cached state: " + newState.getName());
         }
 
     }
