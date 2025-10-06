@@ -1,6 +1,10 @@
 package curly.octo.game.clientStates.mapTransfer;
 
 import curly.octo.game.clientStates.StateManager;
+import curly.octo.game.clientStates.mapTransfer.ui.MapTransferScreen;
+import curly.octo.network.GameClient;
+
+import java.util.HashMap;
 
 public class MapTransferSharedStatics {
 
@@ -45,4 +49,30 @@ public class MapTransferSharedStatics {
     }
 
     public static byte[][] chunks;
+
+    private static HashMap<String, Integer> clientUniqueIdToClientChunkProgressMap;
+    public static void updateAllClientProgress(HashMap<String, Integer> newClientProgress) {
+        // Store the new progress map
+        MapTransferSharedStatics.clientUniqueIdToClientChunkProgressMap = new HashMap<>(newClientProgress);
+
+        // Get the current client's unique ID to exclude from the UI
+        String currentClientId = null;
+        GameClient gameClient = StateManager.getGameClient();
+        if (gameClient != null) {
+            currentClientId = gameClient.getClientUniqueId();
+        }
+
+        // Update the UI with the new client progress data
+        MapTransferScreen.updateAllClientProgress(
+            MapTransferSharedStatics.clientUniqueIdToClientChunkProgressMap,
+            currentClientId,
+            totalChunks
+        );
+    }
+
+    public static HashMap<String, Integer> getAllClientProgress() {
+        return clientUniqueIdToClientChunkProgressMap != null
+            ? new HashMap<>(clientUniqueIdToClientChunkProgressMap)
+            : new HashMap<>();
+    }
 }

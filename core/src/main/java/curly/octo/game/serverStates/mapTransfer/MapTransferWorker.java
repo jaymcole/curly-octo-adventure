@@ -3,9 +3,12 @@ package curly.octo.game.serverStates.mapTransfer;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.Constants;
+import curly.octo.game.HostGameWorld;
+import curly.octo.game.serverObjects.ClientProfile;
 import curly.octo.network.GameServer;
 import curly.octo.network.NetworkManager;
 import curly.octo.network.messages.legacyMessages.MapChunkMessage;
+import curly.octo.network.messages.mapTransferMessages.MapTransferAllClientProgressMessage;
 import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 
 /**
@@ -15,19 +18,21 @@ import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 public class MapTransferWorker {
     private final Connection connection;
     private final GameServer gameServer;
+    private final HostGameWorld hostGameWorld;
     private final byte[] mapData;
     private final String mapId;
     private final int totalChunks;
 
-    private int currentChunkIndex = 0;
+    public int currentChunkIndex = 0;
     private boolean transferComplete = false;
     private int chunksSentThisFrame = 0;
     private static final int MAX_CHUNKS_PER_FRAME = 5; // Rate limiting
     private static final int MAX_BUFFER_THRESHOLD = 16384; // Only send if TCP buffer < 16KB
 
-    public MapTransferWorker(Connection connection, GameServer gameServer, byte[] mapData, String mapId) {
+    public MapTransferWorker(Connection connection, GameServer gameServer, HostGameWorld hostGameWorld, byte[] mapData, String mapId) {
         this.connection = connection;
         this.gameServer = gameServer;
+        this.hostGameWorld = hostGameWorld;
         this.mapData = mapData;
         this.mapId = mapId;
         this.totalChunks = (int) Math.ceil((double) mapData.length / Constants.NETWORK_CHUNK_SIZE);
@@ -41,8 +46,27 @@ public class MapTransferWorker {
                 " (" + totalChunks + " chunks, " + mapData.length + " bytes)");
     }
 
-    public void update(float delta) {
+    public void update(float delta, MapTransferAllClientProgressMessage groupProgress) {
         if (transferComplete) return;
+
+        // Check client's current state - only send chunks if they're in the transfer state
+        String clientKey = gameServer.constructClientProfileKey(connection);
+        ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+
+        if (profile != null && profile.currentState != null) {
+            // If client completed the transfer, mark this worker as complete
+            if (profile.currentState.equals("MapTransferCompleteState")) {
+                Log.info("MapTransferWorker", "Client " + connection.getID() + " completed transfer (entered MapTransferCompleteState)");
+                complete();
+                return;
+            }
+
+            // Only send chunks when client is in the transfer state
+            if (!profile.currentState.equals("MapTransferTransferState")) {
+                // Client is in another state (Initiated, Reassembly, etc.) - wait
+                return;
+            }
+        }
 
         chunksSentThisFrame = 0;
 
@@ -57,7 +81,7 @@ public class MapTransferWorker {
                 }
                 break;
             }
-
+            // Progress is now broadcast to all clients by ServerMapTransferState
             sendChunk(currentChunkIndex);
             currentChunkIndex++;
             chunksSentThisFrame++;

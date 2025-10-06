@@ -3,6 +3,7 @@ package curly.octo.game.clientStates.mapTransfer;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.clientStates.BaseGameStateClient;
 import curly.octo.game.clientStates.BaseScreen;
+import curly.octo.game.clientStates.mapTransfer.ui.MapTransferScreen;
 
 public class MapTransferCompleteState extends BaseGameStateClient {
 

@@ -6,6 +6,7 @@ import curly.octo.game.ClientGameWorld;
 import curly.octo.game.clientStates.BaseGameStateClient;
 import curly.octo.game.clientStates.BaseScreen;
 import curly.octo.game.clientStates.StateManager;
+import curly.octo.game.clientStates.mapTransfer.ui.MapTransferScreen;
 import curly.octo.map.GameMap;
 
 public class MapTransferBuildAssetsState extends BaseGameStateClient {

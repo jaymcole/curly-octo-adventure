@@ -1,9 +1,9 @@
 package curly.octo.game.clientStates.mapTransfer;
 
-import com.esotericsoftware.minlog.Log;
 import curly.octo.game.clientStates.BaseGameStateClient;
 import curly.octo.game.clientStates.BaseScreen;
 import curly.octo.game.clientStates.StateManager;
+import curly.octo.game.clientStates.mapTransfer.ui.MapTransferScreen;
 import curly.octo.network.messages.legacyMessages.MapChunkMessage;
 
 import static curly.octo.game.clientStates.mapTransfer.MapTransferSharedStatics.chunks;

@@ -7,6 +7,7 @@ import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameWorld;
 import curly.octo.game.HostGameWorld;
+import curly.octo.game.serverObjects.ClientProfile;
 import curly.octo.game.serverStates.ServerStateManager;
 import curly.octo.game.serverStates.mapTransfer.ServerMapTransferState;
 import curly.octo.map.GameMap;
@@ -90,7 +91,7 @@ public class GameServer {
         if (gameWorld instanceof HostGameWorld) {
             String clientKey = constructClientProfileKey(connection);
             HostGameWorld hostWorld = (HostGameWorld) gameWorld;
-            curly.octo.game.serverObjects.ClientProfile profile = hostWorld.getClientProfile(clientKey);
+            ClientProfile profile = hostWorld.getClientProfile(clientKey);
             if (profile != null) {
                 profile.clientUniqueId = identificationMessage.clientUniqueId;
                 profile.userName = identificationMessage.clientName;

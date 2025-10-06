@@ -5,10 +5,15 @@ import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.HostGameWorld;
+import curly.octo.game.clientStates.mapTransfer.MapTransferSharedStatics;
+import curly.octo.game.serverObjects.ClientProfile;
+import curly.octo.game.serverObjects.ConnectionStatus;
 import curly.octo.game.serverStates.BaseGameStateServer;
 import curly.octo.game.serverStates.ServerStateManager;
 import curly.octo.map.GameMap;
 import curly.octo.network.GameServer;
+import curly.octo.network.NetworkManager;
+import curly.octo.network.messages.mapTransferMessages.MapTransferAllClientProgressMessage;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -85,7 +90,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
             return;
         }
 
-        MapTransferWorker worker = new MapTransferWorker(connection, gameServer, cachedMapData, hostGameWorld.getMapManager().getMapId());
+        MapTransferWorker worker = new MapTransferWorker(connection, gameServer, hostGameWorld, cachedMapData, hostGameWorld.getMapManager().getMapId());
         activeWorkers.put(connection.getID(), worker);
         worker.start();
         hasStartedTransfers = true; // Mark that we've started at least one transfer
@@ -97,14 +102,18 @@ public class ServerMapTransferState extends BaseGameStateServer {
 
     @Override
     public void update(float delta) {
+        MapTransferAllClientProgressMessage groupProgress = constructGroupProgressMessage();
+
+        // Broadcast progress to ALL clients (including those already in ClientPlayingState)
+        NetworkManager.sendToAllClients(groupProgress);
+
         // Update all active workers
         Iterator<Map.Entry<Integer, MapTransferWorker>> iterator = activeWorkers.entrySet().iterator();
-
         while (iterator.hasNext()) {
             Map.Entry<Integer, MapTransferWorker> entry = iterator.next();
             MapTransferWorker worker = entry.getValue();
 
-            worker.update(delta);
+            worker.update(delta, groupProgress);
 
             // Remove completed workers
             if (worker.isComplete()) {
@@ -119,6 +128,37 @@ public class ServerMapTransferState extends BaseGameStateServer {
             Log.info("ServerMapTransferState", "All transfers complete, transitioning to wait for clients");
             ServerStateManager.setServerState(ServerWaitForClientsToBeReadyState.class);
         }
+    }
+
+    private MapTransferAllClientProgressMessage constructGroupProgressMessage() {
+        HashMap<String, Integer> clientIdToChunkProgressMap = new HashMap<>();
+        // Iterate through ALL connected clients
+        for (Connection conn : gameServer.getServer().getConnections()) {
+            String clientKey = gameServer.constructClientProfileKey(conn);
+            ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+
+            // Skip disconnected clients
+//            if (profile == null || profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
+//                continue;
+//            }
+
+            // Skip clients without a unique ID (haven't identified yet)
+            if (profile.clientUniqueId == null) {
+                continue;
+            }
+
+            // Check if this client has an active worker (currently downloading)
+            MapTransferWorker worker = activeWorkers.get(conn.getID());
+            if (worker != null) {
+                // Client is downloading - use their current progress
+                clientIdToChunkProgressMap.put(profile.clientUniqueId, worker.currentChunkIndex);
+            } else {
+                // Client already has the map - mark as 100% complete
+                clientIdToChunkProgressMap.put(profile.clientUniqueId, MapTransferSharedStatics.getTotalChunks());
+            }
+        }
+
+        return new MapTransferAllClientProgressMessage(clientIdToChunkProgressMap);
     }
 
     @Override

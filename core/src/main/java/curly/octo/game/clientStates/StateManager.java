@@ -5,6 +5,7 @@ import curly.octo.Main;
 import curly.octo.game.clientStates.MainMenuState.MainMenuScreen;
 import curly.octo.game.clientStates.MainMenuState.MainMenuState;
 import curly.octo.game.clientStates.mapTransfer.*;
+import curly.octo.game.clientStates.mapTransfer.ui.MapTransferScreen;
 import curly.octo.game.clientStates.playing.ClientPlayingState;
 import curly.octo.network.GameClient;
 import curly.octo.network.NetworkManager;

@@ -9,6 +9,7 @@ import curly.octo.game.clientStates.StateManager;
 import curly.octo.game.clientStates.playing.ClientPlayingState;
 import curly.octo.network.messages.ClientIdentificationMessage;
 import curly.octo.network.messages.legacyMessages.MapChunkMessage;
+import curly.octo.network.messages.mapTransferMessages.MapTransferAllClientProgressMessage;
 import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
 import curly.octo.network.messages.mapTransferMessages.MapTransferCompleteMessage;
 
@@ -19,10 +20,10 @@ import java.util.UUID;
  * Handles client-side network operations.
  */
 public class GameClient {
+    public String clientUniqueId;
     private final Client client;
     private final NetworkListener networkListener;
     private final String host;
-    private final String clientUniqueId;
     /**
      * Creates a new game client that will connect to the specified host.
      * @param host the server hostname or IP address to connect to
@@ -45,6 +46,7 @@ public class GameClient {
         NetworkManager.onReceive(MapTransferBeginMessage.class, this::handleMapTransferBegin);
         NetworkManager.onReceive(MapChunkMessage.class, this::handleMapChunk);
         NetworkManager.onReceive(MapTransferCompleteMessage.class, this::handleMapTransferComplete);
+        NetworkManager.onReceive(MapTransferAllClientProgressMessage.class, this::handleMapTransferAllClientProgressMessage);
 
         // Legacy message handlers removed - ClientGameMode will handle these directly via NetworkManager
 
@@ -219,6 +221,13 @@ public class GameClient {
         return client;
     }
 
+    /**
+     * @return the unique ID for this client
+     */
+    public String getClientUniqueId() {
+        return clientUniqueId;
+    }
+
     private void handleMapTransferBegin(MapTransferBeginMessage message) {
         // State-aware message filtering: ignore if already in an active transfer state
         BaseGameStateClient currentState = StateManager.getCurrentState();
@@ -249,4 +258,9 @@ public class GameClient {
     private void handleMapTransferComplete(MapTransferCompleteMessage message) {
         StateManager.setCurrentState(ClientPlayingState.class);
     }
+
+    private void handleMapTransferAllClientProgressMessage(MapTransferAllClientProgressMessage message) {
+        MapTransferSharedStatics.updateAllClientProgress(message.clientToChunkProgress);
+    }
+
 }

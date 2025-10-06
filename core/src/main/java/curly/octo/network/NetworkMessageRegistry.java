@@ -2,8 +2,11 @@ package curly.octo.network;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.network.messages.ClientStateChangeMessage;
+import curly.octo.network.messages.*;
 import curly.octo.network.messages.legacyMessages.*;
+import curly.octo.network.messages.mapTransferMessages.MapTransferAllClientProgressMessage;
+import curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage;
+import curly.octo.network.messages.mapTransferMessages.MapTransferCompleteMessage;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -40,9 +43,10 @@ public class NetworkMessageRegistry {
 
         // Map transfer messages
         registerMessage(kryo, MapTransferStartMessage.class);
-        registerMessage(kryo, curly.octo.network.messages.mapTransferMessages.MapTransferBeginMessage.class);
-        registerMessage(kryo, curly.octo.network.messages.mapTransferMessages.MapTransferCompleteMessage.class);
+        registerMessage(kryo, MapTransferBeginMessage.class);
+        registerMessage(kryo, MapTransferCompleteMessage.class);
         registerMessage(kryo, MapChunkMessage.class);
+        registerMessage(kryo, MapTransferAllClientProgressMessage.class);
 
         // Map and game messages
         registerMessage(kryo, MapDataUpdate.class);
@@ -50,16 +54,16 @@ public class NetworkMessageRegistry {
         registerMessage(kryo, ClientReadyForMapMessage.class);
 
         // Player messages (now NetworkMessage types)
-        registerMessage(kryo, curly.octo.network.messages.PlayerAssignmentUpdate.class);
-        registerMessage(kryo, curly.octo.network.messages.PlayerObjectRosterUpdate.class);
-        registerMessage(kryo, curly.octo.network.messages.PlayerDisconnectUpdate.class);
-        registerMessage(kryo, curly.octo.network.messages.PlayerResetMessage.class);
-        registerMessage(kryo, curly.octo.network.messages.PlayerResetMessage.class);
+        registerMessage(kryo, PlayerAssignmentUpdate.class);
+        registerMessage(kryo, PlayerObjectRosterUpdate.class);
+        registerMessage(kryo, PlayerDisconnectUpdate.class);
+        registerMessage(kryo, PlayerResetMessage.class);
+        registerMessage(kryo, PlayerResetMessage.class);
 
         // Legacy player messages (not NetworkMessage types yet)
-        registerMessage(kryo, curly.octo.network.messages.PlayerUpdate.class);
+        registerMessage(kryo, PlayerUpdate.class);
         registerMessage(kryo, ClientStateChangeMessage.class);
-        registerMessage(kryo, curly.octo.network.messages.ClientIdentificationMessage.class);
+        registerMessage(kryo, ClientIdentificationMessage.class);
     }
 
     /**
