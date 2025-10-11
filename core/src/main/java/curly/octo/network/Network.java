@@ -16,13 +16,7 @@ import org.bitlet.weupnp.GatewayDevice;
 import org.bitlet.weupnp.GatewayDiscover;
 import curly.octo.map.GameMap;
 import curly.octo.map.enums.MapTileFillType;
-import curly.octo.network.messages.MapDataUpdate;
-import curly.octo.network.messages.MapChunkMessage;
-import curly.octo.network.messages.MapTransferStartMessage;
-import curly.octo.network.messages.MapTransferCompleteMessage;
-import curly.octo.network.messages.MapRegenerationStartMessage;
-import curly.octo.network.messages.ClientReadyForMapMessage;
-import curly.octo.network.messages.PlayerResetMessage;
+import curly.octo.network.messages.legacyMessages.MapDataUpdate;
 import curly.octo.network.messages.PlayerAssignmentUpdate;
 import curly.octo.network.messages.PlayerDisconnectUpdate;
 import curly.octo.network.messages.PlayerObjectRosterUpdate;
@@ -50,6 +44,11 @@ public class Network {
         kryo.setRegistrationRequired(true); // Require explicit registration for better error messages
         kryo.setReferences(false); // Disable reference tracking to avoid cross-message reference errors
         kryo.setAutoReset(false);
+
+        // CRITICAL: Disable generic type optimization to prevent corruption with complex nested generics
+        // This fixes the "Cannot read field 'arguments' because 'genericType' is null" error
+        // that occurs with GameMap's HashMap<Class, HashMap<Long, ArrayList<MapHint>>> field
+        kryo.setOptimizedGenerics(false);
 
         // Register primitive arrays first
         kryo.register(byte[].class);
@@ -82,14 +81,11 @@ public class Network {
         kryo.register(SpawnPointHint.class);
         kryo.register(LightHint.class);
 
-        // Register network message classes
+        // Auto-register all network messages using the new registry
+        NetworkMessageRegistry.registerAllMessages(kryo);
+
+        // Register legacy non-NetworkMessage classes
         kryo.register(MapDataUpdate.class);
-        kryo.register(MapChunkMessage.class);
-        kryo.register(MapTransferStartMessage.class);
-        kryo.register(MapTransferCompleteMessage.class);
-        kryo.register(MapRegenerationStartMessage.class);
-        kryo.register(ClientReadyForMapMessage.class);
-        kryo.register(PlayerResetMessage.class);
         kryo.register(PlayerUpdate.class);
         kryo.register(PlayerDisconnectUpdate.class);
 

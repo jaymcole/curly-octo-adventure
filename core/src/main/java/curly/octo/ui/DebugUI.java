@@ -12,6 +12,8 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.esotericsoftware.minlog.Log;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import curly.octo.Main;
+
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Clipboard;
@@ -32,6 +34,8 @@ public class DebugUI {
     private Label shadowLightsLabel;
     private Label physicsDebugLabel;
     private Label physicsStrategyLabel;
+    private Table debugTable;
+    private Main mainInstance;
 
     // Callback for debug toggles
     public interface DebugListener {
@@ -50,18 +54,10 @@ public class DebugUI {
 
         // Create skin
         Skin skin;
-        try {
-            skin = new Skin(Gdx.files.internal("ui/uiskin.json"));
-            Log.info("DebugUI", "Successfully loaded UI skin");
-        } catch (Exception e) {
-            Log.error("DebugUI", "Failed to load UI skin: " + e.getMessage());
-            e.printStackTrace();
-            // Create a basic skin as fallback
-            skin = new Skin();
-        }
+        skin = UIAssetCache.getDefaultSkin();
 
         // Create debug table
-        Table debugTable = new Table();
+        debugTable = new Table();
         debugTable.setFillParent(true);
         debugTable.top().right().pad(10);
 
@@ -74,31 +70,18 @@ public class DebugUI {
         debugClientIPAddressLabel = new Label("Client IP: N/A", skin);
         debugTable.add(debugClientIPAddressLabel).pad(10).row();
 
-        // Map Generation Seed Button
         currentMapSeed = Constants.MAP_GENERATION_SEED;
         mapSeedButton = new TextButton("Map Seed: " + currentMapSeed, skin);
-
-        // Debug: Log button creation
-        Log.info("DebugUI", "Created map seed button with text: " + mapSeedButton.getText());
-
-        // Make button more obvious for debugging
-//        mapSeedButton.setColor(1f, 0.5f, 0.5f, 1f); // Reddish color to make it stand out
-//        mapSeedButton.setSize(200, 50); // Explicit size
-
         mapSeedButton.addListener(new ClickListener() {
 
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                Log.info("DebugUI", "Map seed button clicked! Seed: " + currentMapSeed);
-                Log.info("DebugUI", "Click coordinates: x=" + x + ", y=" + y);
-
                 // Copy seed to clipboard
                 try {
                     String seedString = String.valueOf(currentMapSeed);
                     StringSelection stringSelection = new StringSelection(seedString);
                     Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                     clipboard.setContents(stringSelection, null);
-                    Log.info("DebugUI", "Map seed copied to clipboard: " + seedString);
                 } catch (Exception e) {
                     Log.error("DebugUI", "Failed to copy seed to clipboard: " + e.getMessage());
                 }
@@ -106,12 +89,6 @@ public class DebugUI {
                 // Show feedback to user
                 final String originalText = mapSeedButton.getText().toString();
                 mapSeedButton.setText("Copied: " + currentMapSeed);
-
-                // Log the seed to console for easy copying
-                System.out.println("=== MAP SEED ===");
-                System.out.println("Seed: " + currentMapSeed);
-                System.out.println("Copied to clipboard!");
-                System.out.println("================");
 
                 // Revert text after delay
                 new Thread(() -> {
@@ -127,29 +104,27 @@ public class DebugUI {
 
             @Override
             public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                Log.info("DebugUI", "Map seed button touchUp: x=" + x + ", y=" + y + ", pointer=" + pointer + ", button=" + button);
                 // Restore original color
                 mapSeedButton.setColor(1f, 0.5f, 0.5f, 1f); // Back to reddish
             }
 
             @Override
             public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
-                Log.info("DebugUI", "Map seed button enter: x=" + x + ", y=" + y);
                 // Make button brighter on hover
                 mapSeedButton.setColor(1f, 0.7f, 0.7f, 1f); // Brighter reddish
             }
 
             @Override
             public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
-                Log.info("DebugUI", "Map seed button exit: x=" + x + ", y=" + y);
                 // Restore original color
                 mapSeedButton.setColor(1f, 0.5f, 0.5f, 1f); // Back to original reddish
             }
         });
 
         // Debug: Log button addition to table
-        Log.info("DebugUI", "Adding map seed button to debug table");
-        debugTable.add(mapSeedButton).size(200, 50).pad(10).row();
+        if (Main.isHostClient) {
+            debugTable.add(mapSeedButton).size(200, 50).pad(10).row();
+        }
 
         // Map Regeneration Button
         mapRegenerateButton = new TextButton("Regenerate Map", skin);
@@ -157,18 +132,18 @@ public class DebugUI {
             @Override
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
                 Log.info("DebugUI", "Map regeneration button clicked!");
-                
+
                 // Trigger regeneration
                 if (debugListener != null) {
                     debugListener.onRegenerateMap();
                 } else {
                     Log.warn("DebugUI", "No debug listener set for map regeneration");
                 }
-                
+
                 // Show feedback to user
                 final String originalText = mapRegenerateButton.getText().toString();
                 mapRegenerateButton.setText("Regenerating...");
-                
+
                 // Revert text after delay
                 new Thread(() -> {
                     try {
@@ -178,54 +153,18 @@ public class DebugUI {
                         Thread.currentThread().interrupt();
                     }
                 }).start();
-                
+
                 return super.touchDown(event, x, y, pointer, button);
             }
         });
-        
-        debugTable.add(mapRegenerateButton).size(200, 50).pad(10).row();
 
-        // Lighting System Limits
-        Label lightingLimitsLabel = new Label("Lighting: " + Constants.LIGHTING_ENHANCED_SHADER_LIGHTS + "/" +
-                                            Constants.LIGHTING_MAX_FALLBACK_LIGHTS + " (Enhanced/Fallback)", skin);
-        debugTable.add(lightingLimitsLabel).pad(5).row();
-
-        // Physics Settings
-        Label physicsSettingsLabel = new Label("Physics: " + Math.round(Constants.PHYSICS_GRAVITY) +
-                                             " gravity, " + Constants.PHYSICS_MAX_SUBSTEPS + " substeps", skin);
-        debugTable.add(physicsSettingsLabel).pad(5).row();
-
-        // Network & Performance Settings
-        Label networkSettingsLabel = new Label("Network: " + (1000_000_000L / Constants.NETWORK_POSITION_UPDATE_INTERVAL_NS) +
-                                             " FPS updates, Target: " + Constants.GAME_TARGET_FPS + " FPS", skin);
-        debugTable.add(networkSettingsLabel).pad(5).row();
+        if (Main.isHostClient) {
+            debugTable.add(mapRegenerateButton).size(200, 50).pad(10).row();
+        }
 
         // FPS
         fpsLabel = new Label("FPS: ...", skin);
         debugTable.add(fpsLabel).pad(10).row();
-
-        // Player position
-        playerPositionLabel = new Label("Position: ...", skin);
-        debugTable.add(playerPositionLabel).pad(10).row();
-
-        // Light count information
-        lightsLabel = new Label("Lights: ...", skin);
-        debugTable.add(lightsLabel).pad(10).row();
-
-        shadowLightsLabel = new Label("Shadow Lights: ...", skin);
-        debugTable.add(shadowLightsLabel).pad(10).row();
-
-        // Physics debug info
-        physicsDebugLabel = new Label("Physics Debug: OFF", skin);
-        debugTable.add(physicsDebugLabel).pad(10).row();
-
-        physicsStrategyLabel = new Label("Physics Strategy: ...", skin);
-        debugTable.add(physicsStrategyLabel).pad(10).row();
-
-        // Instructions
-        Label instructionsLabel = new Label("F1: Physics Debug | F2: Physics Strategy | F3: Render Strategy", skin);
-        instructionsLabel.setAlignment(Align.center);
-        debugTable.add(instructionsLabel).pad(10).row();
 
         stage.addActor(debugTable);
 
@@ -249,31 +188,22 @@ public class DebugUI {
                 return false; // Don't consume the event
             }
         });
-
-        // Debug: Log stage and table setup
-        Log.info("DebugUI", "Created debug UI");
-        Log.info("DebugUI", "Stage viewport: " + stage.getViewport().getScreenWidth() + "x" + stage.getViewport().getScreenHeight());
-        Log.info("DebugUI", "Table bounds: " + debugTable.getX() + "," + debugTable.getY() + " " +
-                debugTable.getWidth() + "x" + debugTable.getHeight());
-        if (mapSeedButton != null) {
-            Log.info("DebugUI", "Button bounds: " + mapSeedButton.getX() + "," + mapSeedButton.getY() + " " +
-                    mapSeedButton.getWidth() + "x" + mapSeedButton.getHeight());
-        }
     }
 
+    private boolean isHostClientLastStatus = Boolean.valueOf(Main.isHostClient);
     public void update(float deltaTime) {
-        stage.act(deltaTime);
+        if (isHostClientLastStatus != Main.isHostClient) {
+            isHostClientLastStatus = Boolean.valueOf(Main.isHostClient);
+            createStage();
+            // Re-register the new stage with the input multiplexer
+            if (mainInstance != null) {
+                mainInstance.updateInputMultiplexer();
+            }
+        }
 
+        stage.act(deltaTime);
         // Update FPS
         fpsLabel.setText("FPS: " + Gdx.graphics.getFramesPerSecond());
-
-        // Debug: Log button state occasionally
-        if (mapSeedButton != null && System.currentTimeMillis() % 5000 < 50) { // Log every ~5 seconds
-            Log.info("DebugUI", "Button state - Text: " + mapSeedButton.getText() +
-                    ", Visible: " + mapSeedButton.isVisible() +
-                    ", Touchable: " + mapSeedButton.isTouchable() +
-                    ", Stage: " + (mapSeedButton.getStage() != null ? "attached" : "not attached"));
-        }
 
         // Handle keyboard input for debug toggles
         if (debugListener != null) {
@@ -299,7 +229,7 @@ public class DebugUI {
     }
 
     public void setPlayerPosition(float x, float y, float z) {
-        playerPositionLabel.setText("Position: " + Math.round(x) + ", " + Math.round(y) + ", " + Math.round(z));
+//        playerPositionLabel.setText("Position: " + Math.round(x) + ", " + Math.round(y) + ", " + Math.round(z));
     }
 
     public void setClientIP(String ip) {
@@ -307,20 +237,24 @@ public class DebugUI {
     }
 
     public void setLightCounts(int totalLights, int shadowLights) {
-        lightsLabel.setText("Lights: " + totalLights);
-        shadowLightsLabel.setText("Shadow Lights: " + shadowLights);
+//        lightsLabel.setText("Lights: " + totalLights);
+//        shadowLightsLabel.setText("Shadow Lights: " + shadowLights);
     }
 
     public void setDebugListener(DebugListener listener) {
         this.debugListener = listener;
     }
 
+    public void setMainInstance(Main mainInstance) {
+        this.mainInstance = mainInstance;
+    }
+
     public void setPhysicsDebugEnabled(boolean enabled) {
-        physicsDebugLabel.setText("Physics Debug: " + (enabled ? "ON" : "OFF"));
+//        physicsDebugLabel.setText("Physics Debug: " + (enabled ? "ON" : "OFF"));
     }
 
     public void setPhysicsStrategy(String strategy, long triangleCount) {
-        physicsStrategyLabel.setText("Physics: " + strategy + " (" + triangleCount + " triangles)");
+//        physicsStrategyLabel.setText("Physics: " + strategy + " (" + triangleCount + " triangles)");
     }
 
     public void setMapSeed(long seed) {

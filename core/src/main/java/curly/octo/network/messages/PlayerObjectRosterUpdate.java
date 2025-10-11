@@ -1,8 +1,9 @@
 package curly.octo.network.messages;
 
 import curly.octo.gameobjects.PlayerObject;
+import curly.octo.network.NetworkMessage;
 
-public class PlayerObjectRosterUpdate {
+public class PlayerObjectRosterUpdate extends NetworkMessage {
     public PlayerObject[] players;
 
     public PlayerObjectRosterUpdate() {

@@ -1,6 +1,8 @@
 package curly.octo.game;
 
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.serverObjects.ClientProfile;
+import curly.octo.game.serverStates.ServerStateManager;
 import curly.octo.map.GameMap;
 
 import java.util.HashMap;
@@ -14,15 +16,16 @@ import static curly.octo.Constants.MAP_GENERATION_SEED;
  */
 public class HostGameWorld extends GameWorld {
 
-    public static final String WORLD_OWNERSHIP = "owned by world";
     private HashMap<String, String> entityIdToEntityOwnerMap;
     private boolean deferredMapGeneration = false;
+    public HashMap<String, ClientProfile> clientProfiles;
 
 
     public HostGameWorld(Random random) {
         super(random, true); // true = server-only mode
         Log.info("HostGameWorld", "Created host game world");
         entityIdToEntityOwnerMap = new HashMap<>();
+        clientProfiles = new HashMap<>();
     }
 
     /**
@@ -56,13 +59,6 @@ public class HostGameWorld extends GameWorld {
     }
 
     /**
-     * @return true if map generation is deferred (no initial map created)
-     */
-    public boolean isDeferredMapGeneration() {
-        return deferredMapGeneration;
-    }
-
-    /**
      * @return true if the host has an initial map available for distribution
      */
     public boolean hasInitialMap() {
@@ -71,49 +67,77 @@ public class HostGameWorld extends GameWorld {
         return getMapManager() != null;
     }
 
-    @Override
-    public void update(float deltaTime) {
-        updateServerOnly(deltaTime);
+    /**
+     * Get all client profiles.
+     * @return HashMap of client profiles keyed by client key
+     */
+    public HashMap<String, ClientProfile> getClientProfiles() {
+        return clientProfiles;
     }
 
     /**
-     * Host-specific update that skips physics simulation and rendering preparation.
-     * Used to avoid duplicate physics calculations while maintaining network sync timing.
+     * Get a specific client profile by client key.
+     * @param clientKey The client identifier
+     * @return ClientProfile or null if not found
      */
-    public void updateServerOnly(float deltaTime) {
-        // Host only needs to update game objects for network synchronization
-        // Skip physics (client handles authoritative physics)
-        // Skip light flickering (purely visual)
-        // Skip player controller updates (client handles input/camera)
-
-        // Update server-side game objects if any
-        // Note: Currently minimal since we don't have many server-only objects yet
-
-        // Keep position update timer for network sync timing
-        incrementPositionUpdateTimer(deltaTime);
+    public ClientProfile getClientProfile(String clientKey) {
+        return clientProfiles.get(clientKey);
     }
-    
+
+    /**
+     * Register a new client profile.
+     * @param clientKey The client identifier
+     */
+    public void registerClientProfile(String clientKey) {
+        if (!clientProfiles.containsKey(clientKey)) {
+            clientProfiles.put(clientKey, new ClientProfile());
+            Log.info("HostGameWorld", "Registered new client profile: " + clientKey);
+        }
+    }
+
+    /**
+     * Update a client's state.
+     * @param clientKey The client identifier
+     * @param oldState The previous state
+     * @param newState The new state
+     */
+    public void updateClientState(String clientKey, String oldState, String newState) {
+        ClientProfile profile = clientProfiles.get(clientKey);
+        if (profile != null) {
+            profile.currentState = newState;
+            Log.info("HostGameWorld", "Client (" + clientKey + ") transitioned from [" + oldState + "] to [" + newState + "]");
+        } else {
+            Log.error("HostGameWorld", "Cannot update state - client profile not found: " + clientKey);
+        }
+    }
+
+    @Override
+    public void update(float deltaTime) {
+        incrementPositionUpdateTimer(deltaTime);
+        ServerStateManager.update(deltaTime);
+    }
+
     @Override
     public void regenerateMap(long newSeed) {
         Log.info("HostGameWorld", "Regenerating host map with seed: " + newSeed);
-        
+
         try {
             // Dispose current map if it exists
             if (mapManager != null) {
                 mapManager.dispose();
                 Log.info("HostGameWorld", "Disposed old map");
             }
-            
+
             // Create new map with new seed (server-only mode)
             GameMap newMap = new GameMap(newSeed, true);
             Log.info("HostGameWorld", "Generated new host map with seed: " + newSeed);
             Log.info("HostGameWorld", "New map has " + newMap.getAllTiles().size() + " tiles, hash: " + newMap.hashCode());
-            
+
             // Set the new map
             setMapManager(newMap);
-            
+
             Log.info("HostGameWorld", "Host map regeneration completed successfully");
-            
+
         } catch (Exception e) {
             Log.error("HostGameWorld", "Failed to regenerate host map: " + e.getMessage());
             e.printStackTrace();

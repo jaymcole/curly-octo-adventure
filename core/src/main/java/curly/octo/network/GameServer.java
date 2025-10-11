@@ -3,34 +3,23 @@ package curly.octo.network;
 import curly.octo.Constants;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.kryonet.Connection;
-import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.GameWorld;
 import curly.octo.game.HostGameWorld;
+import curly.octo.game.serverObjects.ClientProfile;
+import curly.octo.game.serverStates.ServerStateManager;
+import curly.octo.game.serverStates.mapTransfer.ServerMapTransferState;
 import curly.octo.map.GameMap;
-import curly.octo.network.messages.MapDataUpdate;
-import curly.octo.network.messages.MapChunkMessage;
-import curly.octo.network.messages.MapTransferStartMessage;
-import curly.octo.network.messages.MapTransferCompleteMessage;
-import curly.octo.network.messages.MapRegenerationStartMessage;
-import curly.octo.network.messages.ClientReadyForMapMessage;
-import curly.octo.network.messages.PlayerResetMessage;
-import curly.octo.network.messages.PlayerAssignmentUpdate;
-import curly.octo.network.messages.PlayerDisconnectUpdate;
-import curly.octo.network.messages.PlayerObjectRosterUpdate;
-import curly.octo.network.messages.PlayerUpdate;
+import curly.octo.network.messages.*;
+import curly.octo.network.messages.legacyMessages.MapRegenerationStartMessage;
+import curly.octo.network.messages.legacyMessages.ClientReadyForMapMessage;
 import curly.octo.gameobjects.PlayerObject;
 import curly.octo.player.PlayerUtilities;
 
 import java.io.IOException;
-import java.io.ByteArrayOutputStream;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Output;
-
-import static curly.octo.Constants.MAP_TRANSFER_CHUNK_DELAY;
 
 /**
  * Handles server-side network operations.
@@ -57,128 +46,81 @@ public class GameServer {
     private static final int CHUNK_SIZE = Constants.NETWORK_CHUNK_SIZE; // 8KB chunks
     private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
 
+
     public GameServer(Random random, GameMap map, List<PlayerObject> players, GameWorld gameWorld) {
         this.map = map;
         this.players = players;
         this.gameWorld = gameWorld;
         // Large buffers to handle chunked map transfers without overflow
-        this.server = new Server(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE); // 128KB read/write buffers
-        this.networkListener = new NetworkListener(server);
+        this.server = new Server(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE);
+        this.networkListener = new NetworkListener(this);
 
-        // Register all network classes
         Network.register(server);
-
-        // Add connection listener for logging
-        server.addListener(new Listener() {
-            @Override
-            public void connected(Connection connection) {
-                // Check if we have an initial map or need to generate one
-                if (hasInitialMap()) {
-                    // Standard flow: send existing map in background thread, then assign player immediately
-                    sendMapRefreshToUserAsync(connection);
-
-                    PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
-                    players.add(newPlayer);
-
-                    connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
-                    broadcastNewPlayerRoster();
-                    // Also send roster directly to the new connection to ensure they get it
-                    sendPlayerRosterToConnection(connection);
-                    assignPlayer(connection, newPlayer.entityId);
-                } else {
-                    // New flow: trigger initial map generation, delay player assignment until after generation
-                    Log.info("GameServer", "Deferring player assignment until after initial map generation for client " + connection.getID());
-
-                    // Create player but don't send assignment yet - store for later
-                    PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
-                    players.add(newPlayer);
-                    connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
-
-                    // Store connection info for later player assignment
-                    pendingPlayerAssignments.put(connection.getID(), newPlayer.entityId);
-
-                    triggerInitialMapGeneration(connection);
-                }
-
-
-                // Safe logging of connection address
-                String address = "unknown";
-                try {
-                    if (connection.getRemoteAddressTCP() != null) {
-                        address = connection.getRemoteAddressTCP().getAddress().toString();
-                    }
-                } catch (Exception e) {
-                    Log.warn("Server", "Could not get remote address: " + e.getMessage());
-                }
-//                Log.info("Server", "Player " + newPlayer.entityId + " connected from " + address);
-            }
-
-            @Override
-            public void received(Connection connection, Object object) {
-                if (object instanceof PlayerUpdate) {
-                    // Received a player position update, broadcast to all other clients
-                    PlayerUpdate update = (PlayerUpdate) object;
-                    for (PlayerObject player : players) {
-                        if (player.entityId.equals(update.playerId)) {
-                            player.setPosition(new Vector3(update.x, update.y, update.z));
-                            player.setYaw(update.yaw);
-                            player.setPitch(update.pitch);
-                            break;
-                        }
-                    }
-
-                    // Only broadcast to OTHER clients (exclude the sender)
-                    for (Connection conn : server.getConnections()) {
-                        if (readyClients.contains(conn.getID()) && conn.getID() != connection.getID()) {
-                            conn.sendUDP(update);
-                        }
-                    }
-                } else if (object instanceof ClientReadyForMapMessage) {
-                    // Client is ready to receive new map data
-                    ClientReadyForMapMessage readyMessage = (ClientReadyForMapMessage) object;
-                    handleClientReadyForMap(connection, readyMessage);
-                }
-            }
-
-            @Override
-            public void disconnected(Connection connection) {
-                // Remove from ready clients
-                readyClients.remove(connection.getID());
-
-                // Remove any pending player assignment for this connection
-                String pendingPlayerId = pendingPlayerAssignments.remove(connection.getID());
-                if (pendingPlayerId != null) {
-                    Log.info("GameServer", "Removed pending player assignment for disconnected client " + connection.getID());
-                }
-
-                // Find and remove the disconnected player using the connection mapping
-                String playerId = connectionToPlayerMap.remove(connection.getID());
-                if (playerId != null) {
-                    PlayerObject disconnectedPlayer = null;
-                    for (PlayerObject player : players) {
-                        if (player.entityId.equals(playerId)) {
-                            disconnectedPlayer = player;
-                            break;
-                        }
-                    }
-
-                    if (disconnectedPlayer != null) {
-                        players.remove(disconnectedPlayer);
-
-                        // Remove the disconnected player's light from the server's environment
-//                        gameWorld.removePlayerFromEnvironment(disconnectedPlayer);
-
-                        // Broadcast disconnect message to all remaining clients
-                        broadcastPlayerDisconnect(disconnectedPlayer.entityId);
-
-                        broadcastNewPlayerRoster();
-                        Log.info("Server", "Player " + disconnectedPlayer.entityId + " disconnected");
-                    }
-                }
-            }
-        });
+        NetworkManager.initialize(server);
+        NetworkManager.onReceive(PlayerUpdate.class, this::handlePlayerUpdate);
+        NetworkManager.onReceive(ClientStateChangeMessage.class, this::handleClientStateChangeMessage);
+        NetworkManager.onReceive(curly.octo.network.messages.ClientIdentificationMessage.class, this::handleClientIdentification);
 
         server.addListener(networkListener);
+
+//            @Override
+//            public void received(Connection connection, Object object) {
+//                if (object instanceof PlayerUpdate) {
+//
+//                } else if (object instanceof ClientReadyForMapMessage) {
+//                    // Client is ready to receive new map data
+//                    ClientReadyForMapMessage readyMessage = (ClientReadyForMapMessage) object;
+//                    handleClientReadyForMap(connection, readyMessage);
+//                }
+//            }
+
+        server.addListener(networkListener);
+    }
+
+    public void handleClientStateChangeMessage(Connection connection, ClientStateChangeMessage stateChangeMessage) {
+        if (gameWorld instanceof HostGameWorld) {
+            String clientKey = constructClientProfileKey(connection);
+            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
+            hostWorld.updateClientState(clientKey, stateChangeMessage.oldState, stateChangeMessage.newState);
+        } else {
+            Log.error("handleClientStateChangeMessage", "GameWorld is not a HostGameWorld - cannot update client state");
+        }
+    }
+
+    public void handleClientIdentification(Connection connection, curly.octo.network.messages.ClientIdentificationMessage identificationMessage) {
+        if (gameWorld instanceof HostGameWorld) {
+            String clientKey = constructClientProfileKey(connection);
+            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
+            ClientProfile profile = hostWorld.getClientProfile(clientKey);
+            if (profile != null) {
+                profile.clientUniqueId = identificationMessage.clientUniqueId;
+                profile.userName = identificationMessage.clientName;
+                Log.info("GameServer", "Client " + connection.getID() + " identified with uniqueId: " + identificationMessage.clientUniqueId);
+            } else {
+                Log.warn("GameServer", "Received identification from unknown client: " + connection.getID());
+            }
+        } else {
+            Log.error("GameServer", "GameWorld is not a HostGameWorld - cannot store client unique ID");
+        }
+    }
+
+    public void handlePlayerUpdate(Connection connection, PlayerUpdate update) {
+        // Received a player position update, broadcast to all other clients
+        for (PlayerObject player : players) {
+            if (player.entityId.equals(update.playerId)) {
+                player.setPosition(new Vector3(update.x, update.y, update.z));
+                player.setYaw(update.yaw);
+                player.setPitch(update.pitch);
+                break;
+            }
+        }
+
+        // Only broadcast to OTHER clients (exclude the sender)
+        for (Connection conn : server.getConnections()) {
+            if (readyClients.contains(conn.getID()) && conn.getID() != connection.getID()) {
+                conn.sendUDP(update);
+            }
+        }
     }
 
     /**
@@ -242,7 +184,7 @@ public class GameServer {
             try {
                 PlayerObjectRosterUpdate update = createPlayerRosterUpdate();
                 Log.info("GameServer", "Broadcasting player roster to all clients");
-                server.sendToAllTCP(update);
+                NetworkManager.sendToAllClients(update);
                 Log.info("GameServer", "Broadcast completed successfully");
             } catch (Exception e) {
                 Log.error("GameServer", "Error broadcasting player roster: " + e.getMessage());
@@ -256,7 +198,7 @@ public class GameServer {
             try {
                 PlayerObjectRosterUpdate update = createPlayerRosterUpdate();
                 Log.info("GameServer", "Sending player roster directly to connection " + connection.getID());
-                connection.sendTCP(update);
+                NetworkManager.sendToClient(connection.getID(), update);
                 Log.info("GameServer", "Direct send completed successfully");
             } catch (Exception e) {
                 Log.error("GameServer", "Error sending player roster to connection: " + e.getMessage());
@@ -279,7 +221,7 @@ public class GameServer {
     {
         PlayerAssignmentUpdate assignmentUpdate = new PlayerAssignmentUpdate();
         assignmentUpdate.playerId = playerId;
-        server.sendToTCP(connection.getID(), assignmentUpdate);
+        NetworkManager.sendToClient(connection.getID(), assignmentUpdate);
 
         // Mark this client as ready to receive position updates
         readyClients.add(connection.getID());
@@ -289,115 +231,30 @@ public class GameServer {
     public void broadcastPlayerDisconnect(String playerId) {
         if (server != null) {
             PlayerDisconnectUpdate disconnectUpdate = new PlayerDisconnectUpdate(playerId);
-            server.sendToAllTCP(disconnectUpdate);
+            NetworkManager.sendToAllClients(disconnectUpdate);
             Log.info("GameServer", "Broadcasting player disconnect for player " + playerId);
         }
     }
 
     public void sendMapRefreshToUser(Connection connection) {
-        String mapId = "map_" + System.currentTimeMillis(); // Unique map ID
-        Log.info("Server", "Starting chunked map transfer to client " + connection.getID() + " (mapId: " + mapId + ")");
+        Log.info("GameServer", "Initiating map transfer for client " + connection.getID());
 
-        try {
-            // Serialize the map (with caching)
-            byte[] mapData = getSerializedMapData();
-            int totalChunks = (int) Math.ceil((double) mapData.length / CHUNK_SIZE);
+        boolean wasAlreadyInTransferState = ServerStateManager.getCurrentState() instanceof ServerMapTransferState;
 
-            Log.info("Server", "Map size: " + mapData.length + " bytes, " + totalChunks + " chunks");
-
-            // Send transfer start message
-            MapTransferStartMessage startMessage = new MapTransferStartMessage(mapId, totalChunks, mapData.length);
-            server.sendToTCP(connection.getID(), startMessage);
-
-            // Send chunks in sequence with flow control
-            for (int i = 0; i < totalChunks; i++) {
-                int offset = i * CHUNK_SIZE;
-                int chunkLength = Math.min(CHUNK_SIZE, mapData.length - offset);
-
-                byte[] chunkData = new byte[chunkLength];
-                System.arraycopy(mapData, offset, chunkData, 0, chunkLength);
-
-                MapChunkMessage chunkMessage = new MapChunkMessage(mapId, i, totalChunks, chunkData);
-
-                // Wait for buffer to drain before sending next chunk
-                while (!connection.isIdle()) {
-                    Thread.sleep(1); // 1ms polling interval
-                }
-
-                server.sendToTCP(connection.getID(), chunkMessage);
-
-                // Log buffer status for debugging
-                if (i % 100 == 0) {
-                    Log.info("Server", "Chunk " + i + "/" + totalChunks +
-                             ", buffer size: " + connection.getTcpWriteBufferSize() + " bytes");
-                }
-            }
-
-            // Send transfer complete message
-            MapTransferCompleteMessage completeMessage = new MapTransferCompleteMessage(mapId);
-            server.sendToTCP(connection.getID(), completeMessage);
-
-            Log.info("Server", "Chunked map transfer completed to client " + connection.getID());
-
-        } catch (Exception e) {
-            Log.error("Server", "Error sending chunked map data to client " + connection.getID() + ": " + e.getMessage());
-            e.printStackTrace();
+        // Ensure we're in the correct state
+        if (!wasAlreadyInTransferState) {
+            // Transition to transfer state - start() will create workers for ALL clients
+            ServerStateManager.setServerState(ServerMapTransferState.class);
+        } else {
+            // Already in transfer state (mid-transfer join scenario)
+            // Explicitly create worker for this new client only
+            // The start() method won't run again, so we need to handle it here
+            ServerMapTransferState transferState = (ServerMapTransferState) ServerStateManager.getCurrentState();
+            transferState.startTransferForClient(connection);
         }
     }
 
-    /**
-     * Asynchronously sends the current map data to a specific user in chunks.
-     * This method runs the map transfer in a background thread to avoid blocking
-     * the KryoNet connection thread.
-     */
-    private void sendMapRefreshToUserAsync(Connection connection) {
-        // Run the map transfer in a background thread
-        new Thread(() -> {
-            try {
-                sendMapRefreshToUser(connection);
-            } catch (Exception e) {
-                Log.error("Server", "Error in async map transfer to client " + connection.getID() + ": " + e.getMessage());
-                e.printStackTrace();
-            }
-        }, "MapTransfer-Client" + connection.getID()).start();
-    }
 
-    /**
-     * Serializes the map data using Kryo and caches it for reuse.
-     * @return serialized map data as byte array
-     */
-    private byte[] getSerializedMapData() throws IOException {
-        // Get the current map from the game world (not the constructor field)
-        GameMap currentMap = (gameWorld != null && gameWorld.getMapManager() != null) ?
-                            gameWorld.getMapManager() : map;
-
-        // Create cache key based on map hash to ensure new maps get fresh serialization
-        String cacheKey = "map_" + currentMap.hashCode();
-
-        byte[] cachedData = serializedMaps.get(cacheKey);
-        if (cachedData != null) {
-            Log.info("Server", "Using cached map data for hash " + currentMap.hashCode() +
-                     " (" + cachedData.length + " bytes)");
-            return cachedData;
-        }
-
-        // Serialize the current map using Kryo (same as KryoNet uses)
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             Output output = new Output(baos)) {
-
-            // Get the server's Kryo instance (already configured with our registrations)
-            Kryo kryo = server.getKryo();
-            kryo.writeObject(output, currentMap);
-            output.flush();
-
-            byte[] mapData = baos.toByteArray();
-            serializedMaps.put(cacheKey, mapData); // Cache with hash-based key
-
-            Log.info("Server", "Serialized and cached NEW map data with hash " + currentMap.hashCode() +
-                     " (" + mapData.length + " bytes, " + currentMap.getAllTiles().size() + " tiles)");
-            return mapData;
-        }
-    }
 
     // =====================================
     // INITIAL MAP GENERATION SUPPORT
@@ -528,13 +385,13 @@ public class GameServer {
             try {
                 // Step 1: Notify all clients that map regeneration is starting
                 MapRegenerationStartMessage startMessage = new MapRegenerationStartMessage(currentRegenerationId, newSeed, reason, isInitialGeneration);
-                server.sendToAllTCP(startMessage);
+                NetworkManager.sendToAllClients(startMessage);
                 Log.info("GameServer", "Sent regeneration start message to all clients, waiting for readiness confirmations...");
 
                 // Step 2: Wait for all clients to confirm they're ready
-                if (!waitForAllClientsReady()) {
-                    Log.error("GameServer", "Timeout waiting for clients to be ready, proceeding anyway");
-                }
+//                if (!waitForAllClientsReady()) {
+//                    Log.error("GameServer", "Timeout waiting for clients to be ready, proceeding anyway");
+//                }
 
                 // Step 3: Clear cached map data to force fresh serialization
                 serializedMaps.clear();
@@ -634,7 +491,7 @@ public class GameServer {
                     }
                 }
                 if (connection != null) {
-                    connection.sendTCP(resetMessage);
+                    NetworkManager.sendToClient(connection.getID(), resetMessage);
                     Log.info("GameServer", "Sent player reset to " + playerId +
                              " at position: " + spawnPosition);
                 }
@@ -709,5 +566,105 @@ public class GameServer {
 
         Log.info("GameServer", "All " + totalClients + " clients are ready for map transfer");
         return true;
+    }
+
+    // =====================================
+    // CONNECTION EVENT HANDLERS
+    // =====================================
+
+    /**
+     * Handles a client connection event from NetworkListener
+     */
+    public void handleClientConnected(Connection connection) {
+        // Register client profile in HostGameWorld
+        if (gameWorld instanceof HostGameWorld) {
+            String clientKey = constructClientProfileKey(connection);
+            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
+            hostWorld.registerClientProfile(clientKey);
+        }
+
+        // Check if we have an initial map or need to generate one
+        if (hasInitialMap()) {
+            Log.info("connected", "Player is connecting to server");
+
+            // Standard flow: send existing map, then assign player immediately
+            sendMapRefreshToUser(connection);
+
+            PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
+            players.add(newPlayer);
+
+            connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
+            broadcastNewPlayerRoster();
+            // Also send roster directly to the new connection to ensure they get it
+            sendPlayerRosterToConnection(connection);
+            assignPlayer(connection, newPlayer.entityId);
+        } else {
+            // New flow: trigger initial map generation, delay player assignment until after generation
+            Log.info("GameServer", "Deferring player assignment until after initial map generation for client " + connection.getID());
+
+            // Create player but don't send assignment yet - store for later
+            PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
+            players.add(newPlayer);
+            connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
+
+            // Store connection info for later player assignment
+            pendingPlayerAssignments.put(connection.getID(), newPlayer.entityId);
+
+            triggerInitialMapGeneration(connection);
+        }
+    }
+
+    /**
+     * Handles a client disconnection event from NetworkListener
+     */
+    public void handleClientDisconnected(Connection connection) {
+        // Update client profile status to disconnected
+        if (gameWorld instanceof HostGameWorld) {
+            String clientKey = constructClientProfileKey(connection);
+            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
+            curly.octo.game.serverObjects.ClientProfile profile = hostWorld.getClientProfile(clientKey);
+            if (profile != null) {
+                profile.connectionStatus = curly.octo.game.serverObjects.ConnectionStatus.DISCONNECTED;
+                Log.info("GameServer", "Client profile marked as disconnected: " + clientKey);
+            }
+        }
+
+        // Remove from ready clients
+        readyClients.remove(connection.getID());
+
+        // Remove any pending player assignment for this connection
+        String pendingPlayerId = pendingPlayerAssignments.remove(connection.getID());
+        if (pendingPlayerId != null) {
+            Log.info("GameServer", "Removed pending player assignment for disconnected client " + connection.getID());
+        }
+
+        // Find and remove the disconnected player using the connection mapping
+        String playerId = connectionToPlayerMap.remove(connection.getID());
+        if (playerId != null) {
+            PlayerObject disconnectedPlayer = null;
+            for (PlayerObject player : players) {
+                if (player.entityId.equals(playerId)) {
+                    disconnectedPlayer = player;
+                    break;
+                }
+            }
+
+            if (disconnectedPlayer != null) {
+                players.remove(disconnectedPlayer);
+
+                // Remove the disconnected player's light from the server's environment
+//                        gameWorld.removePlayerFromEnvironment(disconnectedPlayer);
+
+                // Broadcast disconnect message to all remaining clients
+                broadcastPlayerDisconnect(disconnectedPlayer.entityId);
+
+                broadcastNewPlayerRoster();
+                Log.info("Server", "Player " + disconnectedPlayer.entityId + " disconnected");
+            }
+        }
+    }
+
+    public String constructClientProfileKey(Connection connection) {
+        return String.valueOf(connection.getID());
     }
 }

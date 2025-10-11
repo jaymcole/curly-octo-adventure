@@ -8,12 +8,10 @@ import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.*;
-import curly.octo.ui.LobbyUI;
+import curly.octo.game.clientStates.BaseScreen;
+import curly.octo.game.clientStates.MainMenuState.MainMenuScreen;
+import curly.octo.game.clientStates.StateManager;
 import curly.octo.ui.DebugUI;
-import curly.octo.ui.StateUI;
-import curly.octo.network.Network;
-import curly.octo.game.state.GameStateManager;
-import curly.octo.game.state.GameState;
 
 import java.io.IOException;
 import java.util.Random;
@@ -22,16 +20,16 @@ import java.util.Random;
  * Main game class with network setup UI.
  * Delegates game logic to specific game modes (Server/Client).
  */
-public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, DebugUI.DebugListener, ClientGameMode.MapRegenerationListener {
+public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuListener, DebugUI.DebugListener, ClientGameMode.MapRegenerationListener {
 
     public static Random random = new Random();
+    public static boolean isHostClient = false;
     private ModelBatch modelBatch;
 
     // UI Components
-    private LobbyUI lobbyUI;
     private DebugUI debugUI;
-    private StateUI stateUI;
-    private boolean showLobby = true;
+    private BaseScreen activeScreen;
+    private boolean gameIsPlaying = false;
 
     // Game Components
     private ThreadedHostedGameMode hostedGameMode;
@@ -40,7 +38,6 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
     public Main() {
     }
 
-    // LobbyUI.LobbyListener implementation
     @Override
     public void onStartServer() {
         Log.info("Main", "Starting server mode");
@@ -63,17 +60,17 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         // In hosted mode, we get the client mode directly for rendering
         // The server runs in its own thread, but client runs on main thread
         clientGameMode = hostedGameMode.getClientGameMode();
-        
+
         // Set the regeneration listener on the client mode
         if (clientGameMode != null) {
             clientGameMode.setMapRegenerationListener(this);
+
+            // Register with StateManager for playing state access
+            StateManager.setClientGameMode(clientGameMode);
+
             // Connect the state UI to the state manager
             connectStateUIToClient(clientGameMode);
         }
-
-        lobbyUI.setStatus("Server started on port " + Network.TCP_PORT);
-        lobbyUI.disableInputs();
-        showLobby = false;
     }
 
     private void startClientMode(String host) {
@@ -82,107 +79,45 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
 
         clientGameMode = new ClientGameMode(host, random);
         clientGameMode.setMapRegenerationListener(this); // Set ourselves as the listener
-        
+
+        // Register with StateManager for playing state access
+        StateManager.setClientGameMode(clientGameMode);
+
         // Connect the state UI to the state manager
         connectStateUIToClient(clientGameMode);
-        
-        clientGameMode.initialize();
 
-        lobbyUI.setStatus("Connected to " + host);
-        lobbyUI.disableInputs();
-        showLobby = false;
+        clientGameMode.initialize();
     }
-    
+
     /**
      * Connect the StateUI to the ClientGameMode's state manager for automatic UI updates
      */
     private void connectStateUIToClient(ClientGameMode clientGameMode) {
-        if (clientGameMode == null || stateUI == null) {
+        if (clientGameMode == null) {
             return;
-        }
-        
-        GameStateManager stateManager = clientGameMode.getStateManager();
-        if (stateManager != null) {
-            // Add a state change listener that updates the UI
-            stateManager.addStateChangeListener(new GameStateManager.StateChangeListener() {
-                @Override
-                public void onStateChanged(curly.octo.game.state.GameState oldState, 
-                                          curly.octo.game.state.GameState newState, 
-                                          curly.octo.game.state.StateContext context) {
-                    
-                    Log.info("Main", String.format("STATE TRANSITION: %s -> %s",
-                        oldState.getDisplayName(), newState.getDisplayName()));
-                    
-                    // Update UI on the main thread
-                    Gdx.app.postRunnable(() -> {
-                        if (newState.isMapRegenerationState()) {
-                            // Show the regeneration screen
-                            stateUI.showStateScreen(newState, context);
-                        } else {
-                            // Hide state screens for normal states
-                            stateUI.hideAllScreens();
-                        }
-                    });
-                }
-                
-                @Override
-                public void onStateProgressUpdated(curly.octo.game.state.StateContext context) {
-                    Log.info("Main", "STATE PROGRESS UPDATED - Progress: " + context.getProgress() + ", State: " + context.getCurrentState());
-                    // Update progress on the main thread
-                    Gdx.app.postRunnable(() -> {
-                        Log.info("Main", "Executing UI update on main thread");
-                        stateUI.updateProgress(context);
-                    });
-                }
-            });
-            
-            Log.info("Main", "Connected StateUI to ClientGameMode state manager");
         }
     }
 
     @Override
     public void create() {
         try {
-            Log.info("Main", "Starting initialization...");
-            Log.info("Main", "Working directory: " + System.getProperty("user.dir"));
-
+            StateManager.initialize(this);
             this.modelBatch = new ModelBatch();
-
-            // Initialize UI
-            this.lobbyUI = new LobbyUI(this);
             this.debugUI = new DebugUI();
-            this.stateUI = new StateUI();
-
-            // Set debug listener
             debugUI.setDebugListener(this);
-
-            // Set up input multiplexer to handle both game and UI input
-            // Initially just UI since no game is running yet
-            InputMultiplexer multiplexer = new InputMultiplexer();
-            multiplexer.addProcessor(stateUI.getStage());   // Add state UI first (modal screens have priority)
-            multiplexer.addProcessor(lobbyUI.getStage());   // Add lobby UI stage (needs input for buttons)
-            multiplexer.addProcessor(debugUI.getStage());
-            Gdx.input.setInputProcessor(multiplexer);
-            
-            // Debug: Log input processor setup
-            Log.info("Main", "Set up input multiplexer with debug UI stage and lobby UI stage");
-            Log.info("Main", "Debug UI stage: " + (debugUI.getStage() != null ? "created" : "null"));
-            Log.info("Main", "Lobby UI stage: " + (lobbyUI.getStage() != null ? "created" : "null"));
-            Log.info("Main", "Input processor set: " + (Gdx.input.getInputProcessor() != null ? "yes" : "no"));
-            
-            // Don't let lobby UI override our input processor setup
-            // lobbyUI.setInputProcessor(); // REMOVED - this was overriding our multiplexer
-
+            debugUI.setMainInstance(this);
+            updateInputMultiplexer();
             Log.info("Main", "Initialized successfully");
         } catch (Exception e) {
             Log.error("Main", "Failed to initialize: " + e.getMessage());
             e.printStackTrace();
-            throw e; // Re-throw to ensure the error is visible
+            throw e;
         }
     }
 
     @Override
     public void render() {
+        isHostClient = hostedGameMode != null;
         float deltaTime = Gdx.graphics.getDeltaTime();
 
         // Clear screen
@@ -198,91 +133,84 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
             }
         }
 
-        // Render the client game mode (this handles rendering for both hosted and direct client)
-        if (clientGameMode != null && clientGameMode.isActive()) {
-            GameWorld clientGameWorld = clientGameMode.getGameWorld();
-            clientGameMode.render(modelBatch, clientGameWorld.getEnvironment());
+        if (gameIsPlaying) {
+            if (clientGameMode != null && clientGameMode.isActive()) {
+                GameWorld clientGameWorld = clientGameMode.getGameWorld();
+                clientGameMode.render(modelBatch, clientGameWorld.getEnvironment());
 
-            // Update debug info - get local player from client game world
-            if (clientGameWorld.getGameObjectManager() != null && clientGameWorld.getGameObjectManager().localPlayer != null) {
-                Vector3 pos = clientGameWorld.getGameObjectManager().localPlayer.getPosition();
-                if (pos != null) {
-                    debugUI.setPlayerPosition(pos.x, pos.y, pos.z);
+                // Update debug info - get local player from client game world
+                if (clientGameWorld.getGameObjectManager() != null && clientGameWorld.getGameObjectManager().localPlayer != null) {
+                    Vector3 pos = clientGameWorld.getGameObjectManager().localPlayer.getPosition();
+                    if (pos != null) {
+                        debugUI.setPlayerPosition(pos.x, pos.y, pos.z);
+                    }
                 }
-            }
 
-            // Update light count info
-            if (clientGameWorld.getMapRenderer() != null) {
-                debugUI.setLightCounts(
-                    clientGameWorld.getMapRenderer().getLastTotalLights(),
-                    clientGameWorld.getMapRenderer().getLastShadowLights()
-                );
-            }
+                // Update light count info
+                if (clientGameWorld.getMapRenderer() != null) {
+                    debugUI.setLightCounts(
+                        clientGameWorld.getMapRenderer().getLastTotalLights(),
+                        clientGameWorld.getMapRenderer().getLastShadowLights()
+                    );
+                }
 
-            // Update physics debug info
-            debugUI.setPhysicsDebugEnabled(clientGameWorld.isPhysicsDebugEnabled());
-            debugUI.setPhysicsStrategy(clientGameWorld.getPhysicsStrategyInfo(), clientGameWorld.getPhysicsTriangleCount());
+                // Update physics debug info
+                debugUI.setPhysicsDebugEnabled(clientGameWorld.isPhysicsDebugEnabled());
+                debugUI.setPhysicsStrategy(clientGameWorld.getPhysicsStrategyInfo(), clientGameWorld.getPhysicsTriangleCount());
+            }
         }
 
-        // Update and render UI
-        if (showLobby) {
-            lobbyUI.update(deltaTime);
-            lobbyUI.render();
+        StateManager.update(deltaTime);
+
+        if (activeScreen != null) {
+            activeScreen.render(deltaTime);
         }
-        
-        // Always update and render state UI (handles its own visibility)
-        stateUI.update(deltaTime);
-        stateUI.render();
 
         // Show debug UI only if enabled in constants and not during map regeneration
         if (Constants.DEBUG_SHOW_FPS) {
             boolean showDebugUI = true;
-            
-            // Hide debug UI during map regeneration states
-            if (clientGameMode != null && clientGameMode.getStateManager() != null) {
-                GameState currentState = clientGameMode.getStateManager().getCurrentState();
-                if (currentState.isMapRegenerationState()) {
-                    showDebugUI = false;
-                }
-            }
-            
-            if (showDebugUI) {
+
+            if (showDebugUI && gameIsPlaying) {
                 debugUI.update(deltaTime);
                 debugUI.render();
             }
         }
+    }
 
-        // Check for OpenGL errors
-        int error = Gdx.gl.glGetError();
-        if (error != GL20.GL_NO_ERROR) {
-            System.out.println("OpenGL Error: " + error);
+    public void setScreen(BaseScreen screen, boolean gameIsPlaying) {
+        activeScreen = screen;
+
+        updateInputMultiplexer();
+
+        this.gameIsPlaying = gameIsPlaying;
+    }
+
+    public void updateInputMultiplexer() {
+        InputMultiplexer multiplexer = new InputMultiplexer();
+
+        if (activeScreen != null) {
+            multiplexer.addProcessor(activeScreen.getStage());
         }
+
+        if (debugUI != null) {
+            multiplexer.addProcessor(debugUI.getStage());
+        }
+        Gdx.input.setInputProcessor(multiplexer);
     }
 
     @Override
     public void resize(int width, int height) {
-        lobbyUI.resize(width, height);
         debugUI.resize(width, height);
-        stateUI.resize(width, height);
-
         if (hostedGameMode != null) {
             hostedGameMode.resize(width, height);
         }
 
         if (clientGameMode != null) {
             clientGameMode.resize(width, height);
-            
+
             // Update input processor to include both game and UI input
             if (clientGameMode.isActive()) {
-                InputMultiplexer multiplexer = new InputMultiplexer();
-                // Add client game mode input processor FIRST so it gets keyboard events (WASD, F, etc.)
-                if (clientGameMode.getInputProcessor() != null) {
-                    multiplexer.addProcessor(clientGameMode.getInputProcessor());
-                }
-                // Add debug UI second so it gets mouse events for UI but doesn't consume keyboard
-                multiplexer.addProcessor(debugUI.getStage());
-                Gdx.input.setInputProcessor(multiplexer);
-                Log.info("Main", "Updated input multiplexer for active client game mode (game input first)");
+                updateInputMultiplexer();
             }
         }
     }
@@ -309,6 +237,18 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
 
     @Override
     public void dispose() {
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "DISPOSE");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+        Log.info("Main.Dispose", "");
+
         long startTime = System.currentTimeMillis();
         Log.info("Main", "Disposing resources...");
 
@@ -319,14 +259,8 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         Log.info("Main", "Game modes disposed in " + (gameModeEnd - gameModeStart) + "ms");
 
         // Dispose UI components
-        try {
-            if (lobbyUI != null) {
-                lobbyUI.dispose();
-                Log.info("Main", "Lobby UI disposed");
-            }
-        } catch (Exception e) {
-            Log.error("Main", "Error disposing lobby UI: " + e.getMessage());
-        }
+
+        StateManager.dispose();
 
         try {
             if (debugUI != null) {
@@ -336,15 +270,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
         } catch (Exception e) {
             Log.error("Main", "Error disposing debug UI: " + e.getMessage());
         }
-        
-        try {
-            if (stateUI != null) {
-                stateUI.dispose();
-                Log.info("Main", "State UI disposed");
-            }
-        } catch (Exception e) {
-            Log.error("Main", "Error disposing state UI: " + e.getMessage());
-        }
+
 
         // Dispose model batch last
         try {
@@ -384,7 +310,7 @@ public class Main extends ApplicationAdapter implements LobbyUI.LobbyListener, D
     @Override
     public void onRegenerateMap() {
         Log.info("Main", "Map regeneration triggered from debug UI");
-        
+
         // Only allow regeneration if we're hosting a server
         if (hostedGameMode != null) {
             try {

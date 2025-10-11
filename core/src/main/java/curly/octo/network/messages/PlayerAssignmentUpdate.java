@@ -1,6 +1,8 @@
 package curly.octo.network.messages;
 
-public class PlayerAssignmentUpdate {
+import curly.octo.network.NetworkMessage;
+
+public class PlayerAssignmentUpdate extends NetworkMessage {
     public String playerId;
 
     public PlayerAssignmentUpdate() {
