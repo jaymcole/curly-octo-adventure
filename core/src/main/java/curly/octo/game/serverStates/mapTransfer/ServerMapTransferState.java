@@ -31,6 +31,10 @@ public class ServerMapTransferState extends BaseGameStateServer {
     private HashMap<Integer, MapTransferWorker> activeWorkers; // connectionId -> worker
     private boolean hasStartedTransfers = false; // Track if any transfers have been initiated
 
+    // Progress broadcast rate limiting
+    private float progressBroadcastTimer = 0f;
+    private static final float PROGRESS_BROADCAST_INTERVAL = 0.1f; // Broadcast every 100ms (10 times/second)
+
     public ServerMapTransferState(GameServer gameServer, HostGameWorld hostGameWorld) {
         super(gameServer, hostGameWorld);
         activeWorkers = new HashMap<>();
@@ -102,10 +106,14 @@ public class ServerMapTransferState extends BaseGameStateServer {
 
     @Override
     public void update(float delta) {
-        MapTransferAllClientProgressMessage groupProgress = constructGroupProgressMessage();
-
-        // Broadcast progress to ALL clients (including those already in ClientPlayingState)
-        NetworkManager.sendToAllClients(groupProgress);
+        // Rate-limit progress broadcasts to avoid overwhelming client buffers
+        progressBroadcastTimer += delta;
+        if (progressBroadcastTimer >= PROGRESS_BROADCAST_INTERVAL) {
+            MapTransferAllClientProgressMessage groupProgress = constructGroupProgressMessage();
+            // Broadcast progress to ALL clients (including those already in ClientPlayingState)
+            NetworkManager.sendToAllClients(groupProgress);
+            progressBroadcastTimer = 0f;
+        }
 
         // Update all active workers
         Iterator<Map.Entry<Integer, MapTransferWorker>> iterator = activeWorkers.entrySet().iterator();
@@ -113,7 +121,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
             Map.Entry<Integer, MapTransferWorker> entry = iterator.next();
             MapTransferWorker worker = entry.getValue();
 
-            worker.update(delta, groupProgress);
+            worker.update(delta);
 
             // Remove completed workers
             if (worker.isComplete()) {
@@ -122,8 +130,6 @@ public class ServerMapTransferState extends BaseGameStateServer {
             }
         }
 
-        // When all transfers complete, transition to wait for clients to confirm readiness
-        // Only transition if we actually started transfers (prevents premature transition on state entry)
         if (hasStartedTransfers && activeWorkers.isEmpty()) {
             Log.info("ServerMapTransferState", "All transfers complete, transitioning to wait for clients");
             ServerStateManager.setServerState(ServerWaitForClientsToBeReadyState.class);
@@ -142,7 +148,6 @@ public class ServerMapTransferState extends BaseGameStateServer {
 //                continue;
 //            }
 
-            // Skip clients without a unique ID (haven't identified yet)
             if (profile.clientUniqueId == null) {
                 continue;
             }

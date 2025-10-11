@@ -46,7 +46,7 @@ public class MapTransferWorker {
                 " (" + totalChunks + " chunks, " + mapData.length + " bytes)");
     }
 
-    public void update(float delta, MapTransferAllClientProgressMessage groupProgress) {
+    public void update(float delta) {
         if (transferComplete) return;
 
         // Check client's current state - only send chunks if they're in the transfer state
