@@ -46,19 +46,21 @@ public class KissTemplate {
     }
 
     private void processPixel(int slice, int x, int z, Color pixelColor) {
-        String typeValue = (int)(255 * pixelColor.r) + "";
-        switch(typeValue) {
-            case WALL_ALPHA_VALUE + "":
-                wallTiles.add(new Vector3(x, slice, z));
-                break;
-            case ENTRANCE_ALPHA_VALUE + "":
-                addPixelToEntrancesMap(slice, x, z, pixelColor);
-                openTiles.add(new Vector3(x, slice, z));
-                break;
-            case OPEN_ALPHA_VALUE + "":
-                openTiles.add(new Vector3(x, slice, z));
-                break;
+        if (pixelColor.a > 0) {
+            String typeValue = (int)(255 * pixelColor.r) + "";
+            switch(typeValue) {
+                case WALL_ALPHA_VALUE + "":
+                    wallTiles.add(new Vector3(x, slice, z));
+                    break;
+                case ENTRANCE_ALPHA_VALUE + "":
+                    addPixelToEntrancesMap(slice, x, z, pixelColor);
+                    openTiles.add(new Vector3(x, slice, z));
+                    break;
+            }
+        } else {
+            openTiles.add(new Vector3(x, slice, z));
         }
+
     }
 
     private void addPixelToEntrancesMap(int slice, int x, int z, Color pixelColor) {

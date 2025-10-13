@@ -160,7 +160,9 @@ public class KissTemplateReader {
             for(int x = 0; x < json.width; x++) {
                 for(int z = 0; z < json.depth; z++) {
                     int xOffset = slice * json.width;
-                    Color pixelColor = new Color(pixmap.getPixel(x + xOffset, z));
+                    // Flip Z-axis: Pixmap Y-axis is top-to-bottom (0=top), but we want bottom-to-top in 3D space
+                    int pixmapY = (json.depth - 1) - z;
+                    Color pixelColor = new Color(pixmap.getPixel(x + xOffset, pixmapY));
                     templatePixels[slice][x][z] = pixelColor;
                 }
             }

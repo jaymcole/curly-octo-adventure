@@ -152,13 +152,13 @@ public class KissGenerator extends MapGenerator{
      */
     private void stampTemplate(KissTemplate template, Vector3 worldOffset) {
         // Stamp wall tiles (solid blocks)
-//        for (Vector3 tilePos : template.wallTiles) {
-//            int worldX = (int)(tilePos.x + worldOffset.x);
-//            int worldY = (int)(tilePos.y + worldOffset.y);
-//            int worldZ = (int)(tilePos.z + worldOffset.z);
-//            MapTile tile = map.touchTile(worldX, worldY, worldZ);
-//            tile.geometryType = MapTileGeometryType.FULL;
-//        }
+        for (Vector3 tilePos : template.wallTiles) {
+            int worldX = (int)(tilePos.x + worldOffset.x);
+            int worldY = (int)(tilePos.y + worldOffset.y);
+            int worldZ = (int)(tilePos.z + worldOffset.z);
+            MapTile tile = map.touchTile(worldX, worldY, worldZ);
+            tile.geometryType = MapTileGeometryType.FULL;
+        }
 
         // Stamp open tiles (air spaces within the template)
         for (Vector3 tilePos : template.openTiles) {
