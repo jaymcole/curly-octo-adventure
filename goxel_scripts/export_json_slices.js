@@ -8,6 +8,25 @@ goxel.registerScript({
   name: 'Export JSON Slices',
   description: 'Export voxel data to JSON with full RGBA values',
   onExecute: function() {
+    // Try to access active layer material
+    let activeLayer = goxel.image.activeLayer
+    print('Active layer info:')
+    print('  Type: ' + typeof activeLayer)
+    print('  Keys: ' + Object.keys(activeLayer))
+
+    // Try to access material if it exists
+    if (activeLayer.material) {
+      print('  Material found!')
+      print('  Material type: ' + typeof activeLayer.material)
+      print('  Material keys: ' + Object.keys(activeLayer.material))
+      if (activeLayer.material.base_color) {
+        print('  Base color: ' + activeLayer.material.base_color)
+        print('  Alpha from material: ' + activeLayer.material.base_color[3])
+      }
+    } else {
+      print('  No material property accessible')
+    }
+
     // Get all layers combined into a single volume
     let volume = goxel.image.getLayersVolume()
 
@@ -17,13 +36,17 @@ goxel.registerScript({
     let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
 
     let sampleCount = 0
+    let alphaValues = {}
     volume.iter(function(pos, color) {
+      // Track unique alpha values
+      let a = color.a || color[3] || 255
+      alphaValues[a] = (alphaValues[a] || 0) + 1
+
       // Debug first few voxels
-      if (sampleCount < 3) {
-        print('Sample voxel:')
-        print('  pos.x=' + pos.x + ', pos.y=' + pos.y + ', pos.z=' + pos.z)
-        print('  color.r=' + color.r + ', color.g=' + color.g + ', color.b=' + color.b + ', color.a=' + color.a)
-        print('  Object.keys(color)=' + Object.keys(color))
+      if (sampleCount < 5) {
+        print('Sample voxel ' + sampleCount + ':')
+        print('  pos: [' + pos.x + ', ' + pos.y + ', ' + pos.z + ']')
+        print('  RGBA: [' + (color.r || color[0]) + ', ' + (color.g || color[1]) + ', ' + (color.b || color[2]) + ', ' + a + ']')
         sampleCount++
       }
 
@@ -47,6 +70,10 @@ goxel.registerScript({
 
     print('Total voxels found: ' + voxels.length)
     print('Bounds: X[' + minX + ',' + maxX + '] Y[' + minY + ',' + maxY + '] Z[' + minZ + ',' + maxZ + ']')
+    print('Unique alpha values found:')
+    for (let alpha in alphaValues) {
+      print('  alpha=' + alpha + ': ' + alphaValues[alpha] + ' voxels')
+    }
 
     // Calculate dimensions
     let width = maxX - minX + 1
@@ -62,19 +89,21 @@ goxel.registerScript({
       slices: []
     }
 
-    // Group voxels by Y slice
+    // Group voxels by Z slice (slicing along Z axis)
+    // In Goxel: X=left/right, Y=forward/back, Z=up/down
+    // We want horizontal slices stacked vertically, so we slice along Z
     let sliceMap = {}
     for (let i = 0; i < voxels.length; i++) {
       let v = voxels[i]
-      let relY = v.y - minY
+      let sliceIndex = v.z - minZ  // Z becomes the slice index (vertical layers)
 
-      if (!sliceMap[relY]) {
-        sliceMap[relY] = []
+      if (!sliceMap[sliceIndex]) {
+        sliceMap[sliceIndex] = []
       }
 
-      sliceMap[relY].push({
-        x: v.x - minX,  // Relative X position
-        z: v.z - minZ,  // Relative Z position
+      sliceMap[sliceIndex].push({
+        x: v.x - minX,  // X position within the slice
+        z: v.y - minY,  // Y becomes Z in the output (rotated coordinate system)
         r: v.r,
         g: v.g,
         b: v.b,
@@ -83,19 +112,19 @@ goxel.registerScript({
     }
 
     // Convert sliceMap to array
-    for (let y in sliceMap) {
+    for (let sliceIndex in sliceMap) {
       exportData.slices.push({
-        y: parseInt(y),
-        pixels: sliceMap[y]
+        slice: parseInt(sliceIndex),  // Changed from 'y' to 'slice' for clarity
+        pixels: sliceMap[sliceIndex]
       })
     }
 
-    // Sort slices by Y
-    exportData.slices.sort(function(a, b) { return a.y - b.y })
+    // Sort slices by index
+    exportData.slices.sort(function(a, b) { return a.slice - b.slice })
 
     print('Slices created: ' + exportData.slices.length)
     for (let i = 0; i < exportData.slices.length; i++) {
-      print('  Slice ' + exportData.slices[i].y + ': ' + exportData.slices[i].pixels.length + ' pixels')
+      print('  Slice ' + exportData.slices[i].slice + ': ' + exportData.slices[i].pixels.length + ' pixels')
     }
 
     // Generate filename with timestamp to avoid overwriting
@@ -107,11 +136,16 @@ goxel.registerScript({
                    ('0' + now.getMinutes()).slice(-2) +
                    ('0' + now.getSeconds()).slice(-2)
 
-    // Use absolute path to user's temp directory or documents
-    // For Windows, use the user's temp directory which is always writable
+    // Export to user's Documents folder for easy access
+    // You can change this path to match where you save your .gox files
     let userProfile = std.getenv('USERPROFILE') || std.getenv('HOME') || '.'
-    let outputDir = userProfile + '/AppData/Local/Temp'
-    let filename = outputDir + '/voxel_export_' + timestamp + '.json'
+//    let outputDir = userProfile + '/Documents/GoxelExports'
+    let outputDir = 'C:/Users/jaymc/IdeaProjects/curly-octo-adventure/assets/templates/goxel_exports/'
+
+    // NOTE: Make sure this directory exists before running the script!
+    // The script cannot create it automatically.
+
+    let filename = outputDir + 'voxel_export_' + timestamp + '.json'
 
     // Write JSON to file
     let file = std.open(filename, 'w')

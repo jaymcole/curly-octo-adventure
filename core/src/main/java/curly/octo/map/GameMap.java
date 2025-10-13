@@ -14,6 +14,7 @@ import com.badlogic.gdx.physics.bullet.linearmath.btDefaultMotionState;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
+import curly.octo.map.generators.KissGenerator;
 import curly.octo.map.generators.TemplateGenerator;
 import curly.octo.map.hints.MapHint;
 import curly.octo.map.physics.AllTilesPhysicsBodyBuilder;
@@ -109,8 +110,9 @@ public class GameMap {
         Log.info("GameMap.generateDungeon", "Generating tiles");
 
 //        SnailMapGenerator generator = new SnailMapGenerator(random, this);
-        TemplateGenerator generator = new TemplateGenerator(random, this);
-        generator.generate();
+//        TemplateGenerator generator = new TemplateGenerator(random, this);
+//        KissGenerator generator = new KissGenerator(random, this);
+//        generator.generate();
 
 
         Log.info("GameMap.generateDungeon", "Done generating tiles");
@@ -125,7 +127,8 @@ public class GameMap {
      */
     public void generateDungeonServerOnly() {
         Log.info("GameMap.generateDungeonServerOnly", "Generating tiles (server-only)");
-        TemplateGenerator generator = new TemplateGenerator(random, this);
+//        TemplateGenerator generator = new TemplateGenerator(random, this);
+        KissGenerator generator = new KissGenerator(random, this);
         this.mapId = String.valueOf(System.currentTimeMillis());
         generator.generate();
     }
