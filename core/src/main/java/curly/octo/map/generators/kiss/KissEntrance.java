@@ -6,7 +6,7 @@ import curly.octo.map.enums.Direction;
 public class KissEntrance {
 
     private final int entranceHash;
-    private final Direction outwardFacingDirection;
+    public final Direction outwardFacingDirection;
     public final int offsetX, offsetY, offsetZ;
     public final KissTemplate associatedTemplate;
 

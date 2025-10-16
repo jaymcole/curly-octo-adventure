@@ -61,6 +61,9 @@ public abstract class MapGenerator {
     }
 
     protected void addLight(Vector3 lightPos) {
+        if (random.nextBoolean()) {
+            return;
+        }
         // Ensure light tile exists
         map.touchTile(lightPos);
 
