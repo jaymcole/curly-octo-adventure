@@ -13,6 +13,7 @@ public class KissTemplate {
 
     public static final int WALL_ALPHA_VALUE = 255;
     public static final int ENTRANCE_ALPHA_VALUE = 127;
+    public static final int OPTIONAL_LIGHT = 102;
     public static final int OPEN_ALPHA_VALUE = 0;
 
     public String name;
@@ -21,6 +22,7 @@ public class KissTemplate {
 
     public ArrayList<Vector3> wallTiles;
     public ArrayList<Vector3> openTiles;
+    public ArrayList<Vector3> lightTiles;
     public final ArrayList<KissEntrance> templatesEntrances;
 
     private final HashMap<Integer, ArrayList<Vector3>> entranceColorToEntrancePixelsMap;
@@ -31,6 +33,7 @@ public class KissTemplate {
         this.templatePixels = templatePixels;
         wallTiles = new ArrayList<>();
         openTiles = new ArrayList<>();
+        lightTiles = new ArrayList<>();
         processPixels();
         compileEntrances();
     }
@@ -47,7 +50,7 @@ public class KissTemplate {
 
     private void processPixel(int slice, int x, int z, Color pixelColor) {
         if (pixelColor.a > 0) {
-            String typeValue = (int)(255 * pixelColor.r) + "";
+            String typeValue = (int)(255 * pixelColor.a) + "";
             switch(typeValue) {
                 case WALL_ALPHA_VALUE + "":
                     wallTiles.add(new Vector3(x, slice, z));
@@ -55,6 +58,9 @@ public class KissTemplate {
                 case ENTRANCE_ALPHA_VALUE + "":
                     addPixelToEntrancesMap(slice, x, z, pixelColor);
                     openTiles.add(new Vector3(x, slice, z));
+                    break;
+                case OPTIONAL_LIGHT + "":
+                    lightTiles.add(new Vector3(x, slice, z));
                     break;
             }
         } else {

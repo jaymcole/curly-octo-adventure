@@ -3,6 +3,7 @@ package curly.octo.game;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
+import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.graphics.GL20;
@@ -18,6 +19,8 @@ import java.util.ArrayList;
 
 import java.util.Random;
 import java.util.UUID;
+
+import static com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.AmbientLight;
 
 /**
  * Client-specific game world that handles client-side rendering and physics.
@@ -383,9 +386,7 @@ public class ClientGameWorld extends GameWorld {
                 Log.info("ClientGameWorld", "Resetting environment for map regeneration");
                 environment.clear();
                 // Re-setup basic environment (ambient light)
-                environment.set(new com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute(
-                    com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.AmbientLight,
-                    0.0f, 0.0f, 0.0f, 1f));
+                environment.set(new ColorAttribute(AmbientLight, 0.0f, 0.0f, 0.0f, 1f));
             }
 
             // Step 9: Force garbage collection to clean up disposed resources

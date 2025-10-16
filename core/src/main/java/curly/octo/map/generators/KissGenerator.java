@@ -4,6 +4,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
+import curly.octo.map.enums.Direction;
 import curly.octo.map.enums.MapTileGeometryType;
 import curly.octo.map.generators.kiss.KissCatalog;
 import curly.octo.map.generators.kiss.KissEntrance;
@@ -42,6 +43,8 @@ public class KissGenerator extends MapGenerator{
         super(random, map);
         ArrayList<KissTemplate> templates = KissTemplateReader.createTemplates("template_kiss/direction_room");
         templates.addAll(KissTemplateReader.createTemplates("template_kiss/shaft"));
+        templates.addAll(KissTemplateReader.createTemplates("template_kiss/big_cave"));
+        templates.addAll(KissTemplateReader.createTemplates("template_kiss/corridor"));
         Log.info("KissGenerator", "Loaded " + templates.size() + " templates");
         spawnRoom = templates.get(random.nextInt(templates.size()));
         Log.info("KissGenerator", "Spawn room: " + spawnRoom.name + " with " + spawnRoom.templatesEntrances.size() + " entrances");
@@ -53,6 +56,7 @@ public class KissGenerator extends MapGenerator{
 
     @Override
     public void generate() {
+        ArrayList<Vector3> possibleLightLocations = new ArrayList<>();
         ArrayList<PlacedTemplate> placedTemplates = new ArrayList<>();
         ArrayList<EntranceOffset> availableEntrances = new ArrayList<>();
 
@@ -72,7 +76,7 @@ public class KissGenerator extends MapGenerator{
         }
 
         // Step 3: Iteratively place templates
-        int maxRooms = 20; // Limit number of rooms
+        int maxRooms = 200; // Limit number of rooms
         Log.info("KissGenerator", "Starting placement with " + availableEntrances.size() + " available entrances");
 
         while (!availableEntrances.isEmpty() && placedTemplates.size() < maxRooms) {
@@ -97,13 +101,22 @@ public class KissGenerator extends MapGenerator{
             Log.info("KissGenerator", "Selected matching entrance from template: " + matchingEntrance.associatedTemplate.name);
 
             // Calculate world offset for new template
-            // The matching entrance should align with current entrance
+            // The matching entrance should be adjacent to (not overlapping with) the current entrance
+            // First, calculate the position where entrances would overlap:
             // newTemplateOffset + matchingEntrance.offset = currentEntrance.worldOffset
-            // Therefore: newTemplateOffset = currentEntrance.worldOffset - matchingEntrance.offset
-            Vector3 newTemplateOffset = new Vector3(
+            // Then, push the new template away by 1 block in the direction the current entrance faces
+            Vector3 overlapOffset = new Vector3(
                 currentEntrance.worldOffset.x - matchingEntrance.offsetX,
                 currentEntrance.worldOffset.y - matchingEntrance.offsetY,
                 currentEntrance.worldOffset.z - matchingEntrance.offsetZ
+            );
+
+            // Push templates apart by adding directional offset
+            Vector3 separationOffset = directionToOffset(currentEntrance.entrance.outwardFacingDirection);
+            Vector3 newTemplateOffset = new Vector3(
+                overlapOffset.x + separationOffset.x,
+                overlapOffset.y + separationOffset.y,
+                overlapOffset.z + separationOffset.z
             );
 
             // Check for overlap before placing
@@ -142,25 +155,42 @@ public class KissGenerator extends MapGenerator{
             int centerY = placed.template.templatePixels.length / 2;
             int centerZ = placed.template.templatePixels[0][0].length / 2;
 
-            Vector3 lightPos = new Vector3(
-                centerX + placed.worldOffset.x,
-                centerY + placed.worldOffset.y + 2, // Offset up a bit from center
-                centerZ + placed.worldOffset.z
-            );
-            addLight(lightPos);
+            for(Vector3 templateLightPosition : placed.template.lightTiles) {
+                Vector3 lightPos = new Vector3(
+                    templateLightPosition.x + placed.worldOffset.x,
+                    templateLightPosition.y + placed.worldOffset.y,
+                    templateLightPosition.z + placed.worldOffset.z
+                );
+                addLight(lightPos);
+            }
         }
 
         closeMap();
     }
 
     /**
+     * Converts a Direction enum to a unit vector offset.
+     */
+    private Vector3 directionToOffset(Direction direction) {
+        switch(direction) {
+            case NORTH: return new Vector3(0, 0, 1);
+            case SOUTH: return new Vector3(0, 0, -1);
+            case EAST: return new Vector3(1, 0, 0);
+            case WEST: return new Vector3(-1, 0, 0);
+            case UP: return new Vector3(0, 1, 0);
+            case DOWN: return new Vector3(0, -1, 0);
+            default: return new Vector3(0, 0, 0);
+        }
+    }
+
+    /**
      * Checks if a template at the given offset would overlap with any already-placed templates.
      * Uses axis-aligned bounding box (AABB) collision detection with tolerance for doorway connections.
-     * Allows small overlaps (up to 3 blocks in any dimension) to accommodate entrance connections.
+     * Allows small overlaps (up to 1 block in any dimension) to accommodate entrance connections.
      */
     private boolean wouldOverlap(KissTemplate template, Vector3 newOffset, ArrayList<PlacedTemplate> placedTemplates) {
         // Tolerance for doorway overlaps (in voxels)
-        final int DOORWAY_TOLERANCE = 3;
+        final int DOORWAY_TOLERANCE = 1;
 
         // Calculate bounds of the new template
         int newMinX = (int)newOffset.x;
