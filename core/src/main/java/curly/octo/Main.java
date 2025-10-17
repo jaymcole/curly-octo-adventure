@@ -143,6 +143,16 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
                     Vector3 pos = clientGameWorld.getGameObjectManager().localPlayer.getPosition();
                     if (pos != null) {
                         debugUI.setPlayerPosition(pos.x, pos.y, pos.z);
+
+                        // Update current tile template name
+                        if (clientGameWorld.getMapManager() != null) {
+                            curly.octo.map.MapTile currentTile = clientGameWorld.getMapManager().getTileFromWorldCoordinates(pos.x, pos.y, pos.z);
+                            if (currentTile != null) {
+                                debugUI.setCurrentTileTemplate(currentTile.templateName);
+                            } else {
+                                debugUI.setCurrentTileTemplate(null);
+                            }
+                        }
                     }
                 }
 

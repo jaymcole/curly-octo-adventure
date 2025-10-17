@@ -34,6 +34,7 @@ public class DebugUI {
     private Label shadowLightsLabel;
     private Label physicsDebugLabel;
     private Label physicsStrategyLabel;
+    private Label currentTileTemplate;
     private Table debugTable;
     private Main mainInstance;
 
@@ -166,6 +167,10 @@ public class DebugUI {
         fpsLabel = new Label("FPS: ...", skin);
         debugTable.add(fpsLabel).pad(10).row();
 
+        // Current Tile Template
+        currentTileTemplate = new Label("Template: N/A", skin);
+        debugTable.add(currentTileTemplate).pad(10).row();
+
         stage.addActor(debugTable);
 
         // Debug: Add input event listener to stage to see if events are reaching it
@@ -230,6 +235,14 @@ public class DebugUI {
 
     public void setPlayerPosition(float x, float y, float z) {
 //        playerPositionLabel.setText("Position: " + Math.round(x) + ", " + Math.round(y) + ", " + Math.round(z));
+    }
+
+    public void setCurrentTileTemplate(String templateName) {
+        if (templateName != null && !templateName.isEmpty()) {
+            currentTileTemplate.setText("Template: " + templateName);
+        } else {
+            currentTileTemplate.setText("Template: N/A");
+        }
     }
 
     public void setClientIP(String ip) {

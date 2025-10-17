@@ -142,7 +142,7 @@ public class TemplateGenerator extends MapGenerator {
                 for (int x = 0; x < template.walls[slice].length; x++) {
                     for (int z = 0; z < template.walls[slice][x].length; z++) {
                         if (template.walls[slice][z][x] == 1) {
-                            map.touchTile(baseZ + z + 1, baseY + slice, baseX + x + 1);
+                            map.touchTile(baseZ + z + 1, baseY + slice, baseX + x + 1, "TemplateGenerator");
                         }
                     }
                 }

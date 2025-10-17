@@ -133,11 +133,11 @@ public class GameMap {
         generator.generate();
     }
 
-    public MapTile touchTile(Vector3 coordinate) {
-        return touchTile((int)coordinate.x, (int)coordinate.y, (int)coordinate.z);
+    public MapTile touchTile(Vector3 coordinate, String templateName) {
+        return touchTile((int)coordinate.x, (int)coordinate.y, (int)coordinate.z, templateName);
     }
 
-    public MapTile touchTile(int x, int y, int z) {
+    public MapTile touchTile(int x, int y, int z, String templateName) {
         if (getTile(x, y, z) == null) {
             MapTile newBasicTile = new MapTile();
             newBasicTile.geometryType = MapTileGeometryType.EMPTY;
@@ -146,6 +146,7 @@ public class GameMap {
             newBasicTile.x = x * Constants.MAP_TILE_SIZE;
             newBasicTile.y = y * Constants.MAP_TILE_SIZE;
             newBasicTile.z = z * Constants.MAP_TILE_SIZE;
+            newBasicTile.templateName = templateName;
             map.put(constructKeyFromIndexCoordinates(x, y, z), newBasicTile);
             return newBasicTile;
         }

@@ -50,13 +50,13 @@ public abstract class MapGenerator {
 
     private void closeTile(int x, int y, int z) {
         if (map.getTile(x, y, z) == null) {
-            MapTile tile = map.touchTile(x, y, z);
+            MapTile tile = map.touchTile(x, y, z, "MapGenerator");
             tile.geometryType = MapTileGeometryType.FULL;
         }
     }
 
     protected void addSpawn(Vector3 spawnPosition) {
-        map.touchTile(spawnPosition);
+        map.touchTile(spawnPosition, "MapGenerator");
         map.registerHint(new SpawnPointHint(map.constructKeyFromIndexCoordinates((int)spawnPosition.x,(int)spawnPosition.y,(int)spawnPosition.z)));
     }
 
@@ -65,7 +65,7 @@ public abstract class MapGenerator {
             return;
         }
         // Ensure light tile exists
-        map.touchTile(lightPos);
+        map.touchTile(lightPos, "MapGenerator");
 
         // Create light hint at position
         LightHint lightHint = new LightHint(map.constructKeyFromIndexCoordinates(

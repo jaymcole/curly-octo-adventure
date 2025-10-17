@@ -48,7 +48,7 @@ public abstract class BaseSnail {
 
     private void addLight(Vector3 lightPos) {
         // Ensure light tile exists
-        map.touchTile(lightPos);
+        map.touchTile(lightPos, "BaseSnail");
 
         // Create light hint at position
         LightHint lightHint = new LightHint(map.constructKeyFromIndexCoordinates(
@@ -79,11 +79,11 @@ public abstract class BaseSnail {
     }
 
     protected void markTileAsPartOfMap() {
-        this.map.touchTile(this.coordinate);
+        this.map.touchTile(this.coordinate, "BaseSnail");
     }
 
     protected void markTileAsPartOfMap(Vector3 coordinate) {
-        this.map.touchTile(coordinate);
+        this.map.touchTile(coordinate, "BaseSnail");
     }
 
     /**

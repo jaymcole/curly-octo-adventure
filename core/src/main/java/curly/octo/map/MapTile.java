@@ -15,6 +15,7 @@ public class MapTile {
     public MapTileGeometryType geometryType;
     public Direction direction;
     public MapTileMaterial material;
+    public String templateName = "<unknown>";;
 
 
     private final ArrayList<MapHint> hints;

@@ -291,9 +291,10 @@ public class KissGenerator extends MapGenerator{
                                     }
                                 }
 
-                                // If new template wants to place a wall, check if existing geometry exists
-                                if (newTemplateHasWall && hasExistingGeometry(x, y, z)) {
-                                    Log.info("KissGenerator", "Tile-level conflict detected at (" + x + "," + y + "," + z + ") - forbidding placement");
+                                // If new template wants to place a wall, check if placed template has a wall there
+                                if (newTemplateHasWall && placedTemplateHasWallAt(x, y, z, placed)) {
+                                    Log.info("KissGenerator", "Tile-level conflict detected at (" + x + "," + y + "," + z +
+                                            ") - new template would place wall on existing wall from " + placed.template.name);
                                     return true; // Conflict: new wall would overwrite existing geometry
                                 }
                             }
@@ -310,62 +311,40 @@ public class KissGenerator extends MapGenerator{
     }
 
     /**
-     * Checks if a tile at the given world coordinates already has geometry.
-     * Returns true if the tile exists and has non-EMPTY geometry.
+     * Checks if a placed template has a wall tile at the given world coordinates.
+     * Converts world coordinates to template-local coordinates and checks the template's wallTiles.
      */
-    private boolean hasExistingGeometry(int worldX, int worldY, int worldZ) {
-        MapTile tile = map.getTile(worldX, worldY, worldZ);
-        return tile != null && tile.geometryType != MapTileGeometryType.EMPTY;
-    }
+    private boolean placedTemplateHasWallAt(int worldX, int worldY, int worldZ, PlacedTemplate placedTemplate) {
+        // Convert world coordinates to template-local coordinates
+        int templateX = worldX - (int)placedTemplate.worldOffset.x;
+        int templateY = worldY - (int)placedTemplate.worldOffset.y;
+        int templateZ = worldZ - (int)placedTemplate.worldOffset.z;
 
-    /**
-     * Checks if a wall at the given position is an interior wall that can be safely removed.
-     * An interior wall is one where ALL adjacent tiles (6 directions) are non-open (solid or non-existent).
-     * Only interior walls can be removed without creating structural gaps.
-     */
-    private boolean isInteriorWall(int worldX, int worldY, int worldZ) {
-        // Check all 6 adjacent positions (±X, ±Y, ±Z)
-        int[][] adjacentOffsets = {
-            {1, 0, 0}, {-1, 0, 0},   // ±X
-            {0, 1, 0}, {0, -1, 0},   // ±Y
-            {0, 0, 1}, {0, 0, -1}    // ±Z
-        };
-
-        for (int[] offset : adjacentOffsets) {
-            int adjX = worldX + offset[0];
-            int adjY = worldY + offset[1];
-            int adjZ = worldZ + offset[2];
-
-            MapTile adjacentTile = map.getTile(adjX, adjY, adjZ);
-
-            // If adjacent position is open/air (null or EMPTY), this wall is NOT interior
-            if (adjacentTile == null || adjacentTile.geometryType == MapTileGeometryType.EMPTY) {
-                return false;
+        // Check if any wall tile in this placed template is at this position
+        for (Vector3 wallTile : placedTemplate.template.wallTiles) {
+            if ((int)wallTile.x == templateX &&
+                (int)wallTile.y == templateY &&
+                (int)wallTile.z == templateZ) {
+                return true;
             }
         }
-
-        // All adjacent tiles are solid - this is an interior wall
-        return true;
+        return false;
     }
 
     /**
      * Stamps a template onto the game map at the specified world offset.
      * Converts template voxels to map tiles and places them in the world.
-     * Preserves existing geometry - only places walls where no geometry exists.
-     * Can remove interior walls when stamping open tiles (walls fully enclosed by solid tiles).
+     * All conflicts are prevented by wouldOverlap() during placement, so stamping is straightforward.
      */
     private void stampTemplate(KissTemplate template, Vector3 worldOffset) {
-        // Stamp wall tiles (solid blocks) - only if no existing geometry
+        // Stamp wall tiles (solid blocks)
         for (Vector3 tilePos : template.wallTiles) {
             int worldX = (int)(tilePos.x + worldOffset.x);
             int worldY = (int)(tilePos.y + worldOffset.y);
             int worldZ = (int)(tilePos.z + worldOffset.z);
 
-            // Only place wall if no existing geometry (preserve existing geometry)
-            if (!hasExistingGeometry(worldX, worldY, worldZ)) {
-                MapTile tile = map.touchTile(worldX, worldY, worldZ);
-                tile.geometryType = MapTileGeometryType.FULL;
-            }
+            MapTile tile = map.touchTile(worldX, worldY, worldZ, template.name);
+            tile.geometryType = MapTileGeometryType.FULL;
         }
 
         // Stamp open tiles (air spaces within the template)
@@ -374,21 +353,8 @@ public class KissGenerator extends MapGenerator{
             int worldY = (int)(tilePos.y + worldOffset.y);
             int worldZ = (int)(tilePos.z + worldOffset.z);
 
-            MapTile existingTile = map.getTile(worldX, worldY, worldZ);
-
-            // If there's an existing wall here, check if it's safe to remove
-            if (existingTile != null && existingTile.geometryType != MapTileGeometryType.EMPTY) {
-                // Only remove if it's an interior wall (won't create structural gaps)
-                if (isInteriorWall(worldX, worldY, worldZ)) {
-                    existingTile.geometryType = MapTileGeometryType.EMPTY;
-                    Log.info("KissGenerator", "Removed interior wall at (" + worldX + "," + worldY + "," + worldZ + ")");
-                }
-                // Otherwise, preserve the existing wall (it's a structural/exterior wall)
-            } else {
-                // No existing tile or already open - ensure it exists as open space
-                MapTile tile = map.touchTile(worldX, worldY, worldZ);
-                tile.geometryType = MapTileGeometryType.EMPTY;
-            }
+            MapTile tile = map.touchTile(worldX, worldY, worldZ, template.name);
+            tile.geometryType = MapTileGeometryType.EMPTY;
         }
     }
 }
