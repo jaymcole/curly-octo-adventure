@@ -10,15 +10,6 @@ public class KissEntrance {
     public final int offsetX, offsetY, offsetZ;
     public final KissTemplate associatedTemplate;
 
-    public KissEntrance (int entranceHash, Vector3 offset, KissTemplate associatedTemplate, Direction outwardFacingDirection) {
-        this.entranceHash = entranceHash;
-        offsetX = (int)offset.x;
-        offsetY = (int)offset.y;
-        offsetZ = (int)offset.z;
-        this.associatedTemplate = associatedTemplate;
-        this.outwardFacingDirection = outwardFacingDirection;
-    }
-
     public KissEntrance (int entranceHash, int offsetX, int offsetY, int offsetZ, KissTemplate associatedTemplate, Direction outwardFacingDirection) {
         this.entranceHash = entranceHash;
         this.offsetX = offsetX;

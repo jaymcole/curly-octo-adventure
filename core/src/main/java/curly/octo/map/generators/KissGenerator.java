@@ -7,20 +7,14 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.map.GameMap;
 import curly.octo.map.MapTile;
 import curly.octo.map.enums.Direction;
+import curly.octo.map.enums.MapTileFillType;
 import curly.octo.map.enums.MapTileGeometryType;
-import curly.octo.map.generators.kiss.KissCatalog;
-import curly.octo.map.generators.kiss.KissEntrance;
-import curly.octo.map.generators.kiss.KissTemplate;
-import curly.octo.map.generators.kiss.KissTemplateReader;
-import curly.octo.map.generators.templated.TemplateRoom;
-import curly.octo.map.generators.templated.TemplateRoomConfigs;
+import curly.octo.map.generators.kiss.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Random;
-
-import static com.badlogic.gdx.net.HttpRequestBuilder.json;
 
 public class KissGenerator extends MapGenerator{
 
@@ -54,18 +48,21 @@ public class KissGenerator extends MapGenerator{
 //        templates.addAll(KissTemplateReader.createTemplates("template_kiss/big_cave"));
 //        templates.addAll(KissTemplateReader.createTemplates("template_kiss/corridor"));
         templates.addAll(KissTemplateReader.createTemplates("template_kiss/corridor_expandable"));
+        templates.addAll(KissTemplateReader.createTemplates("template_kiss/spawn_dome"));
 
         for(String templatePath : loadTemplatesFromAssetsFile("template_kiss/open_room_9x9")) {
             templates.addAll(KissTemplateReader.createTemplates(templatePath));
         }
 
         Log.info("KissGenerator", "Loaded " + templates.size() + " templates");
-        spawnRoom = templates.get(random.nextInt(templates.size()));
-        Log.info("KissGenerator", "Spawn room: " + spawnRoom.name + " with " + spawnRoom.templatesEntrances.size() + " entrances");
         catalog = new KissCatalog();
         for(KissTemplate template : templates) {
             catalog.addTemplate(template);
         }
+
+        ArrayList<KissTemplate> possibleSpawnRooms = catalog.getTemplateByTag(KissTags.SPAWN);
+        spawnRoom = possibleSpawnRooms.get(random.nextInt(possibleSpawnRooms.size()));
+        Log.info("KissGenerator", "Spawn room: " + spawnRoom.name + " with " + spawnRoom.templatesEntrances.size() + " entrances");
     }
 
     private ArrayList<String> loadTemplatesFromAssetsFile(String directory) {
@@ -90,11 +87,12 @@ public class KissGenerator extends MapGenerator{
         ArrayList<Vector3> possibleLightLocations = new ArrayList<>();
         ArrayList<PlacedTemplate> placedTemplates = new ArrayList<>();
         ArrayList<EntranceOffset> availableEntrances = new ArrayList<>();
+        ArrayList<Vector3> floodTiles = new ArrayList<>();
 
         // Step 1: Place spawn room at origin
         Vector3 spawnOffset = new Vector3(0, 0, 0);
         placedTemplates.add(new PlacedTemplate(spawnRoom, spawnOffset));
-        addSpawn(new Vector3(2,2,2));
+        addSpawn(spawnRoom.spawnTiles.get(random.nextInt(spawnRoom.spawnTiles.size())));
 
         // Step 2: Extract spawn room entrances and add to queue with world offsets
         for (KissEntrance entrance : spawnRoom.templatesEntrances) {
@@ -181,11 +179,6 @@ public class KissGenerator extends MapGenerator{
         for (PlacedTemplate placed : placedTemplates) {
             stampTemplate(placed.template, placed.worldOffset);
 
-            // Add light at center of template
-            int centerX = placed.template.templatePixels[0].length / 2;
-            int centerY = placed.template.templatePixels.length / 2;
-            int centerZ = placed.template.templatePixels[0][0].length / 2;
-
             for(Vector3 templateLightPosition : placed.template.lightTiles) {
                 Vector3 lightPos = new Vector3(
                     templateLightPosition.x + placed.worldOffset.x,
@@ -194,14 +187,27 @@ public class KissGenerator extends MapGenerator{
                 );
                 addLight(lightPos);
             }
+
+            for(Vector3 floodTile : placed.template.floodTiles) {
+                Vector3 floodPosition = new Vector3(
+                    floodTile.x + placed.worldOffset.x,
+                    floodTile.y + placed.worldOffset.y,
+                    floodTile.z + placed.worldOffset.z
+                );
+                floodTiles.add(floodPosition);
+            }
         }
 
         closeMap();
+        floodMap(floodTiles);
     }
 
-    /**
-     * Converts a Direction enum to a unit vector offset.
-     */
+    private void floodMap(ArrayList<Vector3> floodTiles) {
+        for(Vector3 floodTile : floodTiles) {
+            initiateFlood(floodTile, MapTileFillType.WATER);
+        }
+    }
+
     private Vector3 directionToOffset(Direction direction) {
         switch(direction) {
             case NORTH: return new Vector3(0, 0, 1);

@@ -11,29 +11,37 @@ import java.util.Map;
 
 public class KissTemplate {
 
-    public static final int WALL_ALPHA_VALUE = 255;
-    public static final int ENTRANCE_ALPHA_VALUE = 127;
-    public static final int OPTIONAL_LIGHT = 102;
-    public static final int OPEN_ALPHA_VALUE = 0;
+    public static final int WALL_PIXEL = 255;
+    public static final int ENTRANCE_PIXEL = 127;
+    public static final int LIGHT_PIXEL = 102;
+    public static final int SPAWN_PIXEL = 153;
+    public static final int FLOOD_PIXEL = 204;
+    public static final int OPEN_PIXEL = 0;
 
     public String name;
     public String originalTemplatePath;
     public Color[][][] templatePixels;
+    public KissJson jsonConfigs;
 
     public ArrayList<Vector3> wallTiles;
     public ArrayList<Vector3> openTiles;
     public ArrayList<Vector3> lightTiles;
+    public ArrayList<Vector3> spawnTiles;
+    public ArrayList<Vector3> floodTiles;
     public final ArrayList<KissEntrance> templatesEntrances;
 
     private final HashMap<Integer, ArrayList<Vector3>> entranceColorToEntrancePixelsMap;
 
-    public KissTemplate(Color[][][] templatePixels) {
+    public KissTemplate(Color[][][] templatePixels, KissJson jsonConfigs) {
+        this.jsonConfigs = jsonConfigs;
         templatesEntrances = new ArrayList<>();
         entranceColorToEntrancePixelsMap = new HashMap<>();
         this.templatePixels = templatePixels;
         wallTiles = new ArrayList<>();
         openTiles = new ArrayList<>();
         lightTiles = new ArrayList<>();
+        spawnTiles = new ArrayList<>();
+        floodTiles = new ArrayList<>();
         processPixels();
         compileEntrances();
     }
@@ -49,22 +57,33 @@ public class KissTemplate {
     }
 
     private void processPixel(int slice, int x, int z, Color pixelColor) {
+        Vector3 pixelCoordinates = new Vector3(x, slice, z);
         if (pixelColor.a > 0) {
-            String typeValue = (int)(255 * pixelColor.a) + "";
+            int typeValue = (int)(255 * pixelColor.a);
             switch(typeValue) {
-                case WALL_ALPHA_VALUE + "":
-                    wallTiles.add(new Vector3(x, slice, z));
+                case WALL_PIXEL:
+                    wallTiles.add(pixelCoordinates);
                     break;
-                case ENTRANCE_ALPHA_VALUE + "":
+                case ENTRANCE_PIXEL:
                     addPixelToEntrancesMap(slice, x, z, pixelColor);
-                    openTiles.add(new Vector3(x, slice, z));
+                    openTiles.add(pixelCoordinates);
                     break;
-                case OPTIONAL_LIGHT + "":
-                    lightTiles.add(new Vector3(x, slice, z));
+                case SPAWN_PIXEL:
+                    openTiles.add(pixelCoordinates);
+                    spawnTiles.add(pixelCoordinates);
+                    jsonConfigs.tags.add(KissTags.SPAWN);
+                    break;
+                case FLOOD_PIXEL:
+                    openTiles.add(pixelCoordinates);
+                    floodTiles.add(pixelCoordinates);
+                    break;
+                case LIGHT_PIXEL:
+                    lightTiles.add(pixelCoordinates);
+                    openTiles.add(pixelCoordinates);
                     break;
             }
         } else {
-            openTiles.add(new Vector3(x, slice, z));
+            openTiles.add(pixelCoordinates);
         }
 
     }

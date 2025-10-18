@@ -38,7 +38,7 @@ public class KissTemplateReader {
                 break;
         }
 
-        KissTemplate newTemplate = new KissTemplate(templatePixels);
+        KissTemplate newTemplate = new KissTemplate(templatePixels, json);
         newTemplate.name = extractTemplateNameFromFilePath(templatePath) + "_" + rotation;
         newTemplate.originalTemplatePath = templatePath;
 //        printTemplateSlices(newTemplate);
@@ -111,45 +111,6 @@ public class KissTemplateReader {
         // Default to solid wall for any other color
         return 1.0f;
     }
-
-//    private static Color[][][] readTemplateFromJson(String templatePath, KissJson jsonConfigs) {
-//        // Read the JSON file exported from Goxel
-////        String jsonPath = templatePath.replace(".png", ".json");
-//        FileHandle jsonFileHandle = Gdx.files.internal(templatePath + "_slices.json");
-//        GoxelExportJson goxelData = json.fromJson(GoxelExportJson.class, jsonFileHandle);
-//
-//        // Initialize the 3D color array with dimensions from the JSON
-//        // Structure is [height/y][width/x][depth/z]
-//        Color[][][] templatePixels = new Color[goxelData.height][goxelData.width][goxelData.depth];
-//
-//        // Initialize all positions with transparent color (empty voxels)
-//        for (int y = 0; y < goxelData.height; y++) {
-//            for (int x = 0; x < goxelData.width; x++) {
-//                for (int z = 0; z < goxelData.depth; z++) {
-//                    templatePixels[y][x][z] = new Color(0, 0, 0, 0);
-//                }
-//            }
-//        }
-//
-//        // Fill in the actual voxel data from the JSON slices
-//        for (GoxelExportJson.GoxelSlice sliceData : goxelData.slices) {
-//            int sliceIndex = sliceData.slice;  // This is the Y-level
-//            for (GoxelExportJson.GoxelPixel pixel : sliceData.pixels) {
-//                // Convert RGBA from 0-255 to 0.0-1.0 for LibGDX Color
-//                float r = pixel.r / 255f;
-//                float g = pixel.g / 255f;
-//                float b = pixel.b / 255f;
-//
-//                // Map RGB color to alpha value (since Goxel doesn't store per-voxel alpha)
-//                float a = mapColorToAlpha(pixel.r, pixel.g, pixel.b);
-//
-//                // Array structure is [slice/y][x][z]
-//                templatePixels[sliceIndex][pixel.x][pixel.z] = new Color(r, g, b, a);
-//            }
-//        }
-//
-//        return templatePixels;
-//    }
 
     private static Color[][][] readTemplatePixelsFromPNG(String templatePath, KissJson json) {
         Color[][][] templatePixels = new Color[json.height][json.width][json.depth];

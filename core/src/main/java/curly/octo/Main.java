@@ -11,6 +11,7 @@ import curly.octo.game.*;
 import curly.octo.game.clientStates.BaseScreen;
 import curly.octo.game.clientStates.MainMenuState.MainMenuScreen;
 import curly.octo.game.clientStates.StateManager;
+import curly.octo.map.MapTile;
 import curly.octo.ui.DebugUI;
 
 import java.io.IOException;
@@ -146,9 +147,9 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
 
                         // Update current tile template name
                         if (clientGameWorld.getMapManager() != null) {
-                            curly.octo.map.MapTile currentTile = clientGameWorld.getMapManager().getTileFromWorldCoordinates(pos.x, pos.y, pos.z);
+                            MapTile currentTile = clientGameWorld.getMapManager().getTileFromWorldCoordinates(pos.x, pos.y, pos.z);
                             if (currentTile != null) {
-                                debugUI.setCurrentTileTemplate(currentTile.templateName);
+                                debugUI.setCurrentTileTemplate(currentTile);
                             } else {
                                 debugUI.setCurrentTileTemplate(null);
                             }

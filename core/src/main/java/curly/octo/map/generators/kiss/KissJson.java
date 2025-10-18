@@ -1,10 +1,15 @@
 package curly.octo.map.generators.kiss;
 
-public class KissJson {
+import java.util.HashSet;
 
+
+
+public class KissJson {
     int width;
     int height;
     int depth;
     String[] rotations;
-
+    HashSet<String> tags = new HashSet<>();
 }
+
+

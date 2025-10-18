@@ -13,6 +13,7 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.esotericsoftware.minlog.Log;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import curly.octo.Main;
+import curly.octo.map.MapTile;
 
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
@@ -237,12 +238,14 @@ public class DebugUI {
 //        playerPositionLabel.setText("Position: " + Math.round(x) + ", " + Math.round(y) + ", " + Math.round(z));
     }
 
-    public void setCurrentTileTemplate(String templateName) {
-        if (templateName != null && !templateName.isEmpty()) {
-            currentTileTemplate.setText("Template: " + templateName);
-        } else {
-            currentTileTemplate.setText("Template: N/A");
+    public void setCurrentTileTemplate(MapTile tile) {
+        String newText = "<missing>";
+        if (tile != null) {
+            newText = "Template: " + tile.templateName;
+            newText += "\nFill: " + tile.fillType;
         }
+        currentTileTemplate.setText(newText);
+
     }
 
     public void setClientIP(String ip) {
