@@ -154,21 +154,12 @@ public class SceneRenderer extends BaseRenderer {
                                   Array<PointLight> shadowLights,
                                   Array<PointLight> allLights,
                                   Vector3 ambientLight) {
-        Log.info("SceneRenderer", "renderWithShadows called: shadowLights=" + shadowLights.size +
-            ", allLights=" + allLights.size + ", ambient=(" + ambientLight.x + "," + ambientLight.y + "," + ambientLight.z + ")");
-
         if (shadowLights.size == 0) {
             Log.warn("SceneRenderer", "No shadow-casting lights provided");
             return;
         }
 
-        Log.info("SceneRenderer", "Binding shader: " + shadowShader.hashCode());
         shadowShader.bind();
-
-        if (!shadowShader.isCompiled()) {
-            Log.error("SceneRenderer", "SHADER NOT COMPILED! This should never happen!");
-            return;
-        }
 
         // Bind shadow maps
         bindShadowMaps(shadowFrameBuffers, shadowLights.size);
@@ -206,31 +197,21 @@ public class SceneRenderer extends BaseRenderer {
         int textureUnit = 1; // Unit 0 reserved for diffuse texture
         int actualShadowLights = Math.min(numShadowLights, maxShadowLights);
 
-        Log.info("SceneRenderer", "Binding shadow maps for " + actualShadowLights + " lights, starting at texture unit " + textureUnit);
-
         for (int lightIndex = 0; lightIndex < actualShadowLights; lightIndex++) {
             for (int face = 0; face < 6; face++) {
-                FrameBuffer fbo = shadowFrameBuffers[lightIndex][face];
-                if (fbo == null) {
-                    Log.error("SceneRenderer", "Shadow framebuffer is NULL at [" + lightIndex + "][" + face + "]");
-                    continue;
-                }
-                fbo.getColorBufferTexture().bind(textureUnit);
+                shadowFrameBuffers[lightIndex][face].getColorBufferTexture().bind(textureUnit);
                 shadowShader.setUniformi("u_cubeShadowMaps[" + (lightIndex * 6 + face) + "]", textureUnit);
                 textureUnit++;
             }
         }
-        Log.info("SceneRenderer", "Bound " + (textureUnit - 1) + " shadow map textures");
     }
 
     /**
      * Configures shadow rendering parameters.
      */
     private void configureShadowParameters(int numShadowLights) {
-        int actualShadowLights = Math.min(numShadowLights, maxShadowLights);
-        Log.info("SceneRenderer", "Setting shadow params: farPlane=" + farPlane + ", numShadowLights=" + actualShadowLights);
         shadowShader.setUniformf("u_farPlane", farPlane);
-        shadowShader.setUniformi("u_numShadowLights", actualShadowLights);
+        shadowShader.setUniformi("u_numShadowLights", Math.min(numShadowLights, maxShadowLights));
     }
 
     /**
@@ -270,13 +251,8 @@ public class SceneRenderer extends BaseRenderer {
         int totalLights = Math.min(orderedLights.size, Constants.LIGHTING_ENHANCED_SHADER_LIGHTS);
         shadowShader.setUniformi("u_numLights", totalLights);
 
-        Log.info("SceneRenderer", "Sending " + totalLights + " lights to shader (" + numShadowLights + " with shadows)");
-
         for (int i = 0; i < totalLights; i++) {
             PointLight light = orderedLights.get(i);
-            Log.info("SceneRenderer", "  Light[" + i + "]: pos(" + light.position.x + "," + light.position.y + "," + light.position.z +
-                ") color(" + light.color.r + "," + light.color.g + "," + light.color.b +
-                ") intensity=" + light.intensity);
             shadowShader.setUniformf("u_lightPositions[" + i + "]", light.position);
             shadowShader.setUniformf("u_lightColors[" + i + "]", light.color.r, light.color.g, light.color.b);
             shadowShader.setUniformf("u_lightIntensities[" + i + "]", light.intensity);
@@ -299,14 +275,8 @@ public class SceneRenderer extends BaseRenderer {
      * Logs rendering statistics.
      */
     private void logRenderingStats() {
-        Log.info("SceneRenderer", "OPAQUE PASS: Rendered " + opaquePartsRendered + " parts");
-
-        if (debugRenderer != null) {
-            Log.info("SceneRenderer", "TRANSPARENT PASS: Rendered " + transparentPartsRendered +
-                " parts, collected " + debugRenderer.getWaterTriangleCount() + " triangles");
-        } else {
-            Log.info("SceneRenderer", "TRANSPARENT PASS: Rendered " + transparentPartsRendered + " parts");
-        }
+        Log.debug("SceneRenderer", "Rendered " + opaquePartsRendered + " opaque + " +
+            transparentPartsRendered + " transparent parts");
     }
 
     /**
