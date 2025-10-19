@@ -90,7 +90,7 @@ public class KissGenerator extends MapGenerator{
         ArrayList<Vector3> floodTiles = new ArrayList<>();
 
         // Step 1: Place spawn room at origin
-        Vector3 spawnOffset = new Vector3(5, 0, 5);
+        Vector3 spawnOffset = new Vector3(0, 0, 0);
         placedTemplates.add(new PlacedTemplate(spawnRoom, spawnOffset));
         addSpawn(spawnRoom.spawnTiles.get(random.nextInt(spawnRoom.spawnTiles.size())));
 

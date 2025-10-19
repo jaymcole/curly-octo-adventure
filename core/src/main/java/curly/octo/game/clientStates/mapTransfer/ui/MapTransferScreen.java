@@ -6,13 +6,16 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import curly.octo.game.clientStates.BaseScreen;
 import curly.octo.game.clientStates.StateManager;
 import curly.octo.ui.UIAssetCache;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static curly.octo.Constants.DEFAULT_SCREEN_HEIGHT;
+import static curly.octo.Constants.DEFAULT_SCREEN_WIDTH;
 
 public class MapTransferScreen extends BaseScreen {
 
@@ -25,7 +28,7 @@ public class MapTransferScreen extends BaseScreen {
 
     @Override
     protected void createStage() {
-        stage = new Stage(new ScreenViewport());
+        stage = new Stage(new ExtendViewport(DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT));
         Table mainTable = new Table();
         mainTable.setFillParent(true);
 

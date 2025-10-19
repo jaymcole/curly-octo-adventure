@@ -90,6 +90,9 @@ public class Constants {
     // CAMERA AND RENDERING
     // =========================
 
+    public static final int DEFAULT_SCREEN_WIDTH = 640;
+    public static final int DEFAULT_SCREEN_HEIGHT = 480;
+
     /** Main camera field of view in degrees */
     public static final float CAMERA_FOV = 67f;
 

@@ -213,6 +213,14 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
     @Override
     public void resize(int width, int height) {
         debugUI.resize(width, height);
+
+        // Resize active screen (menu screens)
+        if (activeScreen != null) {
+            activeScreen.resize(width, height);
+            // Update input processor after resize to handle recreated stages
+            updateInputMultiplexer();
+        }
+
         if (hostedGameMode != null) {
             hostedGameMode.resize(width, height);
         }

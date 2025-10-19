@@ -32,7 +32,10 @@ public abstract class BaseScreen implements Screen{
     @Override
     public void resize(int width, int height) {
         if (stage != null) {
-            stage.getViewport().update(width, height, true);
+            // Dispose the old stage
+            stage.dispose();
+            // Recreate the stage
+            createStage();
         }
     }
 

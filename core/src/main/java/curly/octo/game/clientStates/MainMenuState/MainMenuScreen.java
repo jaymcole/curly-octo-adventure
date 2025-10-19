@@ -5,10 +5,13 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.game.clientStates.BaseScreen;
 import curly.octo.ui.UIAssetCache;
+
+import static curly.octo.Constants.DEFAULT_SCREEN_HEIGHT;
+import static curly.octo.Constants.DEFAULT_SCREEN_WIDTH;
 
 public class MainMenuScreen extends BaseScreen {
 
@@ -31,7 +34,7 @@ public class MainMenuScreen extends BaseScreen {
 
     @Override
     protected void createStage() {
-        stage = new Stage(new ScreenViewport());
+        stage = new Stage(new ExtendViewport(DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT));
 
         // Create skin
         Skin skin = UIAssetCache.getDefaultSkin();
