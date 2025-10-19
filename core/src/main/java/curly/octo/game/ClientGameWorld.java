@@ -220,9 +220,9 @@ public class ClientGameWorld extends GameWorld {
         GameMapRenderer renderer = getMapRenderer();
 
         if (renderer != null && camera != null) {
-            // Set post-processing effect based on local player's current tile
+            // Set post-processing effect based on local player's head/camera tile (not feet)
             if (getGameObjectManager().localPlayer != null) {
-                renderer.setPostProcessingEffect(getGameObjectManager().localPlayer.getCurrentTileFillType());
+                renderer.setPostProcessingEffect(getGameObjectManager().localPlayer.getHeadTileFillType());
             }
 
             // DEBUG: DISABLE BLOOM TEMPORARILY TO TEST WATER SHADER

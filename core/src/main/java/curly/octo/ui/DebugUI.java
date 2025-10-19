@@ -238,14 +238,22 @@ public class DebugUI {
 //        playerPositionLabel.setText("Position: " + Math.round(x) + ", " + Math.round(y) + ", " + Math.round(z));
     }
 
-    public void setCurrentTileTemplate(MapTile tile) {
-        String newText = "<missing>";
-        if (tile != null) {
-            newText = "Template: " + tile.templateName;
-            newText += "\nFill: " + tile.fillType;
+    public void setCurrentTileTemplate(MapTile feetTile, MapTile headTile) {
+        String newText;
+        if (headTile != null) {
+            newText = "Head Template: " + headTile.templateName;
+            newText += "\nHead Fill: " + headTile.fillType;
+        } else {
+            newText = "Head outside of map ";
+        }
+
+        if (feetTile != null) {
+            newText += "\nFeet Template: " + feetTile.templateName;
+            newText += "\nFeet Fill: " + feetTile.fillType;
+        } else {
+            newText += "\nFeet outside of map ";
         }
         currentTileTemplate.setText(newText);
-
     }
 
     public void setClientIP(String ip) {

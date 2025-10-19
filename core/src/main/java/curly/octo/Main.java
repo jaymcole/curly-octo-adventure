@@ -149,11 +149,8 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
                         // Update current tile template name
                         if (clientGameWorld.getMapManager() != null) {
                             MapTile currentTile = clientGameWorld.getMapManager().getTileFromWorldCoordinates(pos.x, pos.y, pos.z);
-                            if (currentTile != null) {
-                                debugUI.setCurrentTileTemplate(currentTile);
-                            } else {
-                                debugUI.setCurrentTileTemplate(null);
-                            }
+                            MapTile headTile = clientGameWorld.getGameObjectManager().localPlayer.getHeadTile();
+                            debugUI.setCurrentTileTemplate(currentTile, headTile);
                         }
                     }
                 }
