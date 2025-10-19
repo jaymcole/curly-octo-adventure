@@ -35,6 +35,8 @@ public class PlayerObject extends WorldObject {
     // Player-specific state
     private MapTileFillType currentTileFillType = MapTileFillType.AIR;
     private MapTile currentTile = null;
+    private MapTileFillType headTileFillType = MapTileFillType.AIR;
+    private MapTile headTile = null;
     private Vector3 velocity = new Vector3();
     private Vector3 tempVector = new Vector3();
     private boolean possessed = false;
@@ -285,11 +287,20 @@ public class PlayerObject extends WorldObject {
 
     private void updateCurrentTile() {
         if (gameMap != null && position != null) {
+            // Update feet tile (at base position)
             currentTile = gameMap.getTileFromWorldCoordinates(position.x, position.y, position.z);
             if (currentTile != null) {
                 currentTileFillType = currentTile.fillType;
             } else {
                 currentTileFillType = MapTileFillType.AIR;
+            }
+
+            // Update head/camera tile (at position + PLAYER_HEIGHT)
+            headTile = gameMap.getTileFromWorldCoordinates(position.x, position.y + PLAYER_HEIGHT, position.z);
+            if (headTile != null) {
+                headTileFillType = headTile.fillType;
+            } else {
+                headTileFillType = MapTileFillType.AIR;
             }
         }
     }
@@ -436,6 +447,14 @@ public class PlayerObject extends WorldObject {
 
     public MapTileFillType getCurrentTileFillType() {
         return currentTileFillType;
+    }
+
+    public MapTile getHeadTile() {
+        return headTile;
+    }
+
+    public MapTileFillType getHeadTileFillType() {
+        return headTileFillType;
     }
 
     public void setPitch(float pitch) {
