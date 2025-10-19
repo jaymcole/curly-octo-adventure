@@ -96,21 +96,23 @@ void main() {
     vec4 worldPos = u_worldTrans * vec4(a_position, 1.0);
 
     // Calculate wave displacement using Perlin noise
-    float waveScale = 0.8;  // Scale of wave pattern (lower = larger waves)
-    float waveAmplitude = 0.15;  // Height of waves in world units
+    float waveScale = 1.5;  // Scale of wave pattern
+    float waveAmplitude = 0.15;  // Height of waves
+    float waveSpeed = 0.5;  // Speed of wave animation
 
-    float waveDisplacement = getWaveDisplacement(worldPos.xyz * waveScale, u_time);
+    float displacement = getWaveDisplacement(worldPos.xyz * waveScale, u_time * waveSpeed);
 
-    // Apply wave displacement to Y coordinate (up/down motion)
-    worldPos.y += waveDisplacement * waveAmplitude;
+    // Apply vertical displacement to create waves
+    worldPos.y += displacement * waveAmplitude;
 
     // Store wave height for foam effects in fragment shader
-    v_waveHeight = waveDisplacement * waveAmplitude;
+    v_waveHeight = displacement * waveAmplitude;
 
     // Store world position for fragment shader
     v_worldPos = worldPos.xyz;
 
     // Transform normal to world space
+    // Note: Normal will be further perturbed in fragment shader for lighting
     v_normal = normalize((u_worldTrans * vec4(a_normal, 0.0)).xyz);
 
     // Transform to camera projection space

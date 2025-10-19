@@ -225,8 +225,9 @@ public class ClientGameWorld extends GameWorld {
                 renderer.setPostProcessingEffect(getGameObjectManager().localPlayer.getCurrentTileFillType());
             }
 
+            // DEBUG: DISABLE BLOOM TEMPORARILY TO TEST WATER SHADER
             // Step 1: Render scene with bloom effects first
-            renderer.beginBloomRender();
+            // renderer.beginBloomRender();  // DISABLED FOR DEBUG
 
             // Collect other players' ModelInstances for shadow casting
             Array<ModelInstance> playerInstances = new Array<>();
@@ -247,25 +248,29 @@ public class ClientGameWorld extends GameWorld {
             Array<ModelInstance> allInstances = new Array<>(playerInstances);
             allInstances.addAll(getGameObjectManager().getRenderQueue());
 
+            // DEBUG: Render directly to screen, no framebuffer
             // Render the map with players and WorldObjects
-            renderer.render(camera, getEnvironment(), renderer.getBloomFrameBuffer(), allInstances);
+            renderer.render(camera, getEnvironment(), null, allInstances);  // null = render to screen
 
             // Render physics debug information if enabled
             if (getMapManager() != null) {
                 getMapManager().renderPhysicsDebug(camera);
             }
 
+            // DEBUG: DISABLED BLOOM AND POST-PROCESSING
             // End bloom render (this renders bloom result to screen)
-            renderer.endBloomRender();
+            // renderer.endBloomRender();
 
             // Step 2: Apply post-processing effects to the bloom result
             // Only apply post-processing if we have an effect to apply
+            /*
             if (getGameObjectManager().localPlayer != null &&
                 getGameObjectManager().localPlayer.getCurrentTileFillType() != MapTileFillType.AIR) {
 
                 // Apply post-processing overlay to the current screen (with bloom)
                 renderer.applyPostProcessingToScreen();
             }
+            */
         }
     }
 

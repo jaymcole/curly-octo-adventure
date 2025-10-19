@@ -123,6 +123,7 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
 
         // Clear screen
         Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        Gdx.gl.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);  // Black
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
         // Update client game mode (runs on main thread for input/physics/rendering sync)

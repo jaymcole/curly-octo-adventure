@@ -10,9 +10,9 @@ precision mediump float;
 
 // Material and environment
 uniform vec3 u_ambientLight;
-uniform vec3 u_lightPositions[32];  // Match main shader light count
-uniform vec3 u_lightColors[32];
-uniform float u_lightIntensities[32];
+uniform vec3 u_lightPositions[8];
+uniform vec3 u_lightColors[8];
+uniform float u_lightIntensities[8];
 uniform int u_numLights;
 uniform float u_time;  // Time in seconds for animation
 
@@ -98,8 +98,8 @@ float getWaveNoise(vec3 p, float time)
 vec3 calculateWaterNormal(vec3 worldPos, vec3 baseNormal, float time)
 {
     // Create normal perturbation using Perlin noise
-    float noiseScale = 1.2;  // Scale of noise pattern (lower = larger features)
-    float noiseStrength = 1.5;  // Strength of normal perturbation (much higher for visible ripples)
+    float noiseScale = 2.0;  // Scale of noise pattern
+    float noiseStrength = 0.3;  // Strength of normal perturbation
 
     // Sample noise at different positions for normal calculation
     float noiseCenter = getWaveNoise(worldPos * noiseScale, time);
@@ -120,31 +120,36 @@ vec3 calculateWaterNormal(vec3 worldPos, vec3 baseNormal, float time)
 
 vec3 calculateWaterColor(vec3 worldPos, float time)
 {
-    // Realistic water colors
-    vec3 deepWaterColor = vec3(0.0, 0.2, 0.4);
-    vec3 shallowWaterColor = vec3(0.3, 0.7, 0.9);
+    // Base water color
+    vec3 deepWaterColor = vec3(0.1, 0.3, 0.6);  // Deep blue
+    vec3 shallowWaterColor = vec3(0.3, 0.6, 0.9);  // Light blue
 
     // Use noise to create depth variation
-    float depthNoise = getWaveNoise(worldPos * 0.3, time * 0.5) * 0.5 + 0.5;
+    float depthNoise = getWaveNoise(worldPos * 0.5, time * 0.3) * 0.5 + 0.5;
 
     // Mix deep and shallow colors based on noise
     vec3 waterColor = mix(deepWaterColor, shallowWaterColor, depthNoise);
 
-    // Add foam at wave peaks
-    float foamAmount = smoothstep(0.08, 0.12, abs(v_waveHeight));
-    vec3 foamColor = vec3(0.9, 0.95, 1.0);  // Off-white foam
-    waterColor = mix(waterColor, foamColor, foamAmount * 0.7);
+    // Add foam/sparkle effect at wave peaks (based on wave height from vertex shader)
+    float foamAmount = smoothstep(0.02, 0.08, abs(v_waveHeight));
+    vec3 foamColor = vec3(0.9, 0.95, 1.0);
+    waterColor = mix(waterColor, foamColor, foamAmount * 0.4);
 
     return waterColor;
 }
 
 float calculateWaterAlpha(vec3 worldPos, float time)
 {
-    // Base transparency with subtle noise variation
-    float baseAlpha = 0.6;  // 60% opacity base
-    float noiseVariation = getWaveNoise(worldPos * 0.5, time * 0.3) * 0.15;  // ±15% variation
+    // Base transparency
+    float baseAlpha = 0.5;
 
-    return clamp(baseAlpha + noiseVariation, 0.4, 0.8);
+    // Vary alpha with noise for more realistic water
+    float alphaNoise = getWaveNoise(worldPos * 1.5, time * 0.5) * 0.5 + 0.5;
+
+    // More opaque at wave peaks (foam effect)
+    float foamAlpha = smoothstep(0.02, 0.08, abs(v_waveHeight)) * 0.3;
+
+    return baseAlpha + alphaNoise * 0.2 + foamAlpha;
 }
 
 void main() {
@@ -158,7 +163,7 @@ void main() {
     vec3 totalLighting = u_ambientLight;
 
     // Calculate lighting from all dynamic lights
-    for (int i = 0; i < 32; i++) {
+    for (int i = 0; i < 8; i++) {
         if (i >= u_numLights) break;
 
         vec3 lightPos = u_lightPositions[i];

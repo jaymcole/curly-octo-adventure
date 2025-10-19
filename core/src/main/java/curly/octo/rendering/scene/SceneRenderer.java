@@ -30,6 +30,7 @@ import curly.octo.rendering.debug.DebugRenderer;
 public class SceneRenderer extends BaseRenderer {
 
     private final ShaderProgram shadowShader;
+    private final ShaderProgram waterShader;
     private final float farPlane;
     private final int maxShadowLights;
 
@@ -39,6 +40,15 @@ public class SceneRenderer extends BaseRenderer {
     // Debug counters
     private int opaquePartsRendered = 0;
     private int transparentPartsRendered = 0;
+
+    // Time tracking for animated shaders
+    private float elapsedTime = 0f;
+
+    // Cached rendering state for shader switching
+    private Array<PointLight> currentLights;
+    private int currentNumShadowLights;
+    private Vector3 currentAmbientLight;
+    private RenderingContext currentContext;
 
     /**
      * Creates a new scene renderer.
@@ -50,6 +60,7 @@ public class SceneRenderer extends BaseRenderer {
         this.maxShadowLights = maxShadowLights;
         this.farPlane = farPlane;
         this.shadowShader = loadShadowShader();
+        this.waterShader = loadWaterShader();
 
         Log.info("SceneRenderer", "Initialized with max " + maxShadowLights + " shadow lights, far plane=" + farPlane);
     }
@@ -134,6 +145,30 @@ public class SceneRenderer extends BaseRenderer {
     }
 
     /**
+     * Loads the water shader with Perlin noise animation.
+     */
+    private ShaderProgram loadWaterShader() {
+        String vertexShader = Gdx.files.internal("shaders/water.vertex.glsl").readString();
+        String fragmentShader = Gdx.files.internal("shaders/water.fragment.glsl").readString();
+
+        Log.info("SceneRenderer", "Loading water shader...");
+        Log.info("SceneRenderer", "Vertex shader size: " + vertexShader.length() + " chars");
+        Log.info("SceneRenderer", "Fragment shader size: " + fragmentShader.length() + " chars");
+        Log.info("SceneRenderer", "Fragment contains 'BRIGHT RED': " + fragmentShader.contains("BRIGHT RED"));
+
+        ShaderProgram shader = new ShaderProgram(vertexShader, fragmentShader);
+
+        if (!shader.isCompiled()) {
+            Log.error("SceneRenderer", "Water shader compilation failed: " + shader.getLog());
+            throw new RuntimeException("Water shader compilation failed: " + shader.getLog());
+        }
+
+        Log.info("SceneRenderer", "Water shader loaded successfully");
+        Log.info("SceneRenderer", "Water shader log: " + shader.getLog());
+        return shader;
+    }
+
+    /**
      * Sets the debug renderer for water wireframe visualization.
      */
     public void setDebugRenderer(DebugRenderer debugRenderer) {
@@ -148,12 +183,16 @@ public class SceneRenderer extends BaseRenderer {
      * @param shadowLights Lights that cast shadows
      * @param allLights All lights in the scene
      * @param ambientLight Ambient light color
+     * @param deltaTime Time since last frame in seconds (for animated shaders)
      */
     public void renderWithShadows(RenderingContext context,
                                   FrameBuffer[][] shadowFrameBuffers,
                                   Array<PointLight> shadowLights,
                                   Array<PointLight> allLights,
-                                  Vector3 ambientLight) {
+                                  Vector3 ambientLight,
+                                  float deltaTime) {
+        // Update elapsed time for animated shaders
+        elapsedTime += deltaTime;
         if (shadowLights.size == 0) {
             Log.warn("SceneRenderer", "No shadow-casting lights provided");
             return;
@@ -169,6 +208,12 @@ public class SceneRenderer extends BaseRenderer {
 
         // Order lights (shadow-casting first, then others sorted by distance)
         Array<PointLight> orderedLights = orderLights(shadowLights, allLights, context.getCamera());
+
+        // Cache rendering state for shader switching
+        currentLights = orderedLights;
+        currentNumShadowLights = shadowLights.size;
+        currentAmbientLight = ambientLight;
+        currentContext = context;
 
         // Set light uniforms
         configureLightUniforms(orderedLights, shadowLights.size);
@@ -245,17 +290,24 @@ public class SceneRenderer extends BaseRenderer {
     }
 
     /**
-     * Configures light uniforms for the shader.
+     * Configures light uniforms for the shadow shader.
      */
     private void configureLightUniforms(Array<PointLight> orderedLights, int numShadowLights) {
+        configureLightUniforms(shadowShader, orderedLights, numShadowLights);
+    }
+
+    /**
+     * Configures light uniforms for a specific shader.
+     */
+    private void configureLightUniforms(ShaderProgram shader, Array<PointLight> orderedLights, int numShadowLights) {
         int totalLights = Math.min(orderedLights.size, Constants.LIGHTING_ENHANCED_SHADER_LIGHTS);
-        shadowShader.setUniformi("u_numLights", totalLights);
+        shader.setUniformi("u_numLights", totalLights);
 
         for (int i = 0; i < totalLights; i++) {
             PointLight light = orderedLights.get(i);
-            shadowShader.setUniformf("u_lightPositions[" + i + "]", light.position);
-            shadowShader.setUniformf("u_lightColors[" + i + "]", light.color.r, light.color.g, light.color.b);
-            shadowShader.setUniformf("u_lightIntensities[" + i + "]", light.intensity);
+            shader.setUniformf("u_lightPositions[" + i + "]", light.position);
+            shader.setUniformf("u_lightColors[" + i + "]", light.color.r, light.color.g, light.color.b);
+            shader.setUniformf("u_lightIntensities[" + i + "]", light.intensity);
         }
     }
 
@@ -304,11 +356,43 @@ public class SceneRenderer extends BaseRenderer {
                         }
                     }
 
+                    // Select appropriate shader for this part
+                    ShaderProgram activeShader = shader;
+                    boolean isWater = isWaterPart(nodePart);
+
+                    if (isWater) {
+                        // Switch to water shader for water parts
+                        activeShader = waterShader;
+                        activeShader.bind();
+
+                        // CRITICAL: Set transform uniforms for water shader
+                        activeShader.setUniformMatrix("u_worldTrans", instance.transform);
+                        activeShader.setUniformMatrix("u_projViewTrans", currentContext.getCamera().combined);
+
+                        // Set time uniform for animation
+                        activeShader.setUniformf("u_time", elapsedTime);
+
+                        // Set lighting uniforms
+                        configureLightUniforms(waterShader, currentLights, currentNumShadowLights);
+                        activeShader.setUniformf("u_ambientLight", currentAmbientLight);
+
+                        Log.debug("SceneRenderer", "Rendering water with shader - time=" + elapsedTime +
+                                 ", part=" + nodePart.meshPart.id + ", transparent=" + transparentPass);
+                    }
+
                     // Set material properties
-                    setMaterialUniforms(nodePart, shader);
+                    setMaterialUniforms(nodePart, activeShader);
 
                     // Render the mesh
-                    renderMeshPart(nodePart, shader);
+                    renderMeshPart(nodePart, activeShader);
+
+                    // Switch back to main shader if we used water shader
+                    if (isWater) {
+                        shader.bind();
+                        // Re-set transform uniforms for main shader
+                        shader.setUniformMatrix("u_worldTrans", instance.transform);
+                        shader.setUniformMatrix("u_projViewTrans", currentContext.getCamera().combined);
+                    }
                 }
             }
         }
@@ -351,6 +435,12 @@ public class SceneRenderer extends BaseRenderer {
      * Sets material uniforms for the shader.
      */
     private void setMaterialUniforms(NodePart nodePart, ShaderProgram shader) {
+        // Water shader doesn't use material uniforms - it calculates color procedurally
+        if (shader == waterShader) {
+            // Water shader doesn't need diffuse color/alpha/texture uniforms
+            return;
+        }
+
         // Extract diffuse color, alpha, and texture from material
         // Using Vector3 for diffuseColor to match legacy implementation
         Vector3 diffuseColor = new Vector3(0.7f, 0.7f, 0.7f); // Default gray
@@ -386,8 +476,19 @@ public class SceneRenderer extends BaseRenderer {
      */
     private void renderMeshPart(NodePart nodePart, ShaderProgram shader) {
         Mesh mesh = nodePart.meshPart.mesh;
+
+        boolean isWater = nodePart.meshPart.id != null && nodePart.meshPart.id.toLowerCase().contains("water");
+        if (isWater) {
+            Log.info("SceneRenderer", "ABOUT TO CALL mesh.render() for water - shader=" + shader.hashCode() +
+                    ", waterShader=" + waterShader.hashCode() + ", MATCH=" + (shader == waterShader));
+        }
+
         mesh.render(shader, nodePart.meshPart.primitiveType,
             nodePart.meshPart.offset, nodePart.meshPart.size);
+
+        if (isWater) {
+            Log.info("SceneRenderer", "mesh.render() COMPLETED for water");
+        }
     }
 
     @Override
@@ -400,6 +501,9 @@ public class SceneRenderer extends BaseRenderer {
     protected void disposeResources() {
         if (shadowShader != null) {
             shadowShader.dispose();
+        }
+        if (waterShader != null) {
+            waterShader.dispose();
         }
         Log.info("SceneRenderer", "Disposed scene renderer");
     }

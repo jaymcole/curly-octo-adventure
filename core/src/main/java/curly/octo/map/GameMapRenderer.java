@@ -146,6 +146,11 @@ public class GameMapRenderer implements Disposable {
         // CRITICAL: Restore the target framebuffer after shadow map generation
         if (targetFrameBuffer != null) {
             targetFrameBuffer.begin();
+        } else {
+            // IMPORTANT: If rendering to screen (null framebuffer), must explicitly unbind
+            // any framebuffers that shadow map generation bound
+            FrameBuffer.unbind();
+            Log.info("GameMapRenderer", "Unbound framebuffer to render to screen");
         }
 
         // Create rendering context
@@ -156,12 +161,14 @@ public class GameMapRenderer implements Disposable {
 
         // Render scene with SceneRenderer
         Vector3 ambientLight = getAmbientLight(environment);
+        float deltaTime = Gdx.graphics.getDeltaTime();
         sceneRenderer.renderWithShadows(
             context,
             shadowMapGenerator.getShadowFrameBuffers(),
             shadowLights,
             pointLights.lights,
-            ambientLight
+            ambientLight,
+            deltaTime
         );
 
         // Render debug visualizations
