@@ -25,15 +25,29 @@ import curly.octo.map.rendering.ChunkedMapModelBuilder;
 import curly.octo.rendering.CubeShadowMapRenderer;
 import curly.octo.rendering.BloomRenderer;
 import curly.octo.rendering.PostProcessingRenderer;
+import curly.octo.rendering.shadows.ShadowMapGenerator;
+import curly.octo.rendering.scene.SceneRenderer;
+import curly.octo.rendering.scene.LightingManager;
+import curly.octo.rendering.debug.DebugRenderer;
 import lights.BaseLight;
 
 /**
  * Handles rendering of the VoxelMap in 3D space with shadow mapping.
  */
 public class GameMapRenderer implements Disposable {
+    // NEW ARCHITECTURE: Refactored rendering components
+    private final ShadowMapGenerator shadowMapGenerator;
+    private final SceneRenderer sceneRenderer;
+    private final LightingManager lightingManager;
+    private final DebugRenderer debugRenderer;
+
+    // LEGACY: Keep for backward compatibility during transition
     private final CubeShadowMapRenderer cubeShadowMapRenderer;
+
+    // Post-processing (unchanged - already well-structured)
     private final BloomRenderer bloomRenderer;
     private final PostProcessingRenderer postProcessingRenderer;
+
     private final Array<ModelInstance> instances;
     private Model model;
     // Surface models are now handled within individual chunks
@@ -41,6 +55,9 @@ public class GameMapRenderer implements Disposable {
 
     private GameObjectManager objectManager;
     private Environment environment;
+
+    // Flag to use new or legacy rendering
+    private static final boolean USE_NEW_ARCHITECTURE = true;
 
     // Configurable number of shadow-casting lights (performance vs quality tradeoff)
     private int maxShadowCastingLights = 8; // Reduced from 8 to 2 for better performance
@@ -60,14 +77,31 @@ public class GameMapRenderer implements Disposable {
 
     public GameMapRenderer(GameObjectManager objectManager) {
         this.objectManager = objectManager;
+
+        // Initialize NEW architecture components
+        shadowMapGenerator = new ShadowMapGenerator(ShadowMapGenerator.QUALITY_HIGH, maxShadowCastingLights);
+        sceneRenderer = new SceneRenderer(maxShadowCastingLights, shadowMapGenerator.getFarPlane());
+        lightingManager = new LightingManager();
+        debugRenderer = new DebugRenderer();
+
+        // Link debug renderer to scene renderer
+        sceneRenderer.setDebugRenderer(debugRenderer);
+
+        // Initialize LEGACY renderer for backward compatibility
         cubeShadowMapRenderer = new CubeShadowMapRenderer(CubeShadowMapRenderer.QUALITY_HIGH, maxShadowCastingLights);
+
+        // Initialize post-processing (unchanged)
         bloomRenderer = new BloomRenderer(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         postProcessingRenderer = new PostProcessingRenderer(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         instances = new Array<>();
 
-        Log.info("GameMapRenderer", "Initialized with HIGH quality cube shadow mapping (" + maxShadowCastingLights + " shadow-casting lights, 512x512 per face)");
+        Log.info("GameMapRenderer", "Initialized with REFACTORED architecture (USE_NEW_ARCHITECTURE=" + USE_NEW_ARCHITECTURE + ")");
+        Log.info("GameMapRenderer", "  - ShadowMapGenerator: HIGH quality (" + maxShadowCastingLights + " shadow lights, 1024x1024 per face)");
+        Log.info("GameMapRenderer", "  - SceneRenderer: Two-pass rendering with shadow mapping");
+        Log.info("GameMapRenderer", "  - LightingManager: Dynamic light selection and sorting");
+        Log.info("GameMapRenderer", "  - DebugRenderer: Water wireframe visualization");
+        Log.info("GameMapRenderer", "  - BloomRenderer: Lava glow post-processing");
         Log.info("GameMapRenderer", "Surface shaders are now handled within individual chunk models");
-        Log.info("GameMapRenderer", "Initialized bloom post-processing for realistic lava glow");
     }
 
     public void render(PerspectiveCamera camera, Environment environment) {
@@ -99,6 +133,78 @@ public class GameMapRenderer implements Disposable {
             return;
         }
 
+        if (USE_NEW_ARCHITECTURE) {
+            renderWithNewArchitecture(camera, environment, targetFrameBuffer, additionalInstances, pointLights);
+        } else {
+            renderWithLegacyArchitecture(camera, environment, targetFrameBuffer, additionalInstances, pointLights);
+        }
+    }
+
+    /**
+     * NEW ARCHITECTURE: Renders using refactored rendering components.
+     */
+    private void renderWithNewArchitecture(PerspectiveCamera camera, Environment environment,
+                                          FrameBuffer targetFrameBuffer, Array<ModelInstance> additionalInstances,
+                                          PointLightsAttribute pointLights) {
+        Log.info("GameMapRenderer", "*** NEW ARCHITECTURE renderWithNewArchitecture called ***");
+        Log.info("GameMapRenderer", "Total lights in scene: " + pointLights.lights.size);
+
+        // Use LightingManager to select significant lights
+        Array<PointLight> shadowLights = lightingManager.getMostSignificantLights(
+            pointLights, maxShadowCastingLights, camera.position);
+
+        Log.info("GameMapRenderer", "Selected " + shadowLights.size + " shadow-casting lights");
+
+        // Update light counts for debug UI
+        lastTotalLights = pointLights.lights.size;
+        lastShadowLights = shadowLights.size;
+
+        if (shadowLights.size == 0) {
+            Log.warn("GameMapRenderer", "No lights found for shadow casting");
+            return;
+        }
+
+        // Get instances to render
+        Array<ModelInstance> mapInstances = getMapInstances(camera);
+        Array<ModelInstance> allInstances = combineInstances(mapInstances, additionalInstances);
+
+        // Generate shadow maps using ShadowMapGenerator
+        shadowMapGenerator.generateAllShadowMaps(allInstances, shadowLights);
+
+        // CRITICAL: Restore the target framebuffer after shadow map generation
+        if (targetFrameBuffer != null) {
+            targetFrameBuffer.begin();
+        }
+
+        // Create rendering context
+        curly.octo.rendering.core.RenderingContext context =
+            new curly.octo.rendering.core.RenderingContext(camera, environment, mapInstances);
+        context.setAdditionalInstances(additionalInstances);
+        context.setTargetFrameBuffer(targetFrameBuffer);
+
+        // Render scene with SceneRenderer
+        Vector3 ambientLight = getAmbientLight(environment);
+        sceneRenderer.renderWithShadows(
+            context,
+            shadowMapGenerator.getShadowFrameBuffers(),
+            shadowLights,
+            pointLights.lights,
+            ambientLight
+        );
+
+        // Render debug visualizations
+        debugRenderer.renderWaterWireframes(camera);
+
+        Log.debug("GameMapRenderer", "NEW ARCHITECTURE: Rendered with " + shadowLights.size +
+            " shadow lights out of " + pointLights.lights.size + " total lights");
+    }
+
+    /**
+     * LEGACY ARCHITECTURE: Original rendering path for backward compatibility.
+     */
+    private void renderWithLegacyArchitecture(PerspectiveCamera camera, Environment environment,
+                                             FrameBuffer targetFrameBuffer, Array<ModelInstance> additionalInstances,
+                                             PointLightsAttribute pointLights) {
         // Generate shadow maps for the N most significant lights (closest to player)
         Array<PointLight> significantLights = getMostSignificantLights(pointLights, maxShadowCastingLights, camera.position);
 
@@ -106,30 +212,13 @@ public class GameMapRenderer implements Disposable {
         lastTotalLights = pointLights.lights.size;
         lastShadowLights = significantLights.size;
 
-
         if (significantLights.size > 0) {
-
             // Reset light index for new frame
             cubeShadowMapRenderer.resetLightIndex();
 
-            // Get the appropriate map instances based on rendering strategy
-            Array<ModelInstance> mapInstances;
-            if (chunkModelBuilder != null) {
-                // For chunked strategy, get only chunks near camera
-                mapInstances = chunkModelBuilder.getChunksNearPosition(camera.position, Constants.CHUNK_RENDER_DISTANCE);
-                Log.debug("GameMapRenderer", String.format("Rendering %d chunks near camera position (%.1f, %.1f, %.1f)",
-                    mapInstances.size, camera.position.x, camera.position.y, camera.position.z));
-            } else {
-                // For traditional strategies, use all instances
-                mapInstances = instances;
-            }
-
-            // Combine map instances with additional dynamic objects for shadow generation
-            Array<ModelInstance> allInstances = mapInstances;
-            if (additionalInstances != null && additionalInstances.size > 0) {
-                allInstances = new Array<>(mapInstances);
-                allInstances.addAll(additionalInstances);
-            }
+            // Get instances to render
+            Array<ModelInstance> mapInstances = getMapInstances(camera);
+            Array<ModelInstance> allInstances = combineInstances(mapInstances, additionalInstances);
 
             // Generate cube shadow maps for each significant light
             for (PointLight light : significantLights) {
@@ -137,23 +226,48 @@ public class GameMapRenderer implements Disposable {
             }
 
             // CRITICAL: Restore the target framebuffer after shadow map generation
-            // Shadow map generation changes framebuffer binding to screen (0)
             if (targetFrameBuffer != null) {
                 targetFrameBuffer.begin();
             }
 
             // Render opaque geometry with shadows
             Vector3 ambientLight = getAmbientLight(environment);
-//            Log.info("GameMapRenderer", "Using original rendering method for debugging");
             cubeShadowMapRenderer.renderWithMultipleCubeShadows(allInstances, camera, significantLights, pointLights.lights, ambientLight);
 
             // Render water wireframes for debugging
             cubeShadowMapRenderer.renderWaterWireframes(camera);
-
-            // Transparent surfaces are now handled within individual chunk models
         } else {
             Log.warn("GameMapRenderer", "No lights found for shadow casting");
         }
+    }
+
+    /**
+     * Gets map instances based on rendering strategy.
+     */
+    private Array<ModelInstance> getMapInstances(PerspectiveCamera camera) {
+        if (chunkModelBuilder != null) {
+            // For chunked strategy, get only chunks near camera
+            Array<ModelInstance> chunks = chunkModelBuilder.getChunksNearPosition(camera.position, Constants.CHUNK_RENDER_DISTANCE);
+            Log.debug("GameMapRenderer", String.format("Rendering %d chunks near camera position (%.1f, %.1f, %.1f)",
+                chunks.size, camera.position.x, camera.position.y, camera.position.z));
+            return chunks;
+        } else {
+            // For traditional strategies, use all instances
+            return instances;
+        }
+    }
+
+    /**
+     * Combines map instances with additional dynamic objects.
+     */
+    private Array<ModelInstance> combineInstances(Array<ModelInstance> mapInstances,
+                                                  Array<ModelInstance> additionalInstances) {
+        if (additionalInstances != null && additionalInstances.size > 0) {
+            Array<ModelInstance> combined = new Array<>(mapInstances);
+            combined.addAll(additionalInstances);
+            return combined;
+        }
+        return mapInstances;
     }
 
     /**
@@ -293,10 +407,22 @@ public class GameMapRenderer implements Disposable {
     private Vector3 getAmbientLight(Environment environment) {
         // Extract ambient light color from environment
         ColorAttribute ambient = environment.get(ColorAttribute.class, ColorAttribute.AmbientLight);
+        Vector3 ambientVec;
         if (ambient != null) {
-            return new Vector3(ambient.color.r, ambient.color.g, ambient.color.b);
+            ambientVec = new Vector3(ambient.color.r, ambient.color.g, ambient.color.b);
+            Log.debug("GameMapRenderer", "Environment has ambient light: (" + ambientVec.x + "," + ambientVec.y + "," + ambientVec.z + ")");
+        } else {
+            ambientVec = new Vector3(0.02f, 0.02f, 0.03f); // Default very low ambient
+            Log.debug("GameMapRenderer", "No ambient light in environment, using default");
         }
-        return new Vector3(0.02f, 0.02f, 0.03f); // Default very low ambient
+
+        // Ensure minimum ambient light to prevent completely black scenes
+        float minAmbient = 0.02f;
+        if (ambientVec.x < minAmbient) ambientVec.x = minAmbient;
+        if (ambientVec.y < minAmbient) ambientVec.y = minAmbient;
+        if (ambientVec.z < minAmbient) ambientVec.z = minAmbient;
+
+        return ambientVec;
     }
 
     // Surface rendering is now handled within individual chunk models
@@ -545,15 +671,46 @@ public class GameMapRenderer implements Disposable {
 
     public void disposeAll() {
         dispose();
+
+        // Dispose NEW ARCHITECTURE components
+        if (shadowMapGenerator != null && !disposed) {
+            try {
+                shadowMapGenerator.dispose();
+                Log.info("GameMapRenderer", "Shadow map generator disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing shadow map generator: " + e.getMessage());
+            }
+        }
+
+        if (sceneRenderer != null && !disposed) {
+            try {
+                sceneRenderer.dispose();
+                Log.info("GameMapRenderer", "Scene renderer disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing scene renderer: " + e.getMessage());
+            }
+        }
+
+        if (debugRenderer != null && !disposed) {
+            try {
+                debugRenderer.dispose();
+                Log.info("GameMapRenderer", "Debug renderer disposed");
+            } catch (Exception e) {
+                Log.error("GameMapRenderer", "Error disposing debug renderer: " + e.getMessage());
+            }
+        }
+
+        // Dispose LEGACY components
         if (cubeShadowMapRenderer != null && !disposed) {
             try {
                 cubeShadowMapRenderer.dispose();
-                Log.info("GameMapRenderer", "Cube shadow map renderer disposed");
+                Log.info("GameMapRenderer", "Cube shadow map renderer (legacy) disposed");
             } catch (Exception e) {
                 Log.error("GameMapRenderer", "Error disposing cube shadow map renderer: " + e.getMessage());
             }
         }
 
+        // Dispose post-processing components
         if (bloomRenderer != null && !disposed) {
             try {
                 bloomRenderer.dispose();
