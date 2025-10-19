@@ -257,20 +257,14 @@ public class ClientGameWorld extends GameWorld {
                 getMapManager().renderPhysicsDebug(camera);
             }
 
-            // DEBUG: DISABLED BLOOM AND POST-PROCESSING
-            // End bloom render (this renders bloom result to screen)
-            // renderer.endBloomRender();
-
-            // Step 2: Apply post-processing effects to the bloom result
+            // Apply post-processing effects to the rendered scene
             // Only apply post-processing if we have an effect to apply
-            /*
             if (getGameObjectManager().localPlayer != null &&
-                getGameObjectManager().localPlayer.getCurrentTileFillType() != MapTileFillType.AIR) {
+                getGameObjectManager().localPlayer.getHeadTileFillType() != MapTileFillType.AIR) {
 
-                // Apply post-processing overlay to the current screen (with bloom)
+                // Apply post-processing overlay to the current screen
                 renderer.applyPostProcessingToScreen();
             }
-            */
         }
     }
 

@@ -30,12 +30,6 @@ float smoothNoise(vec2 p) {
 void main() {
     vec2 uv = v_texCoords;
 
-    // DEBUG: DISABLE UNDERWATER EFFECT TO SEE ACTUAL WATER SHADER
-    vec4 sceneColor = texture2D(u_texture, uv);
-    gl_FragColor = sceneColor;
-
-    // ORIGINAL CODE DISABLED FOR DEBUGGING
-    /*
     // Create flowing water distortion patterns
     float time = u_time * 0.5;
 
@@ -81,5 +75,4 @@ void main() {
     sceneColor.rgb += vec3(causticPattern * 0.3, causticPattern * 0.5, causticPattern * 0.7);
 
     gl_FragColor = sceneColor;
-    */
 }
