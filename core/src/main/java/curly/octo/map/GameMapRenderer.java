@@ -147,6 +147,9 @@ public class GameMapRenderer implements Disposable {
 //            Log.info("GameMapRenderer", "Using original rendering method for debugging");
             cubeShadowMapRenderer.renderWithMultipleCubeShadows(allInstances, camera, significantLights, pointLights.lights, ambientLight);
 
+            // Render water wireframes for debugging
+            cubeShadowMapRenderer.renderWaterWireframes(camera);
+
             // Transparent surfaces are now handled within individual chunk models
         } else {
             Log.warn("GameMapRenderer", "No lights found for shadow casting");
@@ -329,23 +332,30 @@ public class GameMapRenderer implements Disposable {
         Material grassMaterial = createMaterial(Color.GREEN, 0.1f, 4f);
         Material pinkWall = createMaterial(Color.PINK, 0.1f, 4f);
         Material spawnMaterial = createMaterial(Color.LIME, 0.1f, 4f);
-        // Surface materials are handled within individual chunks
+
+        // Create surface materials for water, lava, and fog
+        Material waterMaterial = createWaterMaterial();
+        Material lavaMaterial = createLavaMaterial();
 
         // Create chunk-based model builder
         ChunkDebugger.quickDebug(map, "Before ChunkedMapModelBuilder");
         ChunkedMapModelBuilder chunkedBuilder = new ChunkedMapModelBuilder(map);
 
-        // Build individual chunk models
+        // Build individual chunk models with SOLID geometry only (no water to avoid transparency contamination)
         chunkedBuilder.buildGeometry(null, stoneMaterial, dirtMaterial, grassMaterial, spawnMaterial, pinkWall, null);
+
+        // Build water surfaces as a SEPARATE model to avoid transparency issues
+        ModelBuilder waterModelBuilder = new ModelBuilder();
+        chunkedBuilder.buildWaterGeometry(waterModelBuilder, waterMaterial);
 
         // Store the chunk builder for rendering
         this.chunkModelBuilder = chunkedBuilder;
 
         // No single model for chunk-based rendering - we use individual chunk instances
         model = null;
-        Log.info("GameMapRenderer", "Built " + chunkedBuilder.getAllChunkInstances().size + " individual chunk models");
+        Log.info("GameMapRenderer", "Built " + chunkedBuilder.getAllChunkInstances().size + " individual chunk models (including water)");
 
-        // Surface materials are now built into individual chunks
+        // Surface materials are now built separately
 
         // Update stats for debug UI
         lastFacesBuilt = chunkedBuilder.getTotalFacesBuilt();
@@ -376,7 +386,9 @@ public class GameMapRenderer implements Disposable {
 
     private Material createWaterMaterial() {
         Material material = new Material();
-        // Simple material for custom shader - color handled in shader
+        // Set water color (blue/cyan) with alpha for transparency
+        Color waterColor = new Color(0.2f, 0.4f, 0.8f, 0.4f); // Blue with 40% opacity
+        material.set(new ColorAttribute(ColorAttribute.Diffuse, waterColor));
         material.set(new IntAttribute(IntAttribute.CullFace, GL20.GL_NONE));              // No culling for transparency
         // Enable blending for transparency with proper depth handling
         BlendingAttribute blending = new BlendingAttribute(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA, 0.4f);

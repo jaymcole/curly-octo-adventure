@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.g3d.model.Node;
 import com.badlogic.gdx.graphics.g3d.model.NodePart;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
@@ -66,6 +67,27 @@ public class CubeShadowMapRenderer implements Disposable {
     private final Array<FallbackLight> overflowFallbackLights;
     private final Array<PointLight> combinedLightArray;
 
+    // Debug wireframe rendering for water meshes
+    private ShapeRenderer shapeRenderer;
+
+    // Track triangles with their mesh part ID for color coding
+    private static class WaterTriangle {
+        Vector3[] vertices;
+        int meshPartId;
+
+        WaterTriangle(Vector3[] vertices, int meshPartId) {
+            this.vertices = vertices;
+            this.meshPartId = meshPartId;
+        }
+    }
+
+    private Array<WaterTriangle> waterTriangles;  // Store water triangles with mesh part IDs
+    private int currentMeshPartId = 0;  // Counter for assigning unique IDs to mesh parts
+
+    // Debug counters for pass rendering
+    private int opaquePartsRendered = 0;
+    private int transparentPartsRendered = 0;
+
     public CubeShadowMapRenderer(int quality, int maxLights) {
         SHADOW_MAP_SIZE = quality;
         MAX_LIGHTS = Math.max(1, Math.min(8, maxLights)); // Clamp between 1-8
@@ -78,6 +100,10 @@ public class CubeShadowMapRenderer implements Disposable {
         initializeFrameBuffers();
         loadShaders();
         setupCameras();
+
+        // Initialize debug wireframe renderer
+        shapeRenderer = new ShapeRenderer();
+        waterTriangles = new Array<>();
     }
 
     private void initializeFrameBuffers() {
@@ -379,13 +405,31 @@ public class CubeShadowMapRenderer implements Disposable {
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
         Gdx.gl.glDepthFunc(GL20.GL_LEQUAL);
 
-        // Render instances
+        // TWO-PASS RENDERING FOR PROPER TRANSPARENCY
+        // Pass 1: Opaque geometry
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
         for (ModelInstance instance : instances) {
             Matrix4 worldTransform = instance.transform;
             shadowShader.setUniformMatrix("u_worldTrans", worldTransform);
             shadowShader.setUniformMatrix("u_projViewTrans", camera.combined);
-            renderInstance(instance, shadowShader);
+            renderInstance(instance, shadowShader, false);
         }
+
+        // Pass 2: Transparent geometry
+        Gdx.gl.glDepthMask(false);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        for (ModelInstance instance : instances) {
+            Matrix4 worldTransform = instance.transform;
+            shadowShader.setUniformMatrix("u_worldTrans", worldTransform);
+            shadowShader.setUniformMatrix("u_projViewTrans", camera.combined);
+            renderInstance(instance, shadowShader, true);
+        }
+
+        // Restore GL state
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     /**
@@ -450,7 +494,10 @@ public class CubeShadowMapRenderer implements Disposable {
                  (allLights.size - shadowCount) + " fallback lights = " + allLights.size + " total lights");
     }
 
+    private Camera currentCamera;  // Store camera for debug wireframe rendering
+
     public void renderWithMultipleCubeShadows(Array<ModelInstance> instances, Camera camera, Array<PointLight> shadowLights, Array<PointLight> allLights, Vector3 ambientLight) {
+        this.currentCamera = camera;  // Store for wireframe rendering
         if (shadowLights.size == 0) {
             Log.warn("CubeShadowMapRenderer", "No shadow-casting lights provided");
             return;
@@ -521,15 +568,47 @@ public class CubeShadowMapRenderer implements Disposable {
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
         Gdx.gl.glDepthFunc(GL20.GL_LEQUAL);
 
-        // Render instances with combined lighting from all lights
+        // TWO-PASS RENDERING FOR PROPER TRANSPARENCY
+        // Reset debug counters and water triangle storage
+        opaquePartsRendered = 0;
+        transparentPartsRendered = 0;
+        waterTriangles.clear();
+        currentMeshPartId = 0;  // Reset mesh part counter for color coding
+
+        // Pass 1: Render all OPAQUE geometry (writes depth, no blending)
+        Gdx.gl.glDepthMask(true);  // Enable depth writes
+        Gdx.gl.glDisable(GL20.GL_BLEND);  // Disable blending
+
         for (ModelInstance instance : instances) {
             Matrix4 worldTransform = instance.transform;
 
             shadowShader.setUniformMatrix("u_worldTrans", worldTransform);
             shadowShader.setUniformMatrix("u_projViewTrans", camera.combined);
 
-            renderInstance(instance, shadowShader);
+            renderInstance(instance, shadowShader, false);  // false = opaque only
         }
+
+        Log.info("CubeShadowMapRenderer", "OPAQUE PASS: Rendered " + opaquePartsRendered + " parts");
+
+        // Pass 2: Render all TRANSPARENT geometry (no depth writes, blending enabled)
+        Gdx.gl.glDepthMask(false);  // Disable depth writes for transparency
+        Gdx.gl.glEnable(GL20.GL_BLEND);  // Enable blending
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        for (ModelInstance instance : instances) {
+            Matrix4 worldTransform = instance.transform;
+
+            shadowShader.setUniformMatrix("u_worldTrans", worldTransform);
+            shadowShader.setUniformMatrix("u_projViewTrans", camera.combined);
+
+            renderInstance(instance, shadowShader, true);  // true = transparent only
+        }
+
+        Log.info("CubeShadowMapRenderer", "TRANSPARENT PASS: Rendered " + transparentPartsRendered + " parts, collected " + waterTriangles.size + " triangles");
+
+        // Restore GL state for post-processing pipeline
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
     private Vector3 calculateCombinedLighting(ModelInstance instance, Array<PointLight> allLights, Camera camera, PointLight primaryLight) {
@@ -584,7 +663,10 @@ public class CubeShadowMapRenderer implements Disposable {
             depthShader.setUniformMatrix("u_worldTrans", worldTransform);
             depthShader.setUniformMatrix("u_lightMVP", lightMVP);
 
-            renderInstance(instance, depthShader);
+            // Shadow maps need ALL geometry (both opaque and transparent cast shadows)
+            // Render both passes to ensure all geometry casts shadows
+            renderInstance(instance, depthShader, false);  // Opaque
+            renderInstance(instance, depthShader, true);   // Transparent
         }
 
         frameBuffer.end();
@@ -610,20 +692,80 @@ public class CubeShadowMapRenderer implements Disposable {
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
         Gdx.gl.glDepthFunc(GL20.GL_LEQUAL);
 
+        // TWO-PASS RENDERING FOR PROPER TRANSPARENCY
+        // Pass 1: Opaque geometry
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
         for (ModelInstance instance : instances) {
             Matrix4 worldTransform = instance.transform;
-
             shadowShader.setUniformMatrix("u_worldTrans", worldTransform);
             shadowShader.setUniformMatrix("u_projViewTrans", camera.combined);
-
-            renderInstance(instance, shadowShader);
+            renderInstance(instance, shadowShader, false);
         }
+
+        // Pass 2: Transparent geometry
+        Gdx.gl.glDepthMask(false);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        for (ModelInstance instance : instances) {
+            Matrix4 worldTransform = instance.transform;
+            shadowShader.setUniformMatrix("u_worldTrans", worldTransform);
+            shadowShader.setUniformMatrix("u_projViewTrans", camera.combined);
+            renderInstance(instance, shadowShader, true);
+        }
+
+        // Restore GL state
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
     }
 
-    private void renderInstance(ModelInstance instance, ShaderProgram shader) {
+    private void renderInstance(ModelInstance instance, ShaderProgram shader, boolean renderTransparent) {
         for (Node node : instance.nodes) {
             for (NodePart nodePart : node.parts) {
                 if (nodePart.enabled) {
+                    // Determine if this part is transparent
+                    boolean isTransparent = false;
+                    if (nodePart.material != null) {
+                        com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute blendAttr =
+                            (com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute) nodePart.material.get(com.badlogic.gdx.graphics.g3d.attributes.BlendingAttribute.Type);
+                        if (blendAttr != null && blendAttr.blended) {
+                            isTransparent = true;
+                        }
+
+                        // Debug: log material check for water parts
+                        if (nodePart.meshPart.id != null && nodePart.meshPart.id.toLowerCase().contains("water")) {
+                            Log.info("CubeShadowMapRenderer", "Water part detected: blendAttr=" + blendAttr +
+                                ", blended=" + (blendAttr != null ? blendAttr.blended : "null") +
+                                ", isTransparent=" + isTransparent +
+                                ", renderTransparent=" + renderTransparent);
+                        }
+                    }
+
+                    // SKIP this part if it doesn't match the current render pass
+                    if (isTransparent != renderTransparent) {
+                        continue;  // Skip to next part
+                    }
+
+                    // Count parts rendered in each pass
+                    if (renderTransparent) {
+                        transparentPartsRendered++;
+
+                        // Debug: log what transparent parts we're rendering
+                        String partId = nodePart.meshPart.id != null ? nodePart.meshPart.id : "UNNAMED";
+                        Log.warn("CubeShadowMapRenderer", "TRANSPARENT PART: '" + partId + "' - vertices: " + nodePart.meshPart.size);
+
+                        // Collect water mesh data for wireframe
+                        if (Constants.DEBUG_WATER_WIREFRAME && nodePart.meshPart.id != null && nodePart.meshPart.id.toLowerCase().contains("water")) {
+                            collectWaterTriangles(nodePart, instance.transform);
+                        }
+                    } else {
+                        opaquePartsRendered++;
+                    }
+
+                    // GL state is already set correctly by the calling method
+                    // Opaque pass: depth writes ON, blend OFF
+                    // Transparent pass: depth writes OFF, blend ON
+
                     // Only set diffuse color for shadow shader, not depth shader
                     if (shader == shadowShader) {
                         // Extract diffuse color, alpha, and texture from material
@@ -663,6 +805,86 @@ public class CubeShadowMapRenderer implements Disposable {
         }
     }
 
+    /**
+     * Collect water triangle vertices for wireframe rendering
+     */
+    private void collectWaterTriangles(NodePart nodePart, Matrix4 worldTransform) {
+        Mesh mesh = nodePart.meshPart.mesh;
+        int offset = nodePart.meshPart.offset;
+        int count = nodePart.meshPart.size;
+
+        // Assign a unique ID to this mesh part
+        int meshPartId = currentMeshPartId++;
+
+        // Get vertex data
+        float[] vertices = new float[mesh.getNumVertices() * mesh.getVertexSize() / 4];
+        mesh.getVertices(vertices);
+
+        int vertexSize = mesh.getVertexSize() / 4; // floats per vertex
+
+        // Collect triangles with mesh part ID
+        for (int i = offset; i < offset + count; i += 3) {
+            int idx0 = i * vertexSize;
+            int idx1 = (i + 1) * vertexSize;
+            int idx2 = (i + 2) * vertexSize;
+
+            // Extract and transform positions
+            Vector3 v0 = new Vector3(vertices[idx0], vertices[idx0 + 1], vertices[idx0 + 2]).mul(worldTransform);
+            Vector3 v1 = new Vector3(vertices[idx1], vertices[idx1 + 1], vertices[idx1 + 2]).mul(worldTransform);
+            Vector3 v2 = new Vector3(vertices[idx2], vertices[idx2 + 1], vertices[idx2 + 2]).mul(worldTransform);
+
+            waterTriangles.add(new WaterTriangle(new Vector3[]{v0, v1, v2}, meshPartId));
+        }
+
+        Log.info("CubeShadowMapRenderer", "Collected mesh part #" + meshPartId + " with " + (count / 3) + " triangles");
+    }
+
+    /**
+     * Render water wireframes - call this AFTER main rendering
+     * Each water mesh part gets a unique color to help identify separate parts
+     */
+    public void renderWaterWireframes(Camera camera) {
+        if (!Constants.DEBUG_WATER_WIREFRAME || waterTriangles.size == 0) return;
+
+        // Disable depth test so wireframe shows on top
+        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
+
+        shapeRenderer.setProjectionMatrix(camera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+
+        // Color palette for different mesh parts (distinct, bright colors)
+        Color[] colors = new Color[] {
+            new Color(0, 1, 1, 1),      // Cyan
+            new Color(1, 0, 1, 1),      // Magenta
+            new Color(1, 1, 0, 1),      // Yellow
+            new Color(1, 0, 0, 1),      // Red
+            new Color(0, 1, 0, 1),      // Green
+            new Color(0, 0, 1, 1),      // Blue
+            new Color(1, 0.5f, 0, 1),   // Orange
+            new Color(0.5f, 0, 1, 1),   // Purple
+            new Color(1, 1, 1, 1),      // White
+            new Color(1, 0.75f, 0.8f, 1) // Pink
+        };
+
+        // Draw all collected water triangles with color based on mesh part ID
+        for (WaterTriangle waterTri : waterTriangles) {
+            Color color = colors[waterTri.meshPartId % colors.length];
+            shapeRenderer.setColor(color);
+
+            Vector3[] triangle = waterTri.vertices;
+            shapeRenderer.line(triangle[0], triangle[1]);
+            shapeRenderer.line(triangle[1], triangle[2]);
+            shapeRenderer.line(triangle[2], triangle[0]);
+        }
+
+        shapeRenderer.end();
+
+        // Re-enable depth test
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+
+        Log.info("CubeShadowMapRenderer", "Drew " + waterTriangles.size + " water triangles from " + currentMeshPartId + " mesh parts");
+    }
+
     public Texture getShadowMapTexture(int face) {
         return getShadowMapTexture(0, face); // Default to first light
     }
@@ -677,6 +899,11 @@ public class CubeShadowMapRenderer implements Disposable {
     @Override
     public void dispose() {
         if (disposed) return;
+
+        // Dispose debug renderer
+        if (shapeRenderer != null) {
+            shapeRenderer.dispose();
+        }
 
         if (shadowFrameBuffers != null) {
             for (int lightIndex = 0; lightIndex < MAX_LIGHTS; lightIndex++) {

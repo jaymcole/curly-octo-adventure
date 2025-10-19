@@ -90,7 +90,7 @@ public class KissGenerator extends MapGenerator{
         ArrayList<Vector3> floodTiles = new ArrayList<>();
 
         // Step 1: Place spawn room at origin
-        Vector3 spawnOffset = new Vector3(0, 0, 0);
+        Vector3 spawnOffset = new Vector3(5, 0, 5);
         placedTemplates.add(new PlacedTemplate(spawnRoom, spawnOffset));
         addSpawn(spawnRoom.spawnTiles.get(random.nextInt(spawnRoom.spawnTiles.size())));
 
@@ -105,7 +105,7 @@ public class KissGenerator extends MapGenerator{
         }
 
         // Step 3: Iteratively place templates
-        int maxRooms = 200; // Limit number of rooms
+        int maxRooms = 10; // Limit number of rooms
         Log.info("KissGenerator", "Starting placement with " + availableEntrances.size() + " available entrances");
 
         while (!availableEntrances.isEmpty() && placedTemplates.size() < maxRooms) {

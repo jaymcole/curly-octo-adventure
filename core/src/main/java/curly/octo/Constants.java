@@ -228,6 +228,9 @@ public class Constants {
     /** Show FPS counter in development builds */
     public static final boolean DEBUG_SHOW_FPS = true;
 
+    /** Enable water mesh wireframe debugging */
+    public static final boolean DEBUG_WATER_WIREFRAME = false;
+
 
     // =========================
     // DEMO AND TESTING

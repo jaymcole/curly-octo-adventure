@@ -48,6 +48,9 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
     private Map<LevelChunk, ChunkModelData> chunkModels;
     private Array<ModelInstance> allChunkInstances;
 
+    // Separate water model (built separately to avoid transparency contamination)
+    private Model waterModel;
+
     public ChunkedMapModelBuilder(GameMap gameMap) {
         super(gameMap);
         this.chunkManager = new ChunkManager(gameMap);
@@ -84,6 +87,18 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
             float distance = chunkCenter.dst(position);
             if (distance <= maxDistance) {
                 nearbyInstances.add(modelData.instance);
+            }
+        }
+
+        // ALWAYS include the water model since it spans all chunks
+        // Water is a single global model, not tied to any specific chunk position
+        if (waterModel != null) {
+            // Find the water instance in allChunkInstances
+            for (ModelInstance instance : allChunkInstances) {
+                if (instance.model == waterModel) {
+                    nearbyInstances.add(instance);
+                    break;
+                }
             }
         }
 
@@ -169,8 +184,9 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
         boolean hasGeometry = false;
 
         // Create mesh parts for each material
+        // NOTE: Deliberately NOT creating waterBuilder here - water is built separately to avoid transparency contamination
         MeshPartBuilder stoneBuilder = null, dirtBuilder = null, grassBuilder = null;
-        MeshPartBuilder spawnBuilder = null, wallBuilder = null, waterBuilder = null;
+        MeshPartBuilder spawnBuilder = null, wallBuilder = null;
 
         // Build tiles in this chunk
         for (MapTile tile : chunkTiles.values()) {
@@ -249,21 +265,8 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
                 hasGeometry = true;
             }
 
-            // Add water surfaces if requested
-            if (waterMaterial != null && tile.fillType == MapTileFillType.WATER) {
-                Vector3 tileCoords = getTileCoordinates(tile);
-                if (isTopMostFillTile((int)tileCoords.x, (int)tileCoords.y, (int)tileCoords.z, MapTileFillType.WATER)) {
-                    if (waterBuilder == null) {
-                        chunkBuilder.node();
-                        waterBuilder = chunkBuilder.part("water", GL20.GL_TRIANGLES,
-                            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
-                            waterMaterial);
-                    }
-                    buildWaterSurface(waterBuilder, tile);
-                    totalFacesBuilt += 2; // 2 triangles for water quad
-                    hasGeometry = true;
-                }
-            }
+            // Water surfaces are now built separately to avoid transparency contamination
+            // See buildWaterGeometry() method
         }
 
         return hasGeometry;
@@ -279,13 +282,97 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
         }
         chunkModels.clear();
         allChunkInstances.clear();
+
+        // Dispose water model
+        if (waterModel != null) {
+            waterModel.dispose();
+            waterModel = null;
+        }
     }
 
     @Override
     public void buildWaterGeometry(ModelBuilder modelBuilder, Material waterMaterial) {
-        // Water geometry is now built into individual chunk models during buildGeometry()
-        // This method is kept for compatibility but does nothing as water is handled per-chunk
-        Log.info("ChunkedMapModelBuilder", "Water geometry is built into individual chunk models - no separate water model needed");
+        // Build water as a SEPARATE model to avoid transparency contamination of solid geometry
+        Log.info("ChunkedMapModelBuilder", "Building water surfaces as separate model");
+
+        if (populatedChunks == null || populatedChunks.isEmpty()) {
+            Log.warn("ChunkedMapModelBuilder", "No populated chunks found - cannot build water geometry");
+            return;
+        }
+
+        Log.info("ChunkedMapModelBuilder", "Checking " + populatedChunks.size() + " chunks for water tiles");
+
+        // Debug: Check water material attributes
+        if (waterMaterial != null) {
+            Log.info("ChunkedMapModelBuilder", "Water material has " + waterMaterial.size() + " attributes");
+            for (com.badlogic.gdx.graphics.g3d.Attribute attr : waterMaterial) {
+                Log.info("ChunkedMapModelBuilder", "  - " + attr.getClass().getSimpleName() + ": " + attr);
+            }
+        }
+
+        modelBuilder.begin();
+        modelBuilder.node();
+        MeshPartBuilder waterBuilder = modelBuilder.part("water", GL20.GL_TRIANGLES,
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
+            waterMaterial);
+
+        int waterSurfacesBuilt = 0;
+
+        // Iterate through all populated chunks and find water surface tiles
+        int totalWaterTiles = 0;
+        int topMostWaterTiles = 0;
+
+        for (LevelChunk chunk : populatedChunks) {
+            Map<String, MapTile> chunkTiles = chunk.getAllTiles();
+
+            for (MapTile tile : chunkTiles.values()) {
+                // Only create water surface for EMPTY tiles filled with water (not solid underwater blocks!)
+                if (tile.fillType == MapTileFillType.WATER &&
+                    tile.geometryType == MapTileGeometryType.EMPTY) {
+
+                    totalWaterTiles++;
+                    Vector3 tileCoords = getTileCoordinates(tile);
+                    boolean isTopMost = isTopMostFillTile((int)tileCoords.x, (int)tileCoords.y, (int)tileCoords.z, MapTileFillType.WATER);
+
+                    if (isTopMost) {
+                        topMostWaterTiles++;
+                        buildWaterSurface(waterBuilder, tile);
+                        waterSurfacesBuilt++;
+                    }
+                }
+            }
+        }
+
+        Log.info("ChunkedMapModelBuilder", String.format(
+            "Found %d water tiles (EMPTY+WATER), %d are topmost, built %d surfaces",
+            totalWaterTiles, topMostWaterTiles, waterSurfacesBuilt));
+
+        if (waterSurfacesBuilt > 0) {
+            waterModel = modelBuilder.end();
+            ModelInstance waterInstance = new ModelInstance(waterModel);
+
+            // Debug: Check the created model's materials
+            Log.info("ChunkedMapModelBuilder", "Water model has " + waterModel.nodes.size + " nodes");
+            for (com.badlogic.gdx.graphics.g3d.model.Node node : waterModel.nodes) {
+                for (com.badlogic.gdx.graphics.g3d.model.NodePart part : node.parts) {
+                    Log.info("ChunkedMapModelBuilder", "  Node part '" + part.meshPart.id + "' material has " +
+                        (part.material != null ? part.material.size() + " attributes" : "NULL"));
+                    if (part.material != null) {
+                        for (com.badlogic.gdx.graphics.g3d.Attribute attr : part.material) {
+                            Log.info("ChunkedMapModelBuilder", "    - " + attr.getClass().getSimpleName());
+                        }
+                    }
+                }
+            }
+
+            allChunkInstances.add(waterInstance);
+
+            Log.info("ChunkedMapModelBuilder", "Created separate water model with " + waterSurfacesBuilt + " surfaces");
+            Log.info("ChunkedMapModelBuilder", "Total instances now: " + allChunkInstances.size);
+        } else {
+            modelBuilder.end(); // Must call end() even if no geometry was built
+            Log.info("ChunkedMapModelBuilder", "No water surfaces found");
+        }
     }
 
     @Override
@@ -584,7 +671,11 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
             }
 
             // Add water surfaces if requested
-            if (waterBuilder != null && tile.fillType == MapTileFillType.WATER) {
+            // ONLY create water surface for EMPTY tiles filled with water (not solid underwater blocks!)
+            if (waterBuilder != null &&
+                tile.fillType == MapTileFillType.WATER &&
+                tile.geometryType == MapTileGeometryType.EMPTY) {
+
                 Vector3 tileCoords = getTileCoordinates(tile);
                 if (isTopMostFillTile((int)tileCoords.x, (int)tileCoords.y, (int)tileCoords.z, MapTileFillType.WATER)) {
                     buildWaterSurface(waterBuilder, tile);
@@ -838,7 +929,19 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
 
     private boolean isTopMostFillTile(int x, int y, int z, MapTileFillType fillType) {
         MapTile tileAbove = gameMap.getTile(x, y + 1, z);
-        return tileAbove == null || tileAbove.fillType != fillType;
+        boolean isTopMost = tileAbove == null || tileAbove.fillType != fillType;
+
+        if (tileAbove != null) {
+            Log.debug("ChunkedMapModelBuilder", String.format(
+                "  Tile above (%d,%d,%d): fillType=%s, geometryType=%s -> isTopMost=%b",
+                x, y + 1, z, tileAbove.fillType, tileAbove.geometryType, isTopMost));
+        } else {
+            Log.debug("ChunkedMapModelBuilder", String.format(
+                "  Tile above (%d,%d,%d): NULL -> isTopMost=%b",
+                x, y + 1, z, isTopMost));
+        }
+
+        return isTopMost;
     }
 
     // Helper class to store face visibility information for chunks
