@@ -124,19 +124,7 @@ public class MapTransferWorker {
             start();
         }
 
-        // Get bulk transfer connection (REQUIRED for chunk transfer - chunks too large for gameplay buffer)
-        Connection bulkConn = gameServer.getBulkServer().getConnectionByClientId(clientUniqueId);
-
-        if (bulkConn == null) {
-            // Bulk connection not yet established - wait for client to connect
-            // Only log occasionally to avoid spam
-            if (System.currentTimeMillis() % 1000 < 100) {
-                Log.warn("MapTransferWorker", "Waiting for bulk connection from client " + clientUniqueId);
-            }
-            return;
-        }
-
-        // Get gameplay connection for state checks
+        // Get gameplay connection for state checks (do this BEFORE bulk connection check)
         Connection gameplayConn = null;
         Connection[] gameplayConns = gameServer.getServer().getConnections().toArray(new Connection[0]);
         for (Connection c : gameplayConns) {
@@ -151,24 +139,37 @@ public class MapTransferWorker {
             return;
         }
 
-        // Check client's current state via gameplay connection - only send chunks if they're in the transfer state
-        if (gameplayConn != null) {
-            String clientKey = gameServer.constructClientProfileKey(gameplayConn);
-            ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+        // Check client's current state BEFORE waiting for bulk connection
+        // This allows clients who skip transfer (already have map) to complete immediately
+        String clientKey = gameServer.constructClientProfileKey(gameplayConn);
+        ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
 
-            if (profile != null && profile.currentState != null) {
-                // If client completed the transfer, mark this worker as complete
-                if (profile.currentState.equals("MapTransferCompleteState")) {
-                    Log.info("MapTransferWorker", "Client " + clientUniqueId + " completed transfer");
-                    complete();
-                    return;
-                }
-
-                // Only send chunks when client is in the transfer state
-                if (!profile.currentState.equals("MapTransferTransferState")) {
-                    return;
-                }
+        if (profile != null && profile.currentState != null) {
+            // If client completed the transfer, mark this worker as complete
+            if (profile.currentState.equals("MapTransferCompleteState")) {
+                Log.info("MapTransferWorker", "Client " + clientUniqueId + " completed transfer (skipped - already had map)");
+                complete();
+                return;
             }
+
+            // Only proceed with bulk connection if client is actually transferring
+            if (!profile.currentState.equals("MapTransferTransferState")) {
+                // Client is in some other state (Initiated, Dispose, ConnectBulk, etc.)
+                // Don't send chunks yet, but don't wait for bulk connection either
+                return;
+            }
+        }
+
+        // Get bulk transfer connection (REQUIRED for chunk transfer - chunks too large for gameplay buffer)
+        Connection bulkConn = gameServer.getBulkServer().getConnectionByClientId(clientUniqueId);
+
+        if (bulkConn == null) {
+            // Bulk connection not yet established - wait for client to connect
+            // Only log occasionally to avoid spam
+            if (System.currentTimeMillis() % 1000 < 100) {
+                Log.warn("MapTransferWorker", "Waiting for bulk connection from client " + clientUniqueId);
+            }
+            return;
         }
 
         int chunksSentThisFrame = 0;

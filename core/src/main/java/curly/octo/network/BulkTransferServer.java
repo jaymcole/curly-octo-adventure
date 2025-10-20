@@ -63,6 +63,18 @@ public class BulkTransferServer {
                         object.getClass().getName());
                 }
             }
+
+            @Override
+            public void disconnected(Connection connection) {
+                String clientUniqueId = unregisterClient(connection);
+                if (clientUniqueId != null) {
+                    Log.info("BulkTransferServer", "Client disconnected and cleaned up: " + clientUniqueId +
+                        " (connection ID: " + connection.getID() + ")");
+                } else {
+                    Log.info("BulkTransferServer", "Unidentified client disconnected (connection ID: " +
+                        connection.getID() + ")");
+                }
+            }
         });
 
         Log.info("BulkTransferServer", "Initialized with " +
@@ -94,6 +106,44 @@ public class BulkTransferServer {
                 }
             }
         }
+    }
+
+    /**
+     * Unregister a client's bulk connection when they disconnect.
+     * Cleans up the clientIdToConnection map and clears bulkConnectionId in profile.
+     * @param connection the disconnected connection
+     * @return the clientUniqueId that was removed, or null if connection was never registered
+     */
+    private synchronized String unregisterClient(Connection connection) {
+        // Find the clientUniqueId by searching the map for this connection
+        String clientUniqueId = null;
+        for (Map.Entry<String, Connection> entry : clientIdToConnection.entrySet()) {
+            if (entry.getValue() == connection || entry.getValue().getID() == connection.getID()) {
+                clientUniqueId = entry.getKey();
+                break;
+            }
+        }
+
+        if (clientUniqueId == null) {
+            // Connection was never registered (disconnected before sending identification)
+            return null;
+        }
+
+        // Remove from map
+        clientIdToConnection.remove(clientUniqueId);
+
+        // Clear bulkConnectionId in ClientProfile
+        if (hostGameWorld != null) {
+            for (curly.octo.game.serverObjects.ClientProfile profile : hostGameWorld.getClientProfiles().values()) {
+                if (profile != null && clientUniqueId.equals(profile.clientUniqueId)) {
+                    profile.bulkConnectionId = null;
+                    Log.info("BulkTransferServer", "Cleared bulk connection ID for client " + clientUniqueId);
+                    break;
+                }
+            }
+        }
+
+        return clientUniqueId;
     }
 
     /**
