@@ -105,7 +105,7 @@ public class KissGenerator extends MapGenerator{
         }
 
         // Step 3: Iteratively place templates
-        int maxRooms = 30; // Limit number of rooms
+        int maxRooms = 200; // Limit number of rooms
         Log.info("KissGenerator", "Starting placement with " + availableEntrances.size() + " available entrances");
 
         while (!availableEntrances.isEmpty() && placedTemplates.size() < maxRooms) {

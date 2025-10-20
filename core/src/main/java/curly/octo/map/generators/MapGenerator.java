@@ -94,11 +94,8 @@ public abstract class MapGenerator {
         while (!tilesToFlood.isEmpty()) {
             Vector3 coordinate = tilesToFlood.remove(0);
             MapTile tile = map.getTile(coordinate);
-
-            Log.info("flood", "flooding: " + coordinate);
             visitedFloodTiles.add(tile);
             tile.fillType = fill;
-
             addTileToFlood(Direction.advanceVector(Direction.NORTH, coordinate.cpy()));
             addTileToFlood(Direction.advanceVector(Direction.EAST, coordinate.cpy()));
             addTileToFlood(Direction.advanceVector(Direction.SOUTH, coordinate.cpy()));

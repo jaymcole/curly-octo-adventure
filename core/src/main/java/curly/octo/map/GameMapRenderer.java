@@ -150,7 +150,6 @@ public class GameMapRenderer implements Disposable {
             // IMPORTANT: If rendering to screen (null framebuffer), must explicitly unbind
             // any framebuffers that shadow map generation bound
             FrameBuffer.unbind();
-            Log.info("GameMapRenderer", "Unbound framebuffer to render to screen");
         }
 
         // Create rendering context

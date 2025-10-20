@@ -66,6 +66,8 @@ public abstract class BaseRenderer implements Disposable {
     protected void configureOpaquePass() {
         Gdx.gl.glDepthMask(true);  // Enable depth writes
         Gdx.gl.glDisable(GL20.GL_BLEND);  // Disable blending
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);  // Enable face culling
+        Gdx.gl.glCullFace(GL20.GL_BACK);  // Cull back faces
     }
 
     /**
@@ -75,6 +77,8 @@ public abstract class BaseRenderer implements Disposable {
         Gdx.gl.glDepthMask(false);  // Disable depth writes for transparency
         Gdx.gl.glEnable(GL20.GL_BLEND);  // Enable blending
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);  // Keep face culling enabled
+        Gdx.gl.glCullFace(GL20.GL_BACK);  // Cull back faces
     }
 
     /**

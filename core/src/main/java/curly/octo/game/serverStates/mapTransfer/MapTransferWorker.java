@@ -25,9 +25,12 @@ public class MapTransferWorker {
 
     public int currentChunkIndex = 0;
     private boolean transferComplete = false;
-    private int chunksSentThisFrame = 0;
-    private static final int MAX_CHUNKS_PER_FRAME = 5; // Rate limiting
-    private static final int MAX_BUFFER_THRESHOLD = 16384; // Only send if TCP buffer < 16KB
+    // Rate limiting: Allow burst sending when buffer is empty, real throttle is buffer check below
+    private static final int MAX_CHUNKS_PER_FRAME = 200; // Max chunks to send per update (4x faster than before)
+    // Buffer threshold: Stop sending when TCP write buffer exceeds this (44% of 64KB capacity)
+    // This prevents buffer overflow while maximizing throughput. KryoNet will block/crash if buffer fills.
+    // Conservative threshold allows headroom for other network traffic and progress updates.
+    private static final int MAX_BUFFER_THRESHOLD = 28672; // ~28KB (leaves ~36KB free in 64KB buffer)
 
     public MapTransferWorker(Connection connection, GameServer gameServer, HostGameWorld hostGameWorld, byte[] mapData, String mapId) {
         this.connection = connection;
@@ -68,7 +71,7 @@ public class MapTransferWorker {
             }
         }
 
-        chunksSentThisFrame = 0;
+        int chunksSentThisFrame = 0;
 
         // Send chunks with rate limiting and buffer monitoring
         while (currentChunkIndex < totalChunks && chunksSentThisFrame < MAX_CHUNKS_PER_FRAME) {

@@ -224,6 +224,8 @@ public class SceneRenderer extends BaseRenderer {
         // Configure GL state
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
         Gdx.gl.glDepthFunc(GL20.GL_LEQUAL);
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+        Gdx.gl.glCullFace(GL20.GL_BACK);
 
         // Reset debug counters
         resetDebugCounters();
@@ -476,19 +478,8 @@ public class SceneRenderer extends BaseRenderer {
      */
     private void renderMeshPart(NodePart nodePart, ShaderProgram shader) {
         Mesh mesh = nodePart.meshPart.mesh;
-
-        boolean isWater = nodePart.meshPart.id != null && nodePart.meshPart.id.toLowerCase().contains("water");
-        if (isWater) {
-            Log.info("SceneRenderer", "ABOUT TO CALL mesh.render() for water - shader=" + shader.hashCode() +
-                    ", waterShader=" + waterShader.hashCode() + ", MATCH=" + (shader == waterShader));
-        }
-
         mesh.render(shader, nodePart.meshPart.primitiveType,
             nodePart.meshPart.offset, nodePart.meshPart.size);
-
-        if (isWater) {
-            Log.info("SceneRenderer", "mesh.render() COMPLETED for water");
-        }
     }
 
     @Override

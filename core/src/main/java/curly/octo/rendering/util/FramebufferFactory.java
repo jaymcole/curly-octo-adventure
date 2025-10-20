@@ -39,9 +39,7 @@ public class FramebufferFactory {
      */
     public static FrameBuffer createDepthBuffer(int size) {
         try {
-            // Create depth-only framebuffer with 24-bit depth
             FrameBuffer fbo = new FrameBuffer(Pixmap.Format.RGBA8888, size, size, true);
-            Log.info("FramebufferFactory", "Created depth framebuffer: " + size + "x" + size);
             return fbo;
         } catch (Exception e) {
             Log.error("FramebufferFactory", "Failed to create depth framebuffer: " + e.getMessage());
