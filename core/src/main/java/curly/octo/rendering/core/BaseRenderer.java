@@ -83,10 +83,12 @@ public abstract class BaseRenderer implements Disposable {
 
     /**
      * Restores default OpenGL state after rendering.
+     * Disables face culling so 2D UI rendering works correctly.
      */
     protected void restoreDefaultGLState() {
         Gdx.gl.glDepthMask(true);
         Gdx.gl.glDisable(GL20.GL_BLEND);
+        Gdx.gl.glDisable(GL20.GL_CULL_FACE);  // Disable for 2D UI rendering
     }
 
     /**
