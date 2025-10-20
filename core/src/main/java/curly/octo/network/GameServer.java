@@ -25,7 +25,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Handles server-side network operations.
  */
 public class GameServer {
-    private final Server server;
+    private final Server server;  // Gameplay connection (small buffers)
+    private BulkTransferServer bulkServer;  // Map transfer connection (large buffers)
     private final NetworkListener networkListener;
     private final GameMap map;
     private final List<PlayerObject> players;
@@ -51,8 +52,9 @@ public class GameServer {
         this.map = map;
         this.players = players;
         this.gameWorld = gameWorld;
-        // Large buffers to handle chunked map transfers without overflow
-        this.server = new Server(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE);
+
+        // Small buffers for gameplay connection (low latency for position updates)
+        this.server = new Server(Constants.GAMEPLAY_BUFFER_SIZE, Constants.GAMEPLAY_BUFFER_SIZE);
         this.networkListener = new NetworkListener(this);
 
         Network.register(server);
@@ -62,6 +64,16 @@ public class GameServer {
         NetworkManager.onReceive(curly.octo.network.messages.ClientIdentificationMessage.class, this::handleClientIdentification);
 
         server.addListener(networkListener);
+
+        // Create bulk transfer server (will be started in start() method)
+        this.bulkServer = new BulkTransferServer();
+
+        // Set HostGameWorld reference on bulk server for profile tracking
+        if (gameWorld instanceof HostGameWorld) {
+            bulkServer.setHostGameWorld((HostGameWorld) gameWorld);
+        }
+
+        Log.info("GameServer", "Initialized with dual-connection architecture (gameplay: 8KB, bulk: 64KB)");
 
 //            @Override
 //            public void received(Connection connection, Object object) {
@@ -132,11 +144,17 @@ public class GameServer {
      * @throws IOException if the server fails to start or bind to the ports
      */
     public void start() throws IOException {
+        // Start gameplay server
         server.start();
         server.bind(Network.TCP_PORT, Network.UDP_PORT);
-        Log.info("Server", "Server started on TCP port " + Network.TCP_PORT + " and UDP port " + Network.UDP_PORT);
+        Log.info("Server", "Gameplay server started on TCP port " + Network.TCP_PORT + " and UDP port " + Network.UDP_PORT);
 
-        // Attempt to set up port forwarding
+        // Start bulk transfer server
+        bulkServer.start();
+        Log.info("Server", "Bulk transfer server started on TCP port " + Constants.BULK_TRANSFER_TCP_PORT +
+            " and UDP port " + Constants.BULK_TRANSFER_UDP_PORT);
+
+        // Attempt to set up port forwarding for both servers
         if (Network.setupPortForwarding("Game Server")) {
             Log.info("Server", "Successfully set up port forwarding");
         } else {
@@ -156,15 +174,29 @@ public class GameServer {
             // Remove port forwarding rules
             Network.removePortForwarding();
             server.stop();
-            Log.info("Server", "Server stopped and port forwarding rules removed");
+            Log.info("Server", "Gameplay server stopped");
         }
+
+        if (bulkServer != null) {
+            bulkServer.stop();
+            Log.info("Server", "Bulk transfer server stopped");
+        }
+
+        Log.info("Server", "All servers stopped and port forwarding rules removed");
     }
 
     /**
-     * @return the underlying KryoNet server instance
+     * @return the underlying KryoNet gameplay server instance
      */
     public Server getServer() {
         return server;
+    }
+
+    /**
+     * @return the bulk transfer server instance
+     */
+    public BulkTransferServer getBulkServer() {
+        return bulkServer;
     }
 
     /**
@@ -581,6 +613,13 @@ public class GameServer {
             String clientKey = constructClientProfileKey(connection);
             HostGameWorld hostWorld = (HostGameWorld) gameWorld;
             hostWorld.registerClientProfile(clientKey);
+
+            // Set gameplay connection ID in profile
+            ClientProfile profile = hostWorld.getClientProfile(clientKey);
+            if (profile != null) {
+                profile.gameplayConnectionId = connection.getID();
+                Log.info("GameServer", "Set gameplay connection ID " + connection.getID() + " for client profile: " + clientKey);
+            }
         }
 
         // Check if we have an initial map or need to generate one

@@ -21,14 +21,6 @@ public class MapTransferInitiatedState extends BaseGameStateClient {
     public void start() {
         MapTransferScreen.setPhaseMessage(MapTransferInitiatedState.class.getSimpleName());
 
-        // CRITICAL: Pause position updates to prevent Kryo corruption during transfer
-        ClientGameMode clientGameMode = StateManager.getClientGameMode();
-        if (clientGameMode != null) {
-            clientGameMode.pauseNetworkUpdates();
-            clientGameMode.disableInput();
-            Log.info("MapTransferInitiatedState", "Paused network updates and input for map transfer");
-        }
-
         ClientGameWorld clientWorld = StateManager.getClientGameWorld();
         String incomingMapId = (message != null) ? message.mapId : null;
         String currentMapId = (clientWorld != null && clientWorld.getMapManager() != null)
@@ -36,7 +28,7 @@ public class MapTransferInitiatedState extends BaseGameStateClient {
 
         if (incomingMapId != null && incomingMapId.equals(currentMapId)) {
             Log.info("MapTransferInitiatedState", "Already have map " + incomingMapId + " - skipping transfer entirely");
-            Log.info("MapTransferInitiatedState", "Transitioning directly to ready state");
+            Log.info("MapTransferInitiatedState", "Transitioning directly to complete state");
             StateManager.setCurrentState(MapTransferCompleteState.class);
             return;
         }

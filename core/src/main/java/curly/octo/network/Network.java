@@ -122,19 +122,30 @@ public class Network {
             InetAddress localAddress = activeGateway.getLocalAddress();
             String localIP = localAddress.getHostAddress();
 
-            // Forward TCP port
+            // Forward gameplay ports
             boolean tcpSuccess = activeGateway.addPortMapping(
                     TCP_PORT, TCP_PORT, localIP, "TCP",
-                    "Curly Octo " + description + " (TCP)");
+                    "Curly Octo " + description + " Gameplay (TCP)");
 
-            // Forward UDP port
             boolean udpSuccess = activeGateway.addPortMapping(
                     UDP_PORT, UDP_PORT, localIP, "UDP",
-                    "Curly Octo " + description + " (UDP)");
+                    "Curly Octo " + description + " Gameplay (UDP)");
 
-            if (tcpSuccess && udpSuccess) {
-                Gdx.app.log("Network", "Successfully forwarded ports " + TCP_PORT + "(TCP) and " +
-                        UDP_PORT + "(UDP) to " + localIP);
+            // Forward bulk transfer ports
+            boolean bulkTcpSuccess = activeGateway.addPortMapping(
+                    Constants.BULK_TRANSFER_TCP_PORT, Constants.BULK_TRANSFER_TCP_PORT, localIP, "TCP",
+                    "Curly Octo " + description + " Bulk Transfer (TCP)");
+
+            boolean bulkUdpSuccess = activeGateway.addPortMapping(
+                    Constants.BULK_TRANSFER_UDP_PORT, Constants.BULK_TRANSFER_UDP_PORT, localIP, "UDP",
+                    "Curly Octo " + description + " Bulk Transfer (UDP)");
+
+            if (tcpSuccess && udpSuccess && bulkTcpSuccess && bulkUdpSuccess) {
+                Gdx.app.log("Network", "Successfully forwarded gameplay ports " + TCP_PORT +
+                        "(TCP) and " + UDP_PORT + "(UDP)");
+                Gdx.app.log("Network", "Successfully forwarded bulk transfer ports " +
+                        Constants.BULK_TRANSFER_TCP_PORT + "(TCP) and " +
+                        Constants.BULK_TRANSFER_UDP_PORT + "(UDP) to " + localIP);
                 return true;
             } else {
                 Gdx.app.error("Network", "Failed to forward one or more ports");
@@ -153,9 +164,15 @@ public class Network {
     public static void removePortForwarding() {
         if (activeGateway != null) {
             try {
+                // Remove gameplay port mappings
                 activeGateway.deletePortMapping(TCP_PORT, "TCP");
                 activeGateway.deletePortMapping(UDP_PORT, "UDP");
-                Gdx.app.log("Network", "Removed port forwarding rules");
+
+                // Remove bulk transfer port mappings
+                activeGateway.deletePortMapping(Constants.BULK_TRANSFER_TCP_PORT, "TCP");
+                activeGateway.deletePortMapping(Constants.BULK_TRANSFER_UDP_PORT, "UDP");
+
+                Gdx.app.log("Network", "Removed all port forwarding rules");
             } catch (Exception e) {
                 Gdx.app.error("Network", "Error removing port forwarding: " + e.getMessage());
             }

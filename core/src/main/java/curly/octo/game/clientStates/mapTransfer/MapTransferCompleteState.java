@@ -1,8 +1,10 @@
 package curly.octo.game.clientStates.mapTransfer;
 
 import com.esotericsoftware.minlog.Log;
+import curly.octo.game.ClientGameMode;
 import curly.octo.game.clientStates.BaseGameStateClient;
 import curly.octo.game.clientStates.BaseScreen;
+import curly.octo.game.clientStates.StateManager;
 import curly.octo.game.clientStates.mapTransfer.ui.MapTransferScreen;
 
 public class MapTransferCompleteState extends BaseGameStateClient {
@@ -14,6 +16,15 @@ public class MapTransferCompleteState extends BaseGameStateClient {
     @Override
     public void start() {
         MapTransferScreen.setPhaseMessage(MapTransferCompleteState.class.getSimpleName());
+        Log.info("MapTransferCompleteState", "Map transfer complete");
+
+        // Disconnect bulk transfer channel - no longer needed
+        ClientGameMode clientGameMode = StateManager.getClientGameMode();
+        if (clientGameMode != null && clientGameMode.getGameClient() != null) {
+            clientGameMode.getGameClient().disconnectBulkTransfer();
+            Log.info("MapTransferCompleteState", "Bulk transfer channel disconnected");
+        }
+
         Log.info("MapTransferCompleteState", "Client ready - waiting for server");
     }
 

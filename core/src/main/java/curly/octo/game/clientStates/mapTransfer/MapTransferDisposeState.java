@@ -50,14 +50,14 @@ public class MapTransferDisposeState extends BaseGameStateClient {
 
     @Override
     public void updateState(float delta) {
-        // Wait for disposal to complete, then transition to transfer state
+        // Wait for disposal to complete, then transition to bulk connection state
         if (disposalScheduled && disposalComplete) {
-            Log.info("MapTransferDisposeState", "Disposal complete, transitioning to transfer state");
-            StateManager.setCurrentState(MapTransferTransferState.class);
+            Log.info("MapTransferDisposeState", "Disposal complete, transitioning to bulk connection state");
+            StateManager.setCurrentState(MapTransferConnectBulkState.class);
         } else if (!disposalScheduled && disposalComplete) {
-            // No disposal needed, transition immediately
-            Log.info("MapTransferDisposeState", "No disposal needed, transitioning to transfer state");
-            StateManager.setCurrentState(MapTransferTransferState.class);
+            // No disposal needed, transition immediately to bulk connection
+            Log.info("MapTransferDisposeState", "No disposal needed, transitioning to bulk connection state");
+            StateManager.setCurrentState(MapTransferConnectBulkState.class);
         }
     }
 

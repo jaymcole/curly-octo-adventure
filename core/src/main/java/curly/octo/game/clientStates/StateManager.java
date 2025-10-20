@@ -42,6 +42,7 @@ public class StateManager{
         cachedScreens.put(MapTransferScreen.class, mapTransferScreen);
         cachedStates.put(MapTransferInitiatedState.class, new MapTransferInitiatedState(mapTransferScreen));
         cachedStates.put(MapTransferDisposeState.class, new MapTransferDisposeState(mapTransferScreen));
+        cachedStates.put(MapTransferConnectBulkState.class, new MapTransferConnectBulkState(mapTransferScreen));
         cachedStates.put(MapTransferTransferState.class, new MapTransferTransferState(mapTransferScreen));
         cachedStates.put(MapTransferReassemblyState.class, new MapTransferReassemblyState(mapTransferScreen));
         cachedStates.put(MapTransferBuildAssetsState.class, new MapTransferBuildAssetsState(mapTransferScreen));

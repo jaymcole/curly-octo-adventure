@@ -35,6 +35,15 @@ public class MapTransferReassemblyState extends BaseGameStateClient {
         try {
             Log.info("MapTransferReassemblyState", "Reassembling map from chunks...");
 
+            // Verify all chunks are present
+            for (int i = 0; i < chunks.length; i++) {
+                if (chunks[i] == null) {
+                    Log.error("MapTransferReassemblyState", "Missing chunk " + i + " of " + chunks.length +
+                        " - cannot reassemble map!");
+                    return;
+                }
+            }
+
             // Calculate total size
             int totalLength = 0;
             for (byte[] chunk : chunks) {

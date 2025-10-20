@@ -21,12 +21,15 @@ public class MapTransferTransferState extends BaseGameStateClient {
             chunks = new byte[MapTransferSharedStatics.getTotalChunks()][];
         }
 
-        // Store the chunk
-        chunks[message.chunkIndex] = message.chunkData;
-        MapTransferSharedStatics.setChunksReceived(MapTransferSharedStatics.getChunksReceived() + 1);
+        // Only process if this chunk hasn't been received yet (avoid counting duplicates)
+        if (chunks[message.chunkIndex] == null) {
+            // Store the chunk
+            chunks[message.chunkIndex] = message.chunkData;
+            MapTransferSharedStatics.setChunksReceived(MapTransferSharedStatics.getChunksReceived() + 1);
 
-        if (MapTransferSharedStatics.getChunksReceived() == MapTransferSharedStatics.getTotalChunks()) {
-            StateManager.setCurrentState(MapTransferReassemblyState.class);
+            if (MapTransferSharedStatics.getChunksReceived() == MapTransferSharedStatics.getTotalChunks()) {
+                StateManager.setCurrentState(MapTransferReassemblyState.class);
+            }
         }
     }
 

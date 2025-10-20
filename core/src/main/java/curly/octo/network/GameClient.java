@@ -21,40 +21,48 @@ import java.util.UUID;
  */
 public class GameClient {
     public String clientUniqueId;
-    private final Client client;
+    private final Client client;  // Gameplay connection (small buffers)
+    private BulkTransferClient bulkClient;  // Map transfer connection (large buffers, on-demand)
     private final NetworkListener networkListener;
     private final String host;
+
     /**
      * Creates a new game client that will connect to the specified host.
+     * Uses dual connections: gameplay (small buffers) and bulk transfer (large buffers).
      * @param host the server hostname or IP address to connect to
      */
     public GameClient(String host) {
         this.host = host;
-        // Large buffers to handle chunked map transfers without overflow
-        this.client = new Client(Constants.NETWORK_BUFFER_SIZE, Constants.NETWORK_BUFFER_SIZE); // 128KB read/write buffers
+        // Small buffers for gameplay connection (low latency for position updates)
+        this.client = new Client(Constants.GAMEPLAY_BUFFER_SIZE, Constants.GAMEPLAY_BUFFER_SIZE); // 8KB read/write buffers
 
         // Register all network classes
         Network.register(client);
 
-        // Initialize the new NetworkManager
+        // Initialize the new NetworkManager with gameplay connection
         NetworkManager.initialize(client);
 
         // Create network listener with client reference
         networkListener = new NetworkListener(null); // Client doesn't need server callbacks
 
-        // Handle all messages using the new NetworkManager pattern
-        NetworkManager.onReceive(MapTransferBeginMessage.class, this::handleMapTransferBegin);
-        NetworkManager.onReceive(MapChunkMessage.class, this::handleMapChunk);
-        NetworkManager.onReceive(MapTransferCompleteMessage.class, this::handleMapTransferComplete);
-        NetworkManager.onReceive(MapTransferAllClientProgressMessage.class, this::handleMapTransferAllClientProgressMessage);
+        // Gameplay messages handled on gameplay connection (handled by ClientGameMode via NetworkManager)
 
-        // Legacy message handlers removed - ClientGameMode will handle these directly via NetworkManager
+        // Map transfer messages on GAMEPLAY connection (state management + fallback chunk delivery):
+        NetworkManager.onReceive(MapTransferBeginMessage.class, this::handleMapTransferBegin);  // Triggers bulk connection
+        NetworkManager.onReceive(MapChunkMessage.class, this::handleMapChunk);  // Chunks (bulk preferred, gameplay fallback)
+        NetworkManager.onReceive(MapTransferCompleteMessage.class, this::handleMapTransferComplete);  // Releases client to play
+        NetworkManager.onReceive(MapTransferAllClientProgressMessage.class, this::handleMapTransferAllClientProgressMessage);  // Progress updates
+
+        // NOTE: Bulk connection is used for SENDING chunks (server->client) for performance
+        // but all MESSAGE HANDLING stays on gameplay connection for simplicity and reliability
 
         // Add network listener
         client.addListener(networkListener);
 
         this.clientUniqueId = UUID.randomUUID().toString();
+        this.bulkClient = null;  // Created on-demand
 
+        Log.info("GameClient", "Initialized with dual-connection architecture (gameplay: 8KB, bulk: on-demand 64KB)");
     }
 
     private boolean connecting = false;
@@ -153,34 +161,92 @@ public class GameClient {
 
     /**
      * Updates the client. Must be called regularly.
+     * Updates both gameplay and bulk transfer connections (if active).
      */
     public void update() throws IOException {
+        // Update gameplay connection
         if (client != null) {
             long startTime = System.nanoTime();
 
-            // Profile the KryoNet client update call
             try {
                 client.update(0);
                 long updateTime = (System.nanoTime() - startTime) / 1_000_000;
 
-                // Only log if it takes longer than expected (>50ms is definitely problematic)
                 if (updateTime > 50) {
-                    Log.warn("GameClient", "KryoNet client.update(0) took " + updateTime + "ms - this should be near-instant!");
-
-                    // Additional diagnostics
+                    Log.warn("GameClient", "Gameplay client.update(0) took " + updateTime + "ms");
                     if (client.isConnected()) {
                         int rtt = client.getReturnTripTime();
-                        Log.warn("GameClient", "Connection RTT: " + rtt + "ms, Connected: true");
-                    } else {
-                        Log.warn("GameClient", "Client not connected during slow update");
+                        Log.warn("GameClient", "Connection RTT: " + rtt + "ms");
                     }
                 }
             } catch (Exception e) {
                 long errorTime = (System.nanoTime() - startTime) / 1_000_000;
-                Log.error("GameClient", "KryoNet client.update() failed after " + errorTime + "ms: " + e.getMessage());
+                Log.error("GameClient", "Gameplay client.update() failed after " + errorTime + "ms: " + e.getMessage());
                 throw e;
             }
         }
+
+        // Update bulk transfer connection if active
+        if (bulkClient != null && bulkClient.isConnected()) {
+            try {
+                bulkClient.update();
+            } catch (Exception e) {
+                Log.error("GameClient", "Bulk transfer client.update() failed: " + e.getMessage());
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * Connect the bulk transfer channel for map transfers.
+     * Call before starting a map transfer.
+     */
+    public void connectBulkTransfer() throws IOException {
+        if (bulkClient != null && bulkClient.isConnected()) {
+            Log.warn("GameClient", "Bulk transfer already connected");
+            return;
+        }
+
+        Log.info("GameClient", "Connecting bulk transfer channel...");
+        bulkClient = new BulkTransferClient(host);
+        bulkClient.connect();
+
+        Log.info("GameClient", "Bulk client connected: " + bulkClient.isConnected());
+        Log.info("GameClient", "Preparing to send ClientIdentificationMessage with ID: " + clientUniqueId);
+
+        // Send client identification on bulk connection (same UUID as gameplay connection)
+        ClientIdentificationMessage identMsg = new ClientIdentificationMessage(clientUniqueId, "Jay");
+        bulkClient.getClient().sendTCP(identMsg);
+        Log.info("GameClient", "Sent ClientIdentificationMessage on bulk connection: " + clientUniqueId);
+
+        // NOTE: Bulk connection is SEND-ONLY (server -> client for chunks)
+        // All message handlers remain on gameplay connection for simplicity
+        // No listeners needed on bulk connection
+
+        Log.info("GameClient", "Bulk transfer channel connected and identified (send-only mode)");
+    }
+
+    /**
+     * Disconnect the bulk transfer channel after map transfer completes.
+     */
+    public void disconnectBulkTransfer() {
+        if (bulkClient == null) {
+            return;
+        }
+
+        Log.info("GameClient", "Disconnecting bulk transfer channel...");
+        bulkClient.disconnect();
+        bulkClient.dispose();
+        bulkClient = null;
+        Log.info("GameClient", "Bulk transfer channel disconnected");
+    }
+
+    /**
+     * Get the bulk transfer client (for map transfer messages).
+     * @return bulk client or null if not connected
+     */
+    public BulkTransferClient getBulkClient() {
+        return bulkClient;
     }
 
     /**

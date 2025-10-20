@@ -8,19 +8,28 @@ public class Constants {
 
     public static final int MAP_TRANSFER_CHUNK_DELAY = 2;
 
-    /** Default TCP port for server connections */
+    /** Default TCP port for gameplay connections */
     public static final int NETWORK_TCP_PORT = 54555;
 
-    /** Default UDP port for server connections */
+    /** Default UDP port for gameplay connections */
     public static final int NETWORK_UDP_PORT = 54777;
+
+    /** TCP port for bulk transfer channel (map transfers) */
+    public static final int BULK_TRANSFER_TCP_PORT = 54556;
+
+    /** UDP port for bulk transfer channel (map transfers) */
+    public static final int BULK_TRANSFER_UDP_PORT = 54778;
 
     /** Chunk size for map transfer (8KB) */
     public static final int NETWORK_CHUNK_SIZE = 8192;
 
-    /** Network buffer size for read/write operations (64KB)
-     * Increased from 32KB to support faster map transfers while maintaining safety margin.
-     * KryoNet uses this for both TCP read and write buffers. */
-    public static final int NETWORK_BUFFER_SIZE = 65536;
+    /** Gameplay buffer size (8KB) - Small for minimal latency on position updates
+     * KryoNet uses this for TCP read and write buffers on the gameplay channel. */
+    public static final int GAMEPLAY_BUFFER_SIZE = 8192;
+
+    /** Bulk transfer buffer size (64KB) - Large for fast map transfers
+     * KryoNet uses this for TCP read and write buffers on the bulk transfer channel. */
+    public static final int BULK_TRANSFER_BUFFER_SIZE = 65536;
 
     /** Position update interval in nanoseconds (50 FPS = 20ms) */
     public static final long NETWORK_POSITION_UPDATE_INTERVAL_NS = 20_000_000L;
