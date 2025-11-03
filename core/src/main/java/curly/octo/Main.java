@@ -28,6 +28,7 @@ import java.util.UUID;
 public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuListener, DebugUI.DebugListener, ClientGameMode.MapRegenerationListener {
     // These will need to be moved into user preferences and stored locally
     public static String clientUniqueId;
+    public static String clientPreferredName = "Player";
     //---------------------------------------------------------------------------
 
 

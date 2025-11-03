@@ -145,9 +145,9 @@ public class ServerMapTransferState extends BaseGameStateServer {
             ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
 
             // Skip disconnected clients
-//            if (profile == null || profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
-//                continue;
-//            }
+            if (profile == null || profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
+                continue;
+            }
 
             if (profile.clientUniqueId == null) {
                 continue;

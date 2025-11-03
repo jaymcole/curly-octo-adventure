@@ -7,6 +7,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.Main;
 import curly.octo.client.clientStates.BaseScreen;
 import curly.octo.client.ui.UIAssetCache;
 
@@ -18,6 +19,8 @@ public class MainMenuScreen extends BaseScreen {
     private final MainMenuScreen.MainMenuListener listener;
 
     private TextField ipAddressField;
+    private TextField uniqueIdField;
+    private TextField preferredNameField;
 
     public interface MainMenuListener {
         void onStartServer();
@@ -58,6 +61,9 @@ public class MainMenuScreen extends BaseScreen {
         addConnectButton(mainTable, skin);
 
         stage.addActor(mainTable);
+
+        // Prevent TextFields from auto-focusing and consuming input events
+        stage.setKeyboardFocus(null);
 
         Log.info("LobbyUI", "Created lobby UI");
     }
@@ -101,17 +107,17 @@ public class MainMenuScreen extends BaseScreen {
     private void addUniqueIdActors(Table mainTable, Skin skin) {
         Label uniqueIdLabel = new Label("Unique ID: ", skin);
         mainTable.add(uniqueIdLabel).padRight(10);
-        TextField uniqueIdField = new TextField("s", skin);
-        uniqueIdField.setMaxLength(150);
-        mainTable.add(uniqueIdField).padBottom(10).row();
+        this.uniqueIdField = new TextField(Main.clientUniqueId, skin);
+        this.uniqueIdField.setMaxLength(150);
+        mainTable.add(this.uniqueIdField).padBottom(10).row();
     }
 
     private void addPreferredNameActors(Table mainTable, Skin skin) {
-        Label uniqueIdLabel = new Label("Preferred Name: ", skin);
-        mainTable.add(uniqueIdLabel).padRight(10);
-        TextField preferredNameField = new TextField("nothing", skin);
-        preferredNameField.setMaxLength(45);
-        mainTable.add(preferredNameField).padBottom(10).row();
+        Label preferredNameLabel = new Label("Preferred Name: ", skin);
+        mainTable.add(preferredNameLabel).padRight(10);
+        this.preferredNameField = new TextField("Player", skin);
+        this.preferredNameField.setMaxLength(45);
+        mainTable.add(this.preferredNameField).padBottom(10).row();
 
     }
 
@@ -123,6 +129,18 @@ public class MainMenuScreen extends BaseScreen {
                 if (listener != null) {
                     String host = ipAddressField.getText().trim();
                     if (!host.isEmpty()) {
+                        // Update Main's static fields with user-entered values
+                        String enteredUniqueId = uniqueIdField.getText().trim();
+                        String enteredPreferredName = preferredNameField.getText().trim();
+
+                        if (!enteredUniqueId.isEmpty()) {
+                            Main.clientUniqueId = enteredUniqueId;
+                        }
+                        if (!enteredPreferredName.isEmpty()) {
+                            Main.clientPreferredName = enteredPreferredName;
+                        }
+
+                        Log.info("MainMenuScreen", "Connecting with ID: " + Main.clientUniqueId + ", Name: " + Main.clientPreferredName);
                         listener.onConnectToServer(host);
                     }
                 }

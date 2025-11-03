@@ -1,7 +1,6 @@
 package curly.octo.client;
 
 import curly.octo.Main;
-import curly.octo.client.clientStates.mainMenuState.MainMenuScreen;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferBuildAssetsState;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferReassemblyState;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferSharedStatics;
@@ -278,9 +277,9 @@ public class GameClient {
     public void sendClientIdentification() {
         if (client != null && client.isConnected()) {
             ClientIdentificationMessage message =
-                new ClientIdentificationMessage(Main.clientUniqueId, "Jay");
+                new ClientIdentificationMessage(Main.clientUniqueId, Main.clientPreferredName);
             client.sendTCP(message);
-            Log.info("GameClient", "Sent client identification: " + Main.clientUniqueId);
+            Log.info("GameClient", "Sent client identification: " + Main.clientUniqueId + " (" + Main.clientPreferredName + ")");
         } else {
             Log.warn("GameClient", "Cannot send identification - client not connected");
         }

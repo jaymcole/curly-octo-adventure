@@ -70,26 +70,31 @@ public class ServerCoordinator {
      * @param clientKey The client identifier
      */
     public void registerClientProfile(ClientConnectionKey clientKey, String uniqueIdentifier, String preferredName) {
+        Log.info("registerClientProfile","Client connecting...");
         if (clientProfiles.containsKey(clientKey)) {
+            Log.info("registerClientProfile","Client connection id already has entry");
             if (clientProfiles.get(clientKey).clientUniqueId.compareTo(uniqueIdentifier) != 0) {
+                Log.info("registerClientProfile","Client uniqueId does not match existing entry. Homelessing existing user");
                 homelessedProfiles.add(clientProfiles.get(clientKey));
                 clientProfiles.put(clientKey, new ClientProfile());
             } else {
                 ClientProfile existingProfile = null;
                 for(ClientProfile homeless : homelessedProfiles) {
                     if (homeless.clientUniqueId.compareTo(uniqueIdentifier) == 0) {
+                        Log.info("registerClientProfile","Found a client profile in homeless camp");
                         existingProfile = homeless;
                         break;
                     }
                 }
                 if (existingProfile != null) {
+                    Log.info("registerClientProfile", "replacing homeless");
+
                     clientProfiles.put(clientKey, existingProfile);
                     homelessedProfiles.remove(existingProfile);
                 }
             }
-
-            Log.info("ServerCoordinator", "Registered new client profile: " + clientKey);
         } else {
+            Log.info("registerClientProfile", "creating new profile");
             clientProfiles.put(clientKey, new ClientProfile());
         }
         clientProfiles.get(clientKey).clientUniqueId = uniqueIdentifier;
