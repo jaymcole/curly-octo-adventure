@@ -1,13 +1,13 @@
 package curly.octo.server.serverStates.playing;
 
-import curly.octo.server.HostGameWorld;
+import curly.octo.server.ServerCoordinator;
 import curly.octo.server.serverStates.BaseGameStateServer;
 import curly.octo.server.GameServer;
 
 public class ServerPlayingState extends BaseGameStateServer {
 
-    public ServerPlayingState(GameServer gameServer, HostGameWorld hostGameWorld) {
-        super(gameServer, hostGameWorld);
+    public ServerPlayingState(GameServer gameServer, ServerCoordinator serverCoordinator) {
+        super(gameServer, serverCoordinator);
     }
 
     @Override

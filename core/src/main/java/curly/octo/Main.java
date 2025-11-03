@@ -8,6 +8,7 @@ import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.client.ClientGameMode;
+import curly.octo.client.ClientGameWorld;
 import curly.octo.common.GameWorld;
 import curly.octo.server.ThreadedHostedGameMode;
 import curly.octo.client.clientStates.BaseScreen;
@@ -140,7 +141,7 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
 
         if (gameIsPlaying) {
             if (clientGameMode != null && clientGameMode.isActive()) {
-                GameWorld clientGameWorld = clientGameMode.getGameWorld();
+                ClientGameWorld clientGameWorld = clientGameMode.getGameWorld();
                 clientGameMode.render(modelBatch, clientGameWorld.getEnvironment());
 
                 // Update debug info - get local player from client game world
@@ -311,7 +312,7 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
     public void onTogglePhysicsDebug() {
         // Debug controls operate on the client's world (where rendering happens)
         if (clientGameMode != null && clientGameMode.getGameWorld() != null) {
-            GameWorld clientGameWorld = clientGameMode.getGameWorld();
+            ClientGameWorld clientGameWorld = clientGameMode.getGameWorld();
             clientGameWorld.togglePhysicsDebug();
             Log.info("Main", "Physics debug toggled: " + clientGameWorld.isPhysicsDebugEnabled());
         }
@@ -321,7 +322,7 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
     public void onTogglePhysicsStrategy() {
         // Debug controls operate on the client's world (where rendering happens)
         if (clientGameMode != null && clientGameMode.getGameWorld() != null) {
-            GameWorld clientGameWorld = clientGameMode.getGameWorld();
+            ClientGameWorld clientGameWorld = clientGameMode.getGameWorld();
             clientGameWorld.togglePhysicsStrategy();
             Log.info("Main", "Physics strategy switched to: " + clientGameWorld.getPhysicsStrategyInfo());
         }

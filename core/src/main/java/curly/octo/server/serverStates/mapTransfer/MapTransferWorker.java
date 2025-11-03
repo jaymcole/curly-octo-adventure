@@ -3,7 +3,7 @@ package curly.octo.server.serverStates.mapTransfer;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.Constants;
-import curly.octo.server.HostGameWorld;
+import curly.octo.server.ServerCoordinator;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.server.GameServer;
 import curly.octo.common.network.messages.legacyMessages.MapChunkMessage;
@@ -18,7 +18,7 @@ public class MapTransferWorker {
     private String clientUniqueId;  // Client unique ID to match across gameplay and bulk servers (may be null initially)
     private final int gameplayConnectionId;  // For logging and profile lookup
     private final GameServer gameServer;
-    private final HostGameWorld hostGameWorld;
+    private final ServerCoordinator serverCoordinator;
     private final byte[] mapData;
     private final String mapId;
     private final int totalChunks;
@@ -34,10 +34,10 @@ public class MapTransferWorker {
     // Much higher than gameplay connection since this is dedicated to map transfer
     private static final int MAX_BUFFER_THRESHOLD = 57344; // ~56KB (88% of 64KB, leaves 8KB safety margin)
 
-    public MapTransferWorker(Connection gameplayConnection, GameServer gameServer, HostGameWorld hostGameWorld, byte[] mapData, String mapId) {
+    public MapTransferWorker(Connection gameplayConnection, GameServer gameServer, ServerCoordinator serverCoordinator, byte[] mapData, String mapId) {
         this.gameplayConnectionId = gameplayConnection.getID();  // For logging
         this.gameServer = gameServer;
-        this.hostGameWorld = hostGameWorld;
+        this.serverCoordinator = serverCoordinator;
         this.mapData = mapData;
         this.mapId = mapId;
         this.totalChunks = (int) Math.ceil((double) mapData.length / Constants.NETWORK_CHUNK_SIZE);
@@ -45,7 +45,7 @@ public class MapTransferWorker {
         // Try to get clientUniqueId from gameplay connection's profile
         // May be null initially if client hasn't sent identification yet - will retry in update()
         String clientKey = gameServer.constructClientProfileKey(gameplayConnection);
-        ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
         this.clientUniqueId = profile != null ? profile.clientUniqueId : null;
 
         if (clientUniqueId == null) {
@@ -100,7 +100,7 @@ public class MapTransferWorker {
             for (Connection c : gameplayConns) {
                 if (c.getID() == gameplayConnectionId) {
                     String clientKey = gameServer.constructClientProfileKey(c);
-                    ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+                    ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
                     if (profile != null && profile.clientUniqueId != null) {
                         this.clientUniqueId = profile.clientUniqueId;
                         Log.info("MapTransferWorker", "Successfully retrieved client unique ID: " + clientUniqueId);
@@ -140,7 +140,7 @@ public class MapTransferWorker {
         // Check client's current state BEFORE waiting for bulk connection
         // This allows clients who skip transfer (already have map) to complete immediately
         String clientKey = gameServer.constructClientProfileKey(gameplayConn);
-        ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
 
         if (profile != null && profile.currentState != null) {
             // If client completed the transfer, mark this worker as complete

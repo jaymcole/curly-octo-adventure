@@ -1,15 +1,15 @@
 package curly.octo.server.serverStates;
 
-import curly.octo.server.HostGameWorld;
+import curly.octo.server.ServerCoordinator;
 import curly.octo.server.GameServer;
 
 public abstract class BaseGameStateServer {
     protected GameServer gameServer;
-    protected HostGameWorld hostGameWorld;
+    protected ServerCoordinator serverCoordinator;
 
-    public BaseGameStateServer(GameServer gameServer, HostGameWorld hostGameWorld) {
+    public BaseGameStateServer(GameServer gameServer, ServerCoordinator serverCoordinator) {
         this.gameServer = gameServer;
-        this.hostGameWorld = hostGameWorld;
+        this.serverCoordinator = serverCoordinator;
     }
 
     public abstract void start();

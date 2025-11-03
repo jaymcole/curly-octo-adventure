@@ -4,7 +4,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.server.HostGameWorld;
+import curly.octo.server.ServerCoordinator;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferSharedStatics;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.server.playerManagement.ConnectionStatus;
@@ -35,8 +35,8 @@ public class ServerMapTransferState extends BaseGameStateServer {
     private float progressBroadcastTimer = 0f;
     private static final float PROGRESS_BROADCAST_INTERVAL = 0.1f; // Broadcast every 100ms (10 times/second)
 
-    public ServerMapTransferState(GameServer gameServer, HostGameWorld hostGameWorld) {
-        super(gameServer, hostGameWorld);
+    public ServerMapTransferState(GameServer gameServer, ServerCoordinator serverCoordinator) {
+        super(gameServer, serverCoordinator);
         activeWorkers = new HashMap<>();
     }
 
@@ -61,7 +61,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
         for (Connection conn : gameServer.getServer().getConnections()) {
             // Skip disconnected clients
             String clientKey = gameServer.constructClientProfileKey(conn);
-            ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+            ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
             if (profile != null && profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
                 Log.info("ServerMapTransferState", "Skipping transfer for disconnected client " + conn.getID());
                 continue;
@@ -78,7 +78,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
     public void startTransferForClient(Connection connection) {
         // Check if client is disconnected
         String clientKey = gameServer.constructClientProfileKey(connection);
-        ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
         if (profile != null && profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
             Log.info("ServerMapTransferState", "Skipping transfer for disconnected client " + connection.getID());
             return;
@@ -94,7 +94,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
             return;
         }
 
-        MapTransferWorker worker = new MapTransferWorker(connection, gameServer, hostGameWorld, cachedMapData, hostGameWorld.getMapManager().getMapId());
+        MapTransferWorker worker = new MapTransferWorker(connection, gameServer, serverCoordinator, cachedMapData, serverCoordinator.getMapManager().getMapId());
         activeWorkers.put(connection.getID(), worker);
         worker.start();
         hasStartedTransfers = true; // Mark that we've started at least one transfer
@@ -141,7 +141,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
         // Iterate through ALL connected clients
         for (Connection conn : gameServer.getServer().getConnections()) {
             String clientKey = gameServer.constructClientProfileKey(conn);
-            ClientProfile profile = hostGameWorld.getClientProfile(clientKey);
+            ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
 
             // Skip disconnected clients
 //            if (profile == null || profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
@@ -175,7 +175,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
     }
 
     private byte[] getSerializedMapData() {
-        GameMap currentMap = hostGameWorld.getMapManager();
+        GameMap currentMap = serverCoordinator.getMapManager();
         if (currentMap == null) {
             Log.error("ServerMapTransferState", "Cannot serialize - no map available");
             return null;

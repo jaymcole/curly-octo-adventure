@@ -160,11 +160,6 @@ public class ThreadedHostedGameMode implements GameMode {
         return running.get() && hostedGameMode.isActive();
     }
 
-    @Override
-    public GameWorld getGameWorld() {
-        return hostedGameMode.getGameWorld();
-    }
-
     public GameServer getGameServer() {
         return hostedGameMode.getGameServer();
     }

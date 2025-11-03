@@ -14,7 +14,9 @@
       "Read(/C:\\Users\\jaymc\\IdeaProjects\\curly-octo-adventure\\core\\src\\main\\java\\curly\\octo\\player/**)",
       "WebSearch",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(gradlew.bat lwjgl3:run)"
+      "Bash(gradlew.bat lwjgl3:run)",
+      "Bash(bash gradlew build:*)",
+      "Bash(bash gradlew compileJava:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

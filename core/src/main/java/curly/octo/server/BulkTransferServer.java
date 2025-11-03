@@ -23,7 +23,7 @@ public class BulkTransferServer {
     private Server server;
     private final NetworkListener networkListener;
     private boolean running = false;
-    private HostGameWorld hostGameWorld = null;  // Set by GameServer
+    private ServerCoordinator serverCoordinator = null;  // Set by GameServer
 
     // Track bulk connections by client unique ID
     private final Map<String, Connection> clientIdToConnection = new HashMap<>();
@@ -84,10 +84,10 @@ public class BulkTransferServer {
     }
 
     /**
-     * Set the HostGameWorld reference (called by GameServer).
+     * Set the ServerCoordinator reference (called by GameServer).
      */
-    public void setHostGameWorld(HostGameWorld hostGameWorld) {
-        this.hostGameWorld = hostGameWorld;
+    public void setServerCoordinator(ServerCoordinator serverCoordinator) {
+        this.serverCoordinator = serverCoordinator;
     }
 
     /**
@@ -97,9 +97,9 @@ public class BulkTransferServer {
         clientIdToConnection.put(clientUniqueId, connection);
 
         // Update ClientProfile with bulk connection ID
-        if (hostGameWorld != null) {
+        if (serverCoordinator != null) {
             // Find the profile with this clientUniqueId
-            for (ClientProfile profile : hostGameWorld.getClientProfiles().values()) {
+            for (ClientProfile profile : serverCoordinator.getClientProfiles().values()) {
                 if (profile != null && clientUniqueId.equals(profile.clientUniqueId)) {
                     profile.bulkConnectionId = connection.getID();
                     Log.info("BulkTransferServer", "Set bulk connection ID " + connection.getID() +
@@ -135,8 +135,8 @@ public class BulkTransferServer {
         clientIdToConnection.remove(clientUniqueId);
 
         // Clear bulkConnectionId in ClientProfile
-        if (hostGameWorld != null) {
-            for (ClientProfile profile : hostGameWorld.getClientProfiles().values()) {
+        if (serverCoordinator != null) {
+            for (ClientProfile profile : serverCoordinator.getClientProfiles().values()) {
                 if (profile != null && clientUniqueId.equals(profile.clientUniqueId)) {
                     profile.bulkConnectionId = null;
                     Log.info("BulkTransferServer", "Cleared bulk connection ID for client " + clientUniqueId);

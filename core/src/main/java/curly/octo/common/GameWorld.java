@@ -12,8 +12,9 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * Base game world that contains shared components.
- * Extended by HostGameWorld and ClientGameWorld for specific implementations.
+ * Base game world that contains client-side game simulation.
+ * Extended by ClientGameWorld for client-specific implementation.
+ * Note: The server uses ServerCoordinator instead, which doesn't extend this class.
  */
 public abstract class GameWorld {
 

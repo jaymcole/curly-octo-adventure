@@ -1,7 +1,7 @@
 package curly.octo.server.serverStates;
 
 import com.esotericsoftware.minlog.Log;
-import curly.octo.server.HostGameWorld;
+import curly.octo.server.ServerCoordinator;
 import curly.octo.server.serverStates.mapTransfer.ServerMapTransferState;
 import curly.octo.server.serverStates.mapTransfer.ServerWaitForClientsToBeReadyState;
 import curly.octo.server.serverStates.playing.ServerPlayingState;
@@ -16,16 +16,16 @@ public class ServerStateManager {
     private static HashMap<Class, BaseGameStateServer> cachedServerStates;
 
     private static GameServer gameServer;
-    private static HostGameWorld hostGameWorld;
+    private static ServerCoordinator serverCoordinator;
 
-    public static void initializeManager(GameServer server, HostGameWorld world) {
+    public static void initializeManager(GameServer server, ServerCoordinator coordinator) {
         gameServer = server;
-        hostGameWorld = world;
+        serverCoordinator = coordinator;
 
         cachedServerStates = new HashMap<>();
-        cachedServerStates.put(ServerMapTransferState.class, new ServerMapTransferState(gameServer, hostGameWorld));
-        cachedServerStates.put(ServerWaitForClientsToBeReadyState.class, new ServerWaitForClientsToBeReadyState(gameServer, hostGameWorld));
-        cachedServerStates.put(ServerPlayingState.class, new ServerPlayingState(gameServer, hostGameWorld));
+        cachedServerStates.put(ServerMapTransferState.class, new ServerMapTransferState(gameServer, serverCoordinator));
+        cachedServerStates.put(ServerWaitForClientsToBeReadyState.class, new ServerWaitForClientsToBeReadyState(gameServer, serverCoordinator));
+        cachedServerStates.put(ServerPlayingState.class, new ServerPlayingState(gameServer, serverCoordinator));
     }
 
     public static void update(float delta) {

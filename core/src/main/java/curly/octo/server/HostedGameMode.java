@@ -17,7 +17,7 @@ import java.util.ArrayList;
  */
 public class HostedGameMode implements GameMode {
 
-    private final HostGameWorld serverGameWorld;
+    private final ServerCoordinator serverCoordinator;
     private final java.util.Random random;
     private GameServer gameServer;
     private ClientGameMode clientGameMode;
@@ -26,8 +26,8 @@ public class HostedGameMode implements GameMode {
 
     public HostedGameMode(java.util.Random random) {
         this.random = random;
-        // Server GameWorld should not run physics or graphics - only handles map and network coordination
-        this.serverGameWorld = new HostGameWorld(random);
+        // Server coordinator handles map distribution and network coordination without physics or graphics
+        this.serverCoordinator = new ServerCoordinator(random);
     }
 
     @Override
@@ -36,20 +36,20 @@ public class HostedGameMode implements GameMode {
             Log.info("HostedGameMode", "Initializing hosted mode");
 
             // Set up deferred map generation - map will be created when client connects
-            serverGameWorld.setDeferredMapGeneration(true);
+            serverCoordinator.setDeferredMapGeneration(true);
 
             // Create and start server with its own player list (not shared with client)
             gameServer = new GameServer(
-                serverGameWorld.getRandom(),
-                serverGameWorld.getMapManager(), // Will be null initially
+                serverCoordinator.getRandom(),
+                serverCoordinator.getMapManager(), // Will be null initially
                 new ArrayList<>(), // Server gets its own independent player list
-                serverGameWorld
+                serverCoordinator
             );
             gameServer.start();
             serverStarted = true;
 
             // Initialize ServerStateManager with dependencies
-            ServerStateManager.initializeManager(gameServer, serverGameWorld);
+            ServerStateManager.initializeManager(gameServer, serverCoordinator);
 
             Log.info("HostedGameMode", "Server started, now connecting as client to localhost");
 
@@ -74,7 +74,7 @@ public class HostedGameMode implements GameMode {
     @Override
     public void update(float deltaTime) throws IOException {
         if (!serverStarted) return;
-        serverGameWorld.update(deltaTime);
+        serverCoordinator.update(deltaTime);
         if (!active && clientGameMode != null) {
             active = true;
             Log.info("HostedGameMode", "Hosted mode activated (server running)");
@@ -122,13 +122,6 @@ public class HostedGameMode implements GameMode {
     @Override
     public boolean isActive() {
         return active;
-    }
-
-    @Override
-    public GameWorld getGameWorld() {
-        // HostedGameMode returns its server GameWorld
-        // For rendering, Main should use the ClientGameMode's GameWorld directly
-        return serverGameWorld;
     }
 
     public GameServer getGameServer() {

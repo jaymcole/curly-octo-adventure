@@ -35,7 +35,7 @@ public class GameServer {
     private final NetworkListener networkListener;
     private final GameMap map;
     private final List<PlayerObject> players;
-    private final GameWorld gameWorld;
+    private final ServerCoordinator serverCoordinator;
     private final Map<Integer, String> connectionToPlayerMap = new HashMap<>();
     private final Set<Integer> readyClients = new HashSet<>(); // Track clients that have received map and assignment
 
@@ -53,10 +53,10 @@ public class GameServer {
     private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
 
 
-    public GameServer(Random random, GameMap map, List<PlayerObject> players, GameWorld gameWorld) {
+    public GameServer(Random random, GameMap map, List<PlayerObject> players, ServerCoordinator serverCoordinator) {
         this.map = map;
         this.players = players;
-        this.gameWorld = gameWorld;
+        this.serverCoordinator = serverCoordinator;
 
         // Small buffers for gameplay connection (low latency for position updates)
         this.server = new Server(Constants.GAMEPLAY_BUFFER_SIZE, Constants.GAMEPLAY_BUFFER_SIZE);
@@ -73,10 +73,8 @@ public class GameServer {
         // Create bulk transfer server (will be started in start() method)
         this.bulkServer = new BulkTransferServer();
 
-        // Set HostGameWorld reference on bulk server for profile tracking
-        if (gameWorld instanceof HostGameWorld) {
-            bulkServer.setHostGameWorld((HostGameWorld) gameWorld);
-        }
+        // Set ServerCoordinator reference on bulk server for profile tracking
+        bulkServer.setServerCoordinator(serverCoordinator);
 
         Log.info("GameServer", "Initialized with dual-connection architecture (gameplay: 8KB, bulk: 64KB)");
 
@@ -95,29 +93,19 @@ public class GameServer {
     }
 
     public void handleClientStateChangeMessage(Connection connection, ClientStateChangeMessage stateChangeMessage) {
-        if (gameWorld instanceof HostGameWorld) {
-            String clientKey = constructClientProfileKey(connection);
-            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
-            hostWorld.updateClientState(clientKey, stateChangeMessage.oldState, stateChangeMessage.newState);
-        } else {
-            Log.error("handleClientStateChangeMessage", "GameWorld is not a HostGameWorld - cannot update client state");
-        }
+        String clientKey = constructClientProfileKey(connection);
+        serverCoordinator.updateClientState(clientKey, stateChangeMessage.oldState, stateChangeMessage.newState);
     }
 
     public void handleClientIdentification(Connection connection, ClientIdentificationMessage identificationMessage) {
-        if (gameWorld instanceof HostGameWorld) {
-            String clientKey = constructClientProfileKey(connection);
-            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
-            ClientProfile profile = hostWorld.getClientProfile(clientKey);
-            if (profile != null) {
-                profile.clientUniqueId = identificationMessage.clientUniqueId;
-                profile.userName = identificationMessage.clientName;
-                Log.info("GameServer", "Client " + connection.getID() + " identified with uniqueId: " + identificationMessage.clientUniqueId);
-            } else {
-                Log.warn("GameServer", "Received identification from unknown client: " + connection.getID());
-            }
+        String clientKey = constructClientProfileKey(connection);
+        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
+        if (profile != null) {
+            profile.clientUniqueId = identificationMessage.clientUniqueId;
+            profile.userName = identificationMessage.clientName;
+            Log.info("GameServer", "Client " + connection.getID() + " identified with uniqueId: " + identificationMessage.clientUniqueId);
         } else {
-            Log.error("GameServer", "GameWorld is not a HostGameWorld - cannot store client unique ID");
+            Log.warn("GameServer", "Received identification from unknown client: " + connection.getID());
         }
     }
 
@@ -302,12 +290,7 @@ public class GameServer {
      * @return true if there's a map available, false if deferred generation is active
      */
     private boolean hasInitialMap() {
-        if (gameWorld instanceof HostGameWorld) {
-            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
-            return hostWorld.hasInitialMap();
-        }
-        // For non-host worlds, assume we have a map if it exists
-        return map != null;
+        return serverCoordinator.hasInitialMap();
     }
 
     /**
@@ -434,8 +417,8 @@ public class GameServer {
                 serializedMaps.clear();
 
                 // Step 4: Ask the game world to regenerate the map
-                if (gameWorld != null) {
-                    gameWorld.regenerateMap(newSeed);
+                if (serverCoordinator != null) {
+                    serverCoordinator.regenerateMap(newSeed);
                     Log.info("GameServer", "Map regenerated by game world");
                 } else {
                     Log.error("GameServer", "Cannot regenerate map - game world is null");
@@ -613,18 +596,15 @@ public class GameServer {
      * Handles a client connection event from NetworkListener
      */
     public void handleClientConnected(Connection connection) {
-        // Register client profile in HostGameWorld
-        if (gameWorld instanceof HostGameWorld) {
-            String clientKey = constructClientProfileKey(connection);
-            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
-            hostWorld.registerClientProfile(clientKey);
+        // Register client profile in ServerCoordinator
+        String clientKey = constructClientProfileKey(connection);
+        serverCoordinator.registerClientProfile(clientKey);
 
-            // Set gameplay connection ID in profile
-            ClientProfile profile = hostWorld.getClientProfile(clientKey);
-            if (profile != null) {
-                profile.gameplayConnectionId = connection.getID();
-                Log.info("GameServer", "Set gameplay connection ID " + connection.getID() + " for client profile: " + clientKey);
-            }
+        // Set gameplay connection ID in profile
+        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
+        if (profile != null) {
+            profile.gameplayConnectionId = connection.getID();
+            Log.info("GameServer", "Set gameplay connection ID " + connection.getID() + " for client profile: " + clientKey);
         }
 
         // Check if we have an initial map or need to generate one
@@ -663,14 +643,11 @@ public class GameServer {
      */
     public void handleClientDisconnected(Connection connection) {
         // Update client profile status to disconnected
-        if (gameWorld instanceof HostGameWorld) {
-            String clientKey = constructClientProfileKey(connection);
-            HostGameWorld hostWorld = (HostGameWorld) gameWorld;
-            ClientProfile profile = hostWorld.getClientProfile(clientKey);
-            if (profile != null) {
-                profile.connectionStatus = ConnectionStatus.DISCONNECTED;
-                Log.info("GameServer", "Client profile marked as disconnected: " + clientKey);
-            }
+        String clientKey = constructClientProfileKey(connection);
+        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
+        if (profile != null) {
+            profile.connectionStatus = ConnectionStatus.DISCONNECTED;
+            Log.info("GameServer", "Client profile marked as disconnected: " + clientKey);
         }
 
         // Remove from ready clients
@@ -697,7 +674,7 @@ public class GameServer {
                 players.remove(disconnectedPlayer);
 
                 // Remove the disconnected player's light from the server's environment
-//                        gameWorld.removePlayerFromEnvironment(disconnectedPlayer);
+//                        serverCoordinator.removePlayerFromEnvironment(disconnectedPlayer);
 
                 // Broadcast disconnect message to all remaining clients
                 broadcastPlayerDisconnect(disconnectedPlayer.entityId);
