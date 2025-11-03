@@ -1,6 +1,7 @@
 package curly.octo.client;
 
 import com.badlogic.gdx.graphics.PerspectiveCamera;
+import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
@@ -8,7 +9,6 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.graphics.GL20;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.common.GameWorld;
 import curly.octo.common.map.GameMap;
 import curly.octo.client.rendering.GameMapRenderer;
 import curly.octo.common.map.MapTile;
@@ -18,7 +18,7 @@ import curly.octo.common.PlayerObject;
 import curly.octo.common.map.hints.SpawnPointHint;
 
 import java.util.ArrayList;
-
+import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
@@ -28,27 +28,60 @@ import static com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute.AmbientLig
  * Client-specific game world that handles client-side rendering and physics.
  * Includes full graphics, physics simulation, and player interaction.
  */
-public class ClientGameWorld extends GameWorld {
+public class ClientGameWorld {
+
+    // Inherited fields from inlined GameWorld
+    protected GameMap mapManager;
+    protected GameMapRenderer mapRenderer;
+    protected Environment environment;
+    protected List<PlayerObject> players;
+    protected Random random;
+    protected GameObjectManager gameObjectManager;
+    protected float positionUpdateTimer = 0;
+    protected boolean disposed = false;
 
     // Flag to temporarily disable physics during regeneration
     private volatile boolean physicsDisabled = false;
 
     public ClientGameWorld(Random random) {
-        super(random, false); // false = full client mode with graphics
+        // Inlined from GameWorld constructor (client mode)
+        this.random = random;
+        this.players = new ArrayList<>();
+        this.environment = new Environment();
+        this.gameObjectManager = new GameObjectManager();
+
+        // Inlined from GameWorld.setupEnvironment()
+        environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.0f, .0f, .0f, 1f));
+
         Log.info("ClientGameWorld", "Created client game world");
     }
 
-    @Override
     public void setMap(GameMap map) {
         Log.info("ClientGameWorld", "Setting new map - current mapRenderer: " +
                 (mapRenderer != null ? "exists" : "null") +
                 ", current mapManager: " + (mapManager != null ? "exists" : "null"));
 
-        // Call parent setMap which should recreate everything
+        // Inlined from GameWorld.setMap()
         try {
-            Log.info("ClientGameWorld", "Calling parent setMap to initialize new map");
-            super.setMap(map);
-            Log.info("ClientGameWorld", "Parent setMap completed successfully");
+            Log.info("ClientGameWorld", "Initializing new map");
+
+            this.mapManager = map;
+
+            // Initialize physics for client-received maps (server-only maps don't have physics)
+            if (!map.isPhysicsInitialized()) {
+                Log.info("ClientGameWorld", "Initializing physics for received map");
+                map.initializePhysics();
+                // Also generate triangle mesh physics that was skipped in server-only generation
+                map.regeneratePhysics();
+            }
+
+            if (mapRenderer == null) {
+                mapRenderer = new GameMapRenderer(gameObjectManager);
+            }
+            mapRenderer.updateMap(mapManager, environment);
+            Log.info("ClientGameWorld", "Set map from network");
+
+            Log.info("ClientGameWorld", "Map initialization completed successfully");
         } catch (Exception e) {
             Log.error("ClientGameWorld", "ERROR in setMap: " + e.getMessage());
             e.printStackTrace();
@@ -192,7 +225,6 @@ public class ClientGameWorld extends GameWorld {
         }
     }
 
-    @Override
     public void update(float deltaTime) {
         // Skip all physics updates during regeneration to prevent crashes
         if (physicsDisabled) {
@@ -276,7 +308,6 @@ public class ClientGameWorld extends GameWorld {
         }
     }
 
-    @Override
     public void regenerateMap(long newSeed) {
         Log.info("ClientGameWorld", "Client-side map regeneration not implemented - " +
                  "clients receive new maps from server via network transfer");
@@ -564,5 +595,102 @@ public class ClientGameWorld extends GameWorld {
         }
 
         return safePos;
+    }
+
+    // Inlined methods from GameWorld
+
+    protected void incrementPositionUpdateTimer(float deltaTime) {
+        positionUpdateTimer += deltaTime;
+    }
+
+    protected void setMapManager(GameMap mapManager) {
+        this.mapManager = mapManager;
+    }
+
+    protected List<PlayerObject> getPlayers() {
+        return players;
+    }
+
+    public GameMap getMapManager() { return mapManager; }
+    public GameMapRenderer getMapRenderer() { return mapRenderer; }
+    public Environment getEnvironment() { return environment; }
+    public Random getRandom() { return random; }
+    public GameObjectManager getGameObjectManager() { return gameObjectManager; }
+
+    public void togglePhysicsDebug() {
+        if (mapManager != null) {
+            boolean newState = !mapManager.isDebugRenderingEnabled();
+            mapManager.setDebugRenderingEnabled(newState);
+
+            // Initialize debug drawer if needed (must be on OpenGL thread)
+            if (newState) {
+                mapManager.initializeDebugDrawer();
+            }
+        }
+    }
+
+    public void togglePhysicsStrategy() {
+        if (mapManager != null) {
+            // Switch between strategies
+            GameMap.PhysicsStrategy currentStrategy = mapManager.getPhysicsStrategy();
+            GameMap.PhysicsStrategy newStrategy = (currentStrategy == GameMap.PhysicsStrategy.ALL_TILES)
+                ? GameMap.PhysicsStrategy.BFS_BOUNDARY
+                : GameMap.PhysicsStrategy.ALL_TILES;
+
+            Log.info("ClientGameWorld", "Switching physics strategy from " + currentStrategy + " to " + newStrategy);
+            mapManager.setPhysicsStrategy(newStrategy);
+            mapManager.regeneratePhysics();
+        }
+    }
+
+    public boolean isPhysicsDebugEnabled() {
+        return mapManager != null && mapManager.isDebugRenderingEnabled();
+    }
+
+    public String getPhysicsStrategyInfo() {
+        if (mapManager != null) {
+            return mapManager.getPhysicsStrategy().name();
+        }
+        return "N/A";
+    }
+
+    public long getPhysicsTriangleCount() {
+        return mapManager != null ? mapManager.totalTriangleCount : 0;
+    }
+
+    public void dispose() {
+        if (disposed) {
+            Log.info("ClientGameWorld", "Already disposed, skipping");
+            return;
+        }
+
+        Log.info("ClientGameWorld", "Disposing game world...");
+
+        if (mapRenderer != null) {
+            try {
+                mapRenderer.disposeAll();
+                Log.info("ClientGameWorld", "Map renderer disposed");
+            } catch (Exception e) {
+                Log.error("ClientGameWorld", "Error disposing map renderer: " + e.getMessage());
+            }
+            mapRenderer = null;
+        }
+
+        if (mapManager != null) {
+            try {
+                mapManager.dispose();
+                Log.info("ClientGameWorld", "Map manager disposed");
+            } catch (Exception e) {
+                Log.error("ClientGameWorld", "Error disposing map manager: " + e.getMessage());
+            }
+            mapManager = null;
+        }
+
+        players.clear();
+        gameObjectManager.activePlayers.clear();
+        gameObjectManager.localPlayer = null;
+
+        disposed = true;
+        Log.info("ClientGameWorld", "Game world disposed");
     }
 }

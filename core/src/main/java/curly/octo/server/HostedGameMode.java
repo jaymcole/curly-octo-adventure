@@ -5,7 +5,6 @@ import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.client.ClientGameMode;
 import curly.octo.common.GameMode;
-import curly.octo.common.GameWorld;
 import curly.octo.server.serverStates.ServerStateManager;
 
 import java.io.IOException;

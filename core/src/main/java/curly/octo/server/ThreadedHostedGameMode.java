@@ -2,7 +2,6 @@ package curly.octo.server;
 
 import curly.octo.client.ClientGameMode;
 import curly.octo.common.GameMode;
-import curly.octo.common.GameWorld;
 import curly.octo.common.Constants;
 import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;

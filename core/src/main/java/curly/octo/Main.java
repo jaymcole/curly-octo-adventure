@@ -9,7 +9,6 @@ import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.client.ClientGameMode;
 import curly.octo.client.ClientGameWorld;
-import curly.octo.common.GameWorld;
 import curly.octo.server.ThreadedHostedGameMode;
 import curly.octo.client.clientStates.BaseScreen;
 import curly.octo.client.clientStates.mainMenuState.MainMenuScreen;

@@ -5,7 +5,6 @@ import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.common.GameWorld;
 import curly.octo.common.network.messages.*;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.server.serverStates.ServerStateManager;

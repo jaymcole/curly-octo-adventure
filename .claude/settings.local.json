@@ -16,7 +16,10 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(gradlew.bat lwjgl3:run)",
       "Bash(bash gradlew build:*)",
-      "Bash(bash gradlew compileJava:*)"
+      "Bash(bash gradlew compileJava:*)",
+      "Bash(./gradlew.bat compileJava:*)",
+      "Bash(./gradlew.bat build:*)",
+      "Bash(./gradlew.bat:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
