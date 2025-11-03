@@ -19,16 +19,16 @@ import curly.octo.client.ui.DebugUI;
 
 import java.io.IOException;
 import java.util.Random;
-import java.util.UUID;
 
 /**
  * Main game class with network setup UI.
  * Delegates game logic to specific game modes (Server/Client).
  */
 public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuListener, DebugUI.DebugListener, ClientGameMode.MapRegenerationListener {
-    // These will need to be moved into user preferences and stored locally
-    public static String clientUniqueId;
-    public static String clientPreferredName = "Player";
+    // Client configuration loaded from properties file
+    private static ClientConfig clientConfig = new ClientConfig();
+    public static String clientUniqueId = clientConfig.getClientId();
+    public static String clientPreferredName = clientConfig.getClientName();
     //---------------------------------------------------------------------------
 
 
@@ -47,7 +47,7 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
     private ClientGameMode clientGameMode;
 
     public Main() {
-        clientUniqueId = UUID.randomUUID().toString();
+        // Client config already loaded statically
     }
 
     @Override

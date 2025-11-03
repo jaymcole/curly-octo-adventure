@@ -56,8 +56,8 @@ public class MainMenuScreen extends BaseScreen {
         // Client section
         addJoinGameSubheader(mainTable, skin);
         addIpAddressActors(mainTable, skin);
-        addUniqueIdActors(mainTable, skin);
         addPreferredNameActors(mainTable, skin);
+        addUniqueIdActors(mainTable, skin);
         addConnectButton(mainTable, skin);
 
         stage.addActor(mainTable);
@@ -107,15 +107,19 @@ public class MainMenuScreen extends BaseScreen {
     private void addUniqueIdActors(Table mainTable, Skin skin) {
         Label uniqueIdLabel = new Label("Unique ID: ", skin);
         mainTable.add(uniqueIdLabel).padRight(10);
-        this.uniqueIdField = new TextField(Main.clientUniqueId, skin);
-        this.uniqueIdField.setMaxLength(150);
-        mainTable.add(this.uniqueIdField).padBottom(10).row();
+//        this.uniqueIdField = new TextField(Main.clientUniqueId, skin);
+//        this.uniqueIdField.setMaxLength(150);
+//        this.uniqueIdField.setDisabled(true);
+//        mainTable.add(this.uniqueIdField).padBottom(10).row();
+
+        Label uniqueIdValueLabel = new Label(Main.clientUniqueId, skin);
+        mainTable.add(uniqueIdValueLabel).padBottom(10).row();
     }
 
     private void addPreferredNameActors(Table mainTable, Skin skin) {
         Label preferredNameLabel = new Label("Preferred Name: ", skin);
         mainTable.add(preferredNameLabel).padRight(10);
-        this.preferredNameField = new TextField("Player", skin);
+        this.preferredNameField = new TextField(Main.clientPreferredName, skin);
         this.preferredNameField.setMaxLength(45);
         mainTable.add(this.preferredNameField).padBottom(10).row();
 

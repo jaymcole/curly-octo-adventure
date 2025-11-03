@@ -190,6 +190,72 @@ tasks.register('dist') {
   dependsOn 'jar'
 }
 
+// Helper task to build a JAR for a specific test client using zip operations
+def createTestClientJarTask(String clientName, int clientNumber) {
+  tasks.register("jarTest${clientNumber}") {
+    group("build")
+    description("Build JAR for Test Client ${clientNumber}")
+    dependsOn("jar")
+
+    doLast {
+      // Paths
+      def sourceJar = file("${buildDir}/libs/${appName}-${projectVersion}.jar")
+      def targetJar = file("${buildDir}/libs/${appName}-${projectVersion}-${clientName}.jar")
+      def configFile = file("${rootProject.projectDir}/build-configs/${clientName}.properties")
+
+      if (!sourceJar.exists()) {
+        throw new GradleException("Base JAR not found: ${sourceJar}")
+      }
+      if (!configFile.exists()) {
+        throw new GradleException("Config file not found: ${configFile}")
+      }
+
+      // Copy base JAR to target
+      targetJar.delete()
+      java.nio.file.Files.copy(sourceJar.toPath(), targetJar.toPath())
+
+      // Create a temporary file for the properties
+      def tempProps = file("${buildDir}/tmp/${clientName}/client.properties")
+      tempProps.parentFile.mkdirs()
+      tempProps.text = configFile.text
+
+      // Update the JAR with the new properties file using Ant zip task
+      ant.zip(destfile: targetJar, update: true) {
+        zipfileset(file: tempProps, fullpath: 'client.properties')
+      }
+
+      println "Created test client JAR: ${targetJar} with config from ${configFile}"
+      tempProps.delete()
+    }
+  }
+}
+
+// Create test client JAR tasks
+createTestClientJarTask('client1', 1)
+createTestClientJarTask('client2', 2)
+createTestClientJarTask('client3', 3)
+createTestClientJarTask('client4', 4)
+
+// Convenience task to build all 4 test client JARs
+tasks.register('jarAllTestClients') {
+  group("build")
+  description("Build all 4 test client JARs")
+  dependsOn('jarTest1', 'jarTest2', 'jarTest3', 'jarTest4')
+}
+
+// Task to clean up the temporary client.properties file
+tasks.register('cleanClientConfig') {
+  group("build")
+  description("Remove temporary client.properties from resources")
+  doLast {
+    def configFile = file("${rootProject.projectDir}/core/src/main/resources/client.properties")
+    if (configFile.exists()) {
+      configFile.delete()
+      println "Removed temporary client.properties"
+    }
+  }
+}
+
 distributions {
   main {
     contents {

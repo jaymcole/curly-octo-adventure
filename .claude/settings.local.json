@@ -19,7 +19,12 @@
       "Bash(bash gradlew compileJava:*)",
       "Bash(./gradlew.bat compileJava:*)",
       "Bash(./gradlew.bat build:*)",
-      "Bash(./gradlew.bat:*)"
+      "Bash(./gradlew.bat:*)",
+      "Bash(for i in 1 2 3 4)",
+      "Bash(do echo \"=== Client $i ===\")",
+      "Bash(unzip:*)",
+      "Bash(done)",
+      "Bash(java:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
