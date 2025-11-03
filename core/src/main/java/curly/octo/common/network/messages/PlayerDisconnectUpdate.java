@@ -1,0 +1,14 @@
+package curly.octo.common.network.messages;
+
+import curly.octo.common.network.NetworkMessage;
+
+public class PlayerDisconnectUpdate extends NetworkMessage {
+    public String playerId;
+
+    public PlayerDisconnectUpdate() {
+    }
+
+    public PlayerDisconnectUpdate(String playerId) {
+        this.playerId = playerId;
+    }
+}

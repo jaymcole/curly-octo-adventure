@@ -7,12 +7,15 @@ import com.badlogic.gdx.InputMultiplexer;
 
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.game.*;
-import curly.octo.game.clientStates.BaseScreen;
-import curly.octo.game.clientStates.MainMenuState.MainMenuScreen;
-import curly.octo.game.clientStates.StateManager;
-import curly.octo.map.MapTile;
-import curly.octo.ui.DebugUI;
+import curly.octo.client.ClientGameMode;
+import curly.octo.common.GameWorld;
+import curly.octo.server.ThreadedHostedGameMode;
+import curly.octo.client.clientStates.BaseScreen;
+import curly.octo.client.clientStates.mainMenuState.MainMenuScreen;
+import curly.octo.client.clientStates.StateManager;
+import curly.octo.common.Constants;
+import curly.octo.common.map.MapTile;
+import curly.octo.client.ui.DebugUI;
 
 import java.io.IOException;
 import java.util.Random;

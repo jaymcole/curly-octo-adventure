@@ -1,12 +1,11 @@
 package curly.octo.lwjgl3;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import curly.octo.Main;
 
-import static curly.octo.Constants.DEFAULT_SCREEN_HEIGHT;
-import static curly.octo.Constants.DEFAULT_SCREEN_WIDTH;
+import static curly.octo.common.Constants.DEFAULT_SCREEN_HEIGHT;
+import static curly.octo.common.Constants.DEFAULT_SCREEN_WIDTH;
 
 /** Launches the desktop (LWJGL3) application. */
 public class Lwjgl3Launcher {
