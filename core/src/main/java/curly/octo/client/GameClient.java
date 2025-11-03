@@ -1,5 +1,7 @@
 package curly.octo.client;
 
+import curly.octo.Main;
+import curly.octo.client.clientStates.mainMenuState.MainMenuScreen;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferBuildAssetsState;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferReassemblyState;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferSharedStatics;
@@ -27,7 +29,6 @@ import java.util.UUID;
  * Handles client-side network operations.
  */
 public class GameClient {
-    public String clientUniqueId;
     private final Client client;  // Gameplay connection (small buffers)
     private BulkTransferClient bulkClient;  // Map transfer connection (large buffers, on-demand)
     private final NetworkListener networkListener;
@@ -65,8 +66,6 @@ public class GameClient {
 
         // Add network listener
         client.addListener(networkListener);
-
-        this.clientUniqueId = UUID.randomUUID().toString();
         this.bulkClient = null;  // Created on-demand
 
         Log.info("GameClient", "Initialized with dual-connection architecture (gameplay: 8KB, bulk: on-demand 64KB)");
@@ -219,12 +218,12 @@ public class GameClient {
         bulkClient.connect();
 
         Log.info("GameClient", "Bulk client connected: " + bulkClient.isConnected());
-        Log.info("GameClient", "Preparing to send ClientIdentificationMessage with ID: " + clientUniqueId);
+        Log.info("GameClient", "Preparing to send ClientIdentificationMessage with ID: " + Main.clientUniqueId);
 
         // Send client identification on bulk connection (same UUID as gameplay connection)
-        ClientIdentificationMessage identMsg = new ClientIdentificationMessage(clientUniqueId, "Jay");
+        ClientIdentificationMessage identMsg = new ClientIdentificationMessage(Main.clientUniqueId, "Jay");
         bulkClient.getClient().sendTCP(identMsg);
-        Log.info("GameClient", "Sent ClientIdentificationMessage on bulk connection: " + clientUniqueId);
+        Log.info("GameClient", "Sent ClientIdentificationMessage on bulk connection: " + Main.clientUniqueId);
 
         // NOTE: Bulk connection is SEND-ONLY (server -> client for chunks)
         // All message handlers remain on gameplay connection for simplicity
@@ -279,9 +278,9 @@ public class GameClient {
     public void sendClientIdentification() {
         if (client != null && client.isConnected()) {
             ClientIdentificationMessage message =
-                new ClientIdentificationMessage(clientUniqueId, "Jay");
+                new ClientIdentificationMessage(Main.clientUniqueId, "Jay");
             client.sendTCP(message);
-            Log.info("GameClient", "Sent client identification: " + clientUniqueId);
+            Log.info("GameClient", "Sent client identification: " + Main.clientUniqueId);
         } else {
             Log.warn("GameClient", "Cannot send identification - client not connected");
         }
@@ -292,13 +291,6 @@ public class GameClient {
      */
     public Client getClient() {
         return client;
-    }
-
-    /**
-     * @return the unique ID for this client
-     */
-    public String getClientUniqueId() {
-        return clientUniqueId;
     }
 
     private void handleMapTransferBegin(MapTransferBeginMessage message) {

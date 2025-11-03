@@ -6,6 +6,7 @@ import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.server.ServerCoordinator;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferSharedStatics;
+import curly.octo.server.playerManagement.ClientConnectionKey;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.server.playerManagement.ConnectionStatus;
 import curly.octo.server.serverStates.BaseGameStateServer;
@@ -60,7 +61,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
         // This handles initial entry and mid-game joins where existing clients need to be notified
         for (Connection conn : gameServer.getServer().getConnections()) {
             // Skip disconnected clients
-            String clientKey = gameServer.constructClientProfileKey(conn);
+            ClientConnectionKey clientKey = new ClientConnectionKey(conn);
             ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
             if (profile != null && profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
                 Log.info("ServerMapTransferState", "Skipping transfer for disconnected client " + conn.getID());
@@ -77,7 +78,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
      */
     public void startTransferForClient(Connection connection) {
         // Check if client is disconnected
-        String clientKey = gameServer.constructClientProfileKey(connection);
+        ClientConnectionKey clientKey = new ClientConnectionKey(connection);
         ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
         if (profile != null && profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
             Log.info("ServerMapTransferState", "Skipping transfer for disconnected client " + connection.getID());
@@ -140,7 +141,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
         HashMap<String, Integer> clientIdToChunkProgressMap = new HashMap<>();
         // Iterate through ALL connected clients
         for (Connection conn : gameServer.getServer().getConnections()) {
-            String clientKey = gameServer.constructClientProfileKey(conn);
+            ClientConnectionKey clientKey = new ClientConnectionKey(conn);
             ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
 
             // Skip disconnected clients

@@ -15,12 +15,9 @@ import static curly.octo.common.Constants.DEFAULT_SCREEN_WIDTH;
 
 public class MainMenuScreen extends BaseScreen {
 
-    private TextButton startServerButton;
-    private TextButton connectButton;
-    private TextField ipAddressField;
-    private Label statusLabel;
-
     private final MainMenuScreen.MainMenuListener listener;
+
+    private TextField ipAddressField;
 
     public interface MainMenuListener {
         void onStartServer();
@@ -45,16 +42,35 @@ public class MainMenuScreen extends BaseScreen {
         mainTable.pad(20);
 
         // Title
-        Label titleLabel = new Label("Multiplayer Game", skin, "subtitle");
+        Label titleLabel = new Label("Game", skin, "subtitle");
         titleLabel.setAlignment(Align.center);
         mainTable.add(titleLabel).colspan(2).padBottom(30).row();
 
         // Server section
+        addHostGameSubheader(mainTable, skin);
+        addStartServerButton(mainTable, skin);
+
+        // Client section
+        addJoinGameSubheader(mainTable, skin);
+        addIpAddressActors(mainTable, skin);
+        addUniqueIdActors(mainTable, skin);
+        addPreferredNameActors(mainTable, skin);
+        addConnectButton(mainTable, skin);
+
+        stage.addActor(mainTable);
+
+        Log.info("LobbyUI", "Created lobby UI");
+    }
+
+    private void addHostGameSubheader(Table mainTable, Skin skin) {
         Label serverLabel = new Label("Host a Game", skin, "subtitle");
         serverLabel.setAlignment(Align.center);
         mainTable.add(serverLabel).colspan(2).padBottom(10).row();
 
-        startServerButton = new TextButton("Start Server", skin);
+    }
+
+    private void addStartServerButton(Table mainTable, Skin skin) {
+        TextButton startServerButton = new TextButton("Start Server", skin);
         startServerButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -64,12 +80,15 @@ public class MainMenuScreen extends BaseScreen {
             }
         });
         mainTable.add(startServerButton).colspan(2).padBottom(30).row();
+    }
 
-        // Client section
+    private void addJoinGameSubheader(Table mainTable, Skin skin) {
         Label clientLabel = new Label("Join a Game", skin, "subtitle");
         clientLabel.setAlignment(Align.center);
         mainTable.add(clientLabel).colspan(2).padBottom(10).row();
+    }
 
+    private void addIpAddressActors(Table mainTable, Skin skin) {
         // IP Address input
         Label ipLabel = new Label("Server IP:", skin);
         mainTable.add(ipLabel).padRight(10);
@@ -77,8 +96,27 @@ public class MainMenuScreen extends BaseScreen {
         ipAddressField = new TextField("localhost", skin);
         ipAddressField.setMaxLength(15);
         mainTable.add(ipAddressField).padBottom(10).row();
+    }
 
-        connectButton = new TextButton("Connect", skin);
+    private void addUniqueIdActors(Table mainTable, Skin skin) {
+        Label uniqueIdLabel = new Label("Unique ID: ", skin);
+        mainTable.add(uniqueIdLabel).padRight(10);
+        TextField uniqueIdField = new TextField("s", skin);
+        uniqueIdField.setMaxLength(150);
+        mainTable.add(uniqueIdField).padBottom(10).row();
+    }
+
+    private void addPreferredNameActors(Table mainTable, Skin skin) {
+        Label uniqueIdLabel = new Label("Preferred Name: ", skin);
+        mainTable.add(uniqueIdLabel).padRight(10);
+        TextField preferredNameField = new TextField("nothing", skin);
+        preferredNameField.setMaxLength(45);
+        mainTable.add(preferredNameField).padBottom(10).row();
+
+    }
+
+    private void addConnectButton(Table mainTable, Skin skin) {
+        TextButton connectButton = new TextButton("Connect", skin);
         connectButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -91,20 +129,5 @@ public class MainMenuScreen extends BaseScreen {
             }
         });
         mainTable.add(connectButton).colspan(2).padBottom(30).row();
-
-        // Status label
-        statusLabel = new Label("Ready to play!", skin);
-        statusLabel.setAlignment(Align.center);
-        mainTable.add(statusLabel).colspan(2);
-
-        stage.addActor(mainTable);
-
-        Log.info("LobbyUI", "Created lobby UI");
-    }
-
-    public void disableInputs() {
-        if (startServerButton != null) startServerButton.setDisabled(true);
-        if (connectButton != null) connectButton.setDisabled(true);
-        if (ipAddressField != null) ipAddressField.setDisabled(true);
     }
 }

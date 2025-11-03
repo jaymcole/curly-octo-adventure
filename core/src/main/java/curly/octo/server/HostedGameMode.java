@@ -25,7 +25,6 @@ public class HostedGameMode implements GameMode {
 
     public HostedGameMode(java.util.Random random) {
         this.random = random;
-        // Server coordinator handles map distribution and network coordination without physics or graphics
         this.serverCoordinator = new ServerCoordinator(random);
     }
 
@@ -33,13 +32,9 @@ public class HostedGameMode implements GameMode {
     public void initialize() {
         try {
             Log.info("HostedGameMode", "Initializing hosted mode");
-
-            // Set up deferred map generation - map will be created when client connects
-            serverCoordinator.setDeferredMapGeneration(true);
-
             // Create and start server with its own player list (not shared with client)
             gameServer = new GameServer(
-                serverCoordinator.getRandom(),
+                this.random,
                 serverCoordinator.getMapManager(), // Will be null initially
                 new ArrayList<>(), // Server gets its own independent player list
                 serverCoordinator

@@ -1,4 +1,4 @@
-package curly.octo.server;
+package curly.octo.server.workflows;
 
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
@@ -6,6 +6,8 @@ import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.Constants;
 import curly.octo.common.network.messages.ClientIdentificationMessage;
+import curly.octo.server.NetworkListener;
+import curly.octo.server.ServerCoordinator;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.common.network.KryoNetwork;
 
@@ -199,40 +201,6 @@ public class BulkTransferServer {
      */
     public Server getServer() {
         return server;
-    }
-
-    /**
-     * Get a connection by ID (matches gameplay server connection ID).
-     * KryoNet doesn't guarantee matching IDs across different server instances,
-     * but connections are created in order, so this is a best-effort match.
-     */
-    public Connection getConnection(int connectionId) {
-        if (server == null) {
-            return null;
-        }
-
-        Connection[] connections = server.getConnections().toArray(new Connection[0]);
-        for (Connection conn : connections) {
-            if (conn.getID() == connectionId) {
-                return conn;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Get all active connections as array.
-     */
-    public Connection[] getConnections() {
-        if (server == null) {
-            return new Connection[0];
-        }
-        return server.getConnections().toArray(new Connection[0]);
-    }
-
-    public boolean isRunning() {
-        return running;
     }
 
     /**

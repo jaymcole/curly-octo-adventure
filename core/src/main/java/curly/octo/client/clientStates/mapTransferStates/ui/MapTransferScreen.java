@@ -7,6 +7,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
+import curly.octo.Main;
 import curly.octo.client.clientStates.BaseScreen;
 import curly.octo.client.clientStates.StateManager;
 import curly.octo.client.ui.UIAssetCache;
@@ -153,7 +154,7 @@ public class MapTransferScreen extends BaseScreen {
      * Does not rebuild the UI structure.
      */
     private static void updateClientProgressValues(Map<String, Integer> clientProgress, int totalChunks) {
-        clientUniqueIdLabel.setText(StateManager.getGameClient().getClientUniqueId());
+        clientUniqueIdLabel.setText(Main.clientUniqueId);
         for (Map.Entry<String, Integer> entry : clientProgress.entrySet()) {
             String clientId = entry.getKey();
             int chunks = entry.getValue();

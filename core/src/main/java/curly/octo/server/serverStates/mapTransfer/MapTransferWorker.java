@@ -4,6 +4,7 @@ import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.Constants;
 import curly.octo.server.ServerCoordinator;
+import curly.octo.server.playerManagement.ClientConnectionKey;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.server.GameServer;
 import curly.octo.common.network.messages.legacyMessages.MapChunkMessage;
@@ -44,7 +45,7 @@ public class MapTransferWorker {
 
         // Try to get clientUniqueId from gameplay connection's profile
         // May be null initially if client hasn't sent identification yet - will retry in update()
-        String clientKey = gameServer.constructClientProfileKey(gameplayConnection);
+        ClientConnectionKey clientKey = new ClientConnectionKey(gameplayConnection);
         ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
         this.clientUniqueId = profile != null ? profile.clientUniqueId : null;
 
@@ -99,7 +100,7 @@ public class MapTransferWorker {
             Connection[] gameplayConns = gameServer.getServer().getConnections().toArray(new Connection[0]);
             for (Connection c : gameplayConns) {
                 if (c.getID() == gameplayConnectionId) {
-                    String clientKey = gameServer.constructClientProfileKey(c);
+                    ClientConnectionKey clientKey = new ClientConnectionKey(c);
                     ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
                     if (profile != null && profile.clientUniqueId != null) {
                         this.clientUniqueId = profile.clientUniqueId;
@@ -139,7 +140,7 @@ public class MapTransferWorker {
 
         // Check client's current state BEFORE waiting for bulk connection
         // This allows clients who skip transfer (already have map) to complete immediately
-        String clientKey = gameServer.constructClientProfileKey(gameplayConn);
+        ClientConnectionKey clientKey = new ClientConnectionKey(gameplayConn);
         ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
 
         if (profile != null && profile.currentState != null) {

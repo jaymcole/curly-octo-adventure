@@ -2,6 +2,7 @@ package curly.octo.server.serverStates.mapTransfer;
 
 import curly.octo.server.ServerCoordinator;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferCompleteState;
+import curly.octo.server.playerManagement.ClientConnectionKey;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.server.playerManagement.ConnectionStatus;
 import curly.octo.server.serverStates.BaseGameStateServer;
@@ -28,7 +29,7 @@ public class ServerWaitForClientsToBeReadyState extends BaseGameStateServer {
     public void update(float delta) {
 
         boolean allClientsReady = true;
-        for(Map.Entry<String, ClientProfile> client : serverCoordinator.clientProfiles.entrySet()) {
+        for(Map.Entry<ClientConnectionKey, ClientProfile> client : serverCoordinator.clientProfiles.entrySet()) {
             if (client.getValue().connectionStatus == ConnectionStatus.CONNECTED) {
                 if (!Objects.equals(client.getValue().currentState, MapTransferCompleteState.class.getSimpleName())) {
                     allClientsReady = false;

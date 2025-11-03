@@ -6,6 +6,7 @@ import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.network.messages.*;
+import curly.octo.server.playerManagement.ClientConnectionKey;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.server.serverStates.ServerStateManager;
 import curly.octo.server.playerManagement.ConnectionStatus;
@@ -20,6 +21,7 @@ import curly.octo.common.network.messages.legacyMessages.MapRegenerationStartMes
 import curly.octo.common.network.messages.legacyMessages.ClientReadyForMapMessage;
 import curly.octo.common.PlayerObject;
 import curly.octo.common.PlayerUtilities;
+import curly.octo.server.workflows.BulkTransferServer;
 
 import java.io.IOException;
 import java.util.*;
@@ -30,7 +32,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class GameServer {
     private final Server server;  // Gameplay connection (small buffers)
-    private BulkTransferServer bulkServer;  // Map transfer connection (large buffers)
+    private final BulkTransferServer bulkServer;  // Map transfer connection (large buffers)
+
     private final NetworkListener networkListener;
     private final GameMap map;
     private final List<PlayerObject> players;
@@ -48,7 +51,6 @@ public class GameServer {
     private final Map<Integer, String> pendingPlayerAssignments = new ConcurrentHashMap<>();
 
     // Chunked map transfer support
-    private static final int CHUNK_SIZE = Constants.NETWORK_CHUNK_SIZE; // 8KB chunks
     private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
 
 
@@ -77,35 +79,17 @@ public class GameServer {
 
         Log.info("GameServer", "Initialized with dual-connection architecture (gameplay: 8KB, bulk: 64KB)");
 
-//            @Override
-//            public void received(Connection connection, Object object) {
-//                if (object instanceof PlayerUpdate) {
-//
-//                } else if (object instanceof ClientReadyForMapMessage) {
-//                    // Client is ready to receive new map data
-//                    ClientReadyForMapMessage readyMessage = (ClientReadyForMapMessage) object;
-//                    handleClientReadyForMap(connection, readyMessage);
-//                }
-//            }
-
         server.addListener(networkListener);
     }
 
     public void handleClientStateChangeMessage(Connection connection, ClientStateChangeMessage stateChangeMessage) {
-        String clientKey = constructClientProfileKey(connection);
+        ClientConnectionKey clientKey = new ClientConnectionKey(connection);
         serverCoordinator.updateClientState(clientKey, stateChangeMessage.oldState, stateChangeMessage.newState);
     }
 
     public void handleClientIdentification(Connection connection, ClientIdentificationMessage identificationMessage) {
-        String clientKey = constructClientProfileKey(connection);
-        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
-        if (profile != null) {
-            profile.clientUniqueId = identificationMessage.clientUniqueId;
-            profile.userName = identificationMessage.clientName;
-            Log.info("GameServer", "Client " + connection.getID() + " identified with uniqueId: " + identificationMessage.clientUniqueId);
-        } else {
-            Log.warn("GameServer", "Received identification from unknown client: " + connection.getID());
-        }
+        ClientConnectionKey clientKey = new ClientConnectionKey(connection);
+        serverCoordinator.registerClientProfile(clientKey, identificationMessage.clientUniqueId, identificationMessage.clientName);
     }
 
     public void handlePlayerUpdate(Connection connection, PlayerUpdate update) {
@@ -191,18 +175,6 @@ public class GameServer {
         return bulkServer;
     }
 
-    /**
-     * Broadcasts a player's position to all connected clients
-     * @param playerId The ID of the player whose position is being updated
-     * @param position The new position of the player
-     */
-    public void broadcastPlayerPosition(String playerId, Vector3 position) {
-        if (server != null) {
-            PlayerUpdate update = new PlayerUpdate(playerId, position);
-            server.sendToAllUDP(update); // Using UDP less reliable but faster updates
-        }
-    }
-
     public void broadcastNewPlayerRoster() {
         if (server != null) {
             try {
@@ -277,8 +249,6 @@ public class GameServer {
             transferState.startTransferForClient(connection);
         }
     }
-
-
 
     // =====================================
     // INITIAL MAP GENERATION SUPPORT
@@ -407,11 +377,6 @@ public class GameServer {
                 NetworkManager.sendToAllClients(startMessage);
                 Log.info("GameServer", "Sent regeneration start message to all clients, waiting for readiness confirmations...");
 
-                // Step 2: Wait for all clients to confirm they're ready
-//                if (!waitForAllClientsReady()) {
-//                    Log.error("GameServer", "Timeout waiting for clients to be ready, proceeding anyway");
-//                }
-
                 // Step 3: Clear cached map data to force fresh serialization
                 serializedMaps.clear();
 
@@ -532,61 +497,6 @@ public class GameServer {
         regenerateMapRandom("Debug/Admin triggered");
     }
 
-    /**
-     * Handle client readiness confirmation for map regeneration
-     */
-    private void handleClientReadyForMap(Connection connection, ClientReadyForMapMessage readyMessage) {
-        if (!isRegenerating || readyMessage.regenerationId != currentRegenerationId) {
-            Log.warn("GameServer", "Received client ready message for wrong/old regeneration ID: " +
-                     readyMessage.regenerationId + " (current: " + currentRegenerationId + ")");
-            return;
-        }
-
-        synchronized (clientsReadyForMap) {
-            clientsReadyForMap.add(connection.getID());
-            Log.info("GameServer", "Client " + connection.getID() + " ready for map transfer (" +
-                     clientsReadyForMap.size() + "/" + server.getConnections().size() + ")");
-
-            // Notify waiting thread
-            clientsReadyForMap.notifyAll();
-        }
-    }
-
-    /**
-     * Wait for all connected clients to confirm they're ready for map transfer
-     */
-    private boolean waitForAllClientsReady() {
-        int totalClients = server.getConnections().size();
-        if (totalClients == 0) {
-            Log.info("GameServer", "No clients connected, proceeding with regeneration");
-            return true;
-        }
-
-        long startTime = System.currentTimeMillis();
-        long timeout = 10000; // 10 seconds timeout
-
-        synchronized (clientsReadyForMap) {
-            while (clientsReadyForMap.size() < totalClients) {
-                long elapsed = System.currentTimeMillis() - startTime;
-                if (elapsed >= timeout) {
-                    Log.warn("GameServer", "Timeout waiting for clients: " +
-                             clientsReadyForMap.size() + "/" + totalClients + " ready");
-                    return false;
-                }
-
-                try {
-                    clientsReadyForMap.wait(timeout - elapsed);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return false;
-                }
-            }
-        }
-
-        Log.info("GameServer", "All " + totalClients + " clients are ready for map transfer");
-        return true;
-    }
-
     // =====================================
     // CONNECTION EVENT HANDLERS
     // =====================================
@@ -595,16 +505,19 @@ public class GameServer {
      * Handles a client connection event from NetworkListener
      */
     public void handleClientConnected(Connection connection) {
+
+        // Wait to register players until they identify themselves.
+
         // Register client profile in ServerCoordinator
-        String clientKey = constructClientProfileKey(connection);
-        serverCoordinator.registerClientProfile(clientKey);
+//        ClientConnectionKey clientKey = new ClientConnectionKey(connection);
+//        serverCoordinator.registerClientProfile(clientKey);
 
         // Set gameplay connection ID in profile
-        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
-        if (profile != null) {
-            profile.gameplayConnectionId = connection.getID();
-            Log.info("GameServer", "Set gameplay connection ID " + connection.getID() + " for client profile: " + clientKey);
-        }
+//        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
+//        if (profile != null) {
+//            profile.gameplayConnectionId = connection.getID();
+//            Log.info("GameServer", "Set gameplay connection ID " + connection.getID() + " for client profile: " + clientKey);
+//        }
 
         // Check if we have an initial map or need to generate one
         if (hasInitialMap()) {
@@ -642,7 +555,7 @@ public class GameServer {
      */
     public void handleClientDisconnected(Connection connection) {
         // Update client profile status to disconnected
-        String clientKey = constructClientProfileKey(connection);
+        ClientConnectionKey clientKey = new ClientConnectionKey(connection);
         ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
         if (profile != null) {
             profile.connectionStatus = ConnectionStatus.DISCONNECTED;
@@ -682,9 +595,5 @@ public class GameServer {
                 Log.info("Server", "Player " + disconnectedPlayer.entityId + " disconnected");
             }
         }
-    }
-
-    public String constructClientProfileKey(Connection connection) {
-        return String.valueOf(connection.getID());
     }
 }

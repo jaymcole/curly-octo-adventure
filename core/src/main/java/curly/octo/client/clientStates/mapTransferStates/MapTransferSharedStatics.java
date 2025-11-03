@@ -1,5 +1,6 @@
 package curly.octo.client.clientStates.mapTransferStates;
 
+import curly.octo.Main;
 import curly.octo.client.clientStates.StateManager;
 import curly.octo.client.clientStates.mapTransferStates.ui.MapTransferScreen;
 import curly.octo.client.GameClient;
@@ -59,7 +60,7 @@ public class MapTransferSharedStatics {
         String currentClientId = null;
         GameClient gameClient = StateManager.getGameClient();
         if (gameClient != null) {
-            currentClientId = gameClient.getClientUniqueId();
+            currentClientId = Main.clientUniqueId;
         }
 
         // Update the UI with the new client progress data

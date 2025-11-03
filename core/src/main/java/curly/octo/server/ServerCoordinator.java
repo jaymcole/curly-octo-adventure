@@ -1,14 +1,15 @@
 package curly.octo.server;
 
 import com.esotericsoftware.minlog.Log;
+import curly.octo.server.playerManagement.ClientConnectionKey;
 import curly.octo.server.playerManagement.ClientProfile;
+import curly.octo.server.serverAgents.BaseAgent;
 import curly.octo.server.serverStates.ServerStateManager;
 import curly.octo.common.map.GameMap;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
-
-import static curly.octo.common.Constants.MAP_GENERATION_SEED;
 
 /**
  * Server-side game coordinator that handles network coordination and map distribution.
@@ -20,50 +21,22 @@ public class ServerCoordinator {
     // Core server state
     protected GameMap mapManager;
     protected Random random;
-    protected float positionUpdateTimer = 0;
     protected boolean disposed = false;
 
-    // Server-specific state
-    private HashMap<String, String> entityIdToEntityOwnerMap;
-    private boolean deferredMapGeneration = false;
-    public HashMap<String, ClientProfile> clientProfiles;
+    public HashMap<ClientConnectionKey, ClientProfile> clientProfiles;
+    public ArrayList<ClientProfile> homelessedProfiles;
+    public ArrayList<BaseAgent> serverAgents;
 
 
     public ServerCoordinator(Random random) {
         this.random = random;
-        Log.info("ServerCoordinator", "Created server coordinator (no graphics, no physics)");
-        entityIdToEntityOwnerMap = new HashMap<>();
         clientProfiles = new HashMap<>();
+        homelessedProfiles = new ArrayList<>();
+        instantiateServerAgents();
     }
 
-    /**
-     * Server-only map initialization that skips rendering and physics components.
-     * Used to create a map for network distribution without graphics overhead.
-     */
-    public void initializeHostMap() {
-        if (mapManager == null) {
-            int size = 50;
-            int height = 10;
-
-            GameMap map = new GameMap(MAP_GENERATION_SEED, true);
-            Log.info("ServerCoordinator", "Created host map ("+size+"x"+height+"x"+size+" = " + (size*height*size) + " tiles) - no rendering, no physics");
-
-            // Set the map without renderer initialization
-            mapManager = map;
-            Log.info("ServerCoordinator", "Initialized host map");
-        }
-    }
-
-    /**
-     * Sets whether map generation should be deferred until client connection.
-     * When true, the host will not generate an initial map and instead will
-     * trigger map generation through the regeneration workflow when a client connects.
-     */
-    public void setDeferredMapGeneration(boolean deferred) {
-        this.deferredMapGeneration = deferred;
-        if (deferred) {
-            Log.info("ServerCoordinator", "Map generation deferred - will generate when client connects");
-        }
+    private void instantiateServerAgents() {
+        this.serverAgents = new ArrayList<>();
     }
 
     /**
@@ -79,7 +52,7 @@ public class ServerCoordinator {
      * Get all client profiles.
      * @return HashMap of client profiles keyed by client key
      */
-    public HashMap<String, ClientProfile> getClientProfiles() {
+    public HashMap<ClientConnectionKey, ClientProfile> getClientProfiles() {
         return clientProfiles;
     }
 
@@ -88,7 +61,7 @@ public class ServerCoordinator {
      * @param clientKey The client identifier
      * @return ClientProfile or null if not found
      */
-    public ClientProfile getClientProfile(String clientKey) {
+    public ClientProfile getClientProfile(ClientConnectionKey clientKey) {
         return clientProfiles.get(clientKey);
     }
 
@@ -96,11 +69,31 @@ public class ServerCoordinator {
      * Register a new client profile.
      * @param clientKey The client identifier
      */
-    public void registerClientProfile(String clientKey) {
-        if (!clientProfiles.containsKey(clientKey)) {
-            clientProfiles.put(clientKey, new ClientProfile());
+    public void registerClientProfile(ClientConnectionKey clientKey, String uniqueIdentifier, String preferredName) {
+        if (clientProfiles.containsKey(clientKey)) {
+            if (clientProfiles.get(clientKey).clientUniqueId.compareTo(uniqueIdentifier) != 0) {
+                homelessedProfiles.add(clientProfiles.get(clientKey));
+                clientProfiles.put(clientKey, new ClientProfile());
+            } else {
+                ClientProfile existingProfile = null;
+                for(ClientProfile homeless : homelessedProfiles) {
+                    if (homeless.clientUniqueId.compareTo(uniqueIdentifier) == 0) {
+                        existingProfile = homeless;
+                        break;
+                    }
+                }
+                if (existingProfile != null) {
+                    clientProfiles.put(clientKey, existingProfile);
+                    homelessedProfiles.remove(existingProfile);
+                }
+            }
+
             Log.info("ServerCoordinator", "Registered new client profile: " + clientKey);
+        } else {
+            clientProfiles.put(clientKey, new ClientProfile());
         }
+        clientProfiles.get(clientKey).clientUniqueId = uniqueIdentifier;
+        clientProfiles.get(clientKey).userName = preferredName;
     }
 
     /**
@@ -109,7 +102,7 @@ public class ServerCoordinator {
      * @param oldState The previous state
      * @param newState The new state
      */
-    public void updateClientState(String clientKey, String oldState, String newState) {
+    public void updateClientState(ClientConnectionKey clientKey, String oldState, String newState) {
         ClientProfile profile = clientProfiles.get(clientKey);
         if (profile != null) {
             profile.currentState = newState;
@@ -120,7 +113,6 @@ public class ServerCoordinator {
     }
 
     public void update(float deltaTime) {
-        positionUpdateTimer += deltaTime;
         ServerStateManager.update(deltaTime);
     }
 
@@ -154,18 +146,6 @@ public class ServerCoordinator {
     // Accessors
     public GameMap getMapManager() {
         return mapManager;
-    }
-
-    public Random getRandom() {
-        return random;
-    }
-
-    protected void setMapManager(GameMap mapManager) {
-        this.mapManager = mapManager;
-    }
-
-    protected void incrementPositionUpdateTimer(float deltaTime) {
-        positionUpdateTimer += deltaTime;
     }
 
     public void dispose() {
