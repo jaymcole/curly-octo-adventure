@@ -158,6 +158,28 @@ public class BulkTransferServer {
     }
 
     /**
+     * Check if a connection is a bulk transfer connection.
+     * Used to prevent bulk connections from creating duplicate ClientProfiles.
+     * @param connection the connection to check
+     * @return true if this is a bulk connection, false if it's a gameplay connection
+     */
+    public synchronized boolean isBulkConnection(Connection connection) {
+        if (connection == null) {
+            return false;
+        }
+
+        // Check if this connection is in our bulk connection tracking
+        int connectionId = connection.getID();
+        for (Connection bulkConn : clientIdToConnection.values()) {
+            if (bulkConn != null && bulkConn.getID() == connectionId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Start the bulk transfer server and bind to ports.
      */
     public void start() throws IOException {

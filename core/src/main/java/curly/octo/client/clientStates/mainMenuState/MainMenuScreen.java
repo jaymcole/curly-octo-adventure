@@ -133,13 +133,10 @@ public class MainMenuScreen extends BaseScreen {
                 if (listener != null) {
                     String host = ipAddressField.getText().trim();
                     if (!host.isEmpty()) {
-                        // Update Main's static fields with user-entered values
-                        String enteredUniqueId = uniqueIdField.getText().trim();
+                        // clientUniqueId is loaded from config and displayed as read-only
+                        // Only allow updating the preferred name from UI
                         String enteredPreferredName = preferredNameField.getText().trim();
 
-                        if (!enteredUniqueId.isEmpty()) {
-                            Main.clientUniqueId = enteredUniqueId;
-                        }
                         if (!enteredPreferredName.isEmpty()) {
                             Main.clientPreferredName = enteredPreferredName;
                         }

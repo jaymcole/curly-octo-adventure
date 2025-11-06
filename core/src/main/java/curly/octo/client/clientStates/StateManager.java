@@ -96,6 +96,20 @@ public class StateManager{
         }
     }
 
+    /**
+     * Re-send the current state to the server.
+     * Used for retry logic when the server may have missed the initial state change.
+     */
+    public static void resendCurrentStateToServer() {
+        if (currentState != null) {
+            Log.info("StateManager", "Re-sending current state to server: " + currentState.getClass().getSimpleName());
+            // Send current state as both old and new to indicate we're still in this state
+            NetworkManager.sendToServer(new ClientStateChangeMessage(currentState.getClass(), currentState.getClass()));
+        } else {
+            Log.warn("StateManager", "Cannot resend state - current state is null");
+        }
+    }
+
     public static BaseGameStateClient getCachedState(Class clientStateClass) {
         return cachedStates.get(clientStateClass);
     }

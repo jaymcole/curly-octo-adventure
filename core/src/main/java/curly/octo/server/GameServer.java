@@ -84,12 +84,26 @@ public class GameServer {
 
     public void handleClientStateChangeMessage(Connection connection, ClientStateChangeMessage stateChangeMessage) {
         ClientConnectionKey clientKey = new ClientConnectionKey(connection);
+        Log.info("GameServer", "Received state change from connection " + connection.getID() + ": " +
+                 stateChangeMessage.oldState + " -> " + stateChangeMessage.newState);
         serverCoordinator.updateClientState(clientKey, stateChangeMessage.oldState, stateChangeMessage.newState);
     }
 
     public void handleClientIdentification(Connection connection, ClientIdentificationMessage identificationMessage) {
+        // Check if this is a bulk connection - if so, skip ClientProfile registration
+        // Bulk connections are tracked separately in BulkTransferServer
+        if (bulkServer.isBulkConnection(connection)) {
+            Log.info("GameServer", "Skipping profile registration for bulk connection " + connection.getID() +
+                     " (uniqueId=" + identificationMessage.clientUniqueId + ", handled by BulkTransferServer)");
+            return;
+        }
+
+        // Only register gameplay connections as ClientProfiles
         ClientConnectionKey clientKey = new ClientConnectionKey(connection);
+        Log.info("GameServer", "Received identification from gameplay connection " + connection.getID() +
+                 ": uniqueId=" + identificationMessage.clientUniqueId + ", name=" + identificationMessage.clientName);
         serverCoordinator.registerClientProfile(clientKey, identificationMessage.clientUniqueId, identificationMessage.clientName);
+        Log.info("GameServer", "Client profile registered for gameplay connection " + connection.getID());
     }
 
     public void handlePlayerUpdate(Connection connection, PlayerUpdate update) {

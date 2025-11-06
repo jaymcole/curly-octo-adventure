@@ -27,11 +27,27 @@ public class ServerCoordinator {
     public ArrayList<ClientProfile> homelessedProfiles;
     public ArrayList<BaseAgent> serverAgents;
 
+    // Queue for state updates that arrive before client identification
+    private HashMap<ClientConnectionKey, ArrayList<PendingStateUpdate>> pendingStateUpdates;
+
+    // Inner class to store pending state updates
+    private static class PendingStateUpdate {
+        String oldState;
+        String newState;
+        long timestamp;
+
+        PendingStateUpdate(String oldState, String newState) {
+            this.oldState = oldState;
+            this.newState = newState;
+            this.timestamp = System.currentTimeMillis();
+        }
+    }
 
     public ServerCoordinator(Random random) {
         this.random = random;
         clientProfiles = new HashMap<>();
         homelessedProfiles = new ArrayList<>();
+        pendingStateUpdates = new HashMap<>();
         instantiateServerAgents();
     }
 
@@ -99,6 +115,25 @@ public class ServerCoordinator {
         }
         clientProfiles.get(clientKey).clientUniqueId = uniqueIdentifier;
         clientProfiles.get(clientKey).userName = preferredName;
+        Log.info("ServerCoordinator", "Profile successfully registered: " + clientKey + " -> uniqueId=" +
+                 uniqueIdentifier + ", name=" + preferredName + " (Total profiles: " + clientProfiles.size() + ")");
+
+        // Process any pending state updates for this client
+        if (pendingStateUpdates.containsKey(clientKey)) {
+            ArrayList<PendingStateUpdate> pending = pendingStateUpdates.get(clientKey);
+            Log.info("ServerCoordinator", "Processing " + pending.size() + " queued state updates for " + clientKey);
+
+            for (PendingStateUpdate update : pending) {
+                long age = System.currentTimeMillis() - update.timestamp;
+                Log.info("ServerCoordinator", "  Applying queued update (age=" + age + "ms): " +
+                         update.oldState + " -> " + update.newState);
+                clientProfiles.get(clientKey).currentState = update.newState;
+            }
+
+            // Clear the queue
+            pendingStateUpdates.remove(clientKey);
+            Log.info("ServerCoordinator", "Cleared pending updates queue for " + clientKey);
+        }
     }
 
     /**
@@ -113,7 +148,20 @@ public class ServerCoordinator {
             profile.currentState = newState;
             Log.info("ServerCoordinator", "Client (" + clientKey + ") transitioned from [" + oldState + "] to [" + newState + "]");
         } else {
-            Log.error("ServerCoordinator", "Cannot update state - client profile not found: " + clientKey);
+            // Profile not found - queue the update for later processing
+            Log.warn("ServerCoordinator", "Client profile not found for " + clientKey + " - QUEUING state update");
+            Log.warn("ServerCoordinator", "  Attempted transition: " + oldState + " -> " + newState);
+            Log.warn("ServerCoordinator", "  This is a race condition - state change arrived before identification");
+
+            // Create queue for this client if it doesn't exist
+            if (!pendingStateUpdates.containsKey(clientKey)) {
+                pendingStateUpdates.put(clientKey, new ArrayList<>());
+            }
+
+            // Add the update to the queue
+            pendingStateUpdates.get(clientKey).add(new PendingStateUpdate(oldState, newState));
+            Log.info("ServerCoordinator", "  Queued state update. Total pending for this client: " +
+                     pendingStateUpdates.get(clientKey).size());
         }
     }
 
