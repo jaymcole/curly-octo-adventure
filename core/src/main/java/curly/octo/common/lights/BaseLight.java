@@ -9,7 +9,7 @@ import curly.octo.common.GameObject;
 
 import static curly.octo.common.lights.LightPresets.getRandomFlicker;
 
-public class BaseLight extends GameObject{
+public class BaseLight extends GameObject {
     public static final float FLICKER_TICK_TIME = 0.1f;
 
     private final float intensity;

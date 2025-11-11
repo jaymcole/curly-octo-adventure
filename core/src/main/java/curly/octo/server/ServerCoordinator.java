@@ -20,6 +20,7 @@ public class ServerCoordinator {
 
     // Core server state
     protected GameMap mapManager;
+    protected ServerGameObjectManager gameObjectManager;
     protected Random random;
     protected boolean disposed = false;
 
@@ -166,6 +167,13 @@ public class ServerCoordinator {
     }
 
     public void update(float deltaTime) {
+        // Update game objects (players, NPCs, etc.)
+//         TODO: I don't think we need to update game objects server-side. We'll update objects as we receive messages from clients.
+//        if (gameObjectManager != null) {
+//            gameObjectManager.update(deltaTime);
+//        }
+
+        // Update server state machine
         ServerStateManager.update(deltaTime);
     }
 
@@ -201,6 +209,15 @@ public class ServerCoordinator {
         return mapManager;
     }
 
+    public ServerGameObjectManager getGameObjectManager() {
+        return gameObjectManager;
+    }
+
+    public void setGameObjectManager(ServerGameObjectManager gameObjectManager) {
+        this.gameObjectManager = gameObjectManager;
+        Log.info("ServerCoordinator", "Game object manager set");
+    }
+
     public void dispose() {
         if (disposed) {
             Log.info("ServerCoordinator", "Already disposed, skipping");
@@ -208,6 +225,16 @@ public class ServerCoordinator {
         }
 
         Log.info("ServerCoordinator", "Disposing server coordinator...");
+
+        if (gameObjectManager != null) {
+            try {
+                gameObjectManager.dispose();
+                Log.info("ServerCoordinator", "Game object manager disposed");
+            } catch (Exception e) {
+                Log.error("ServerCoordinator", "Error disposing game object manager: " + e.getMessage());
+            }
+            gameObjectManager = null;
+        }
 
         if (mapManager != null) {
             try {

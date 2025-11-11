@@ -36,7 +36,7 @@ public class GameServer {
 
     private final NetworkListener networkListener;
     private final GameMap map;
-    private final List<PlayerObject> players;
+    private final ServerGameObjectManager gameObjectManager;
     private final ServerCoordinator serverCoordinator;
     private final Map<Integer, String> connectionToPlayerMap = new HashMap<>();
     private final Set<Integer> readyClients = new HashSet<>(); // Track clients that have received map and assignment
@@ -54,9 +54,9 @@ public class GameServer {
     private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
 
 
-    public GameServer(Random random, GameMap map, List<PlayerObject> players, ServerCoordinator serverCoordinator) {
+    public GameServer(Random random, GameMap map, ServerGameObjectManager gameObjectManager, ServerCoordinator serverCoordinator) {
         this.map = map;
-        this.players = players;
+        this.gameObjectManager = gameObjectManager;
         this.serverCoordinator = serverCoordinator;
 
         // Small buffers for gameplay connection (low latency for position updates)
@@ -107,14 +107,13 @@ public class GameServer {
     }
 
     public void handlePlayerUpdate(Connection connection, PlayerUpdate update) {
-        // Received a player position update, broadcast to all other clients
-        for (PlayerObject player : players) {
-            if (player.entityId.equals(update.playerId)) {
-                player.setPosition(new Vector3(update.x, update.y, update.z));
-                player.setYaw(update.yaw);
-                player.setPitch(update.pitch);
-                break;
-            }
+        // Received a player position update, update in game object manager
+        //TODO: don't include playerId in message. This should be determined via Connection/ClientProfile
+        PlayerObject player = gameObjectManager.getPlayerById(update.playerId);
+        if (player != null) {
+            player.setPosition(new Vector3(update.x, update.y, update.z));
+            player.setYaw(update.yaw);
+            player.setPitch(update.pitch);
         }
 
         // Only broadcast to OTHER clients (exclude the sender)
@@ -219,6 +218,7 @@ public class GameServer {
 
     private PlayerObjectRosterUpdate createPlayerRosterUpdate() {
         PlayerObjectRosterUpdate update = new PlayerObjectRosterUpdate();
+        List<PlayerObject> players = gameObjectManager.getAllPlayers();
         PlayerObject[] playerRoster = new PlayerObject[players.size()];
         for (int i = 0; i < players.size(); i++) {
             playerRoster[i] = players.get(i);
@@ -541,7 +541,7 @@ public class GameServer {
             sendMapRefreshToUser(connection);
 
             PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
-            players.add(newPlayer);
+            gameObjectManager.add(newPlayer);
 
             connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
             broadcastNewPlayerRoster();
@@ -554,7 +554,7 @@ public class GameServer {
 
             // Create player but don't send assignment yet - store for later
             PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
-            players.add(newPlayer);
+            gameObjectManager.add(newPlayer);
             connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
 
             // Store connection info for later player assignment
@@ -588,16 +588,10 @@ public class GameServer {
         // Find and remove the disconnected player using the connection mapping
         String playerId = connectionToPlayerMap.remove(connection.getID());
         if (playerId != null) {
-            PlayerObject disconnectedPlayer = null;
-            for (PlayerObject player : players) {
-                if (player.entityId.equals(playerId)) {
-                    disconnectedPlayer = player;
-                    break;
-                }
-            }
+            PlayerObject disconnectedPlayer = gameObjectManager.getPlayerById(playerId);
 
             if (disconnectedPlayer != null) {
-                players.remove(disconnectedPlayer);
+                gameObjectManager.remove(disconnectedPlayer);
 
                 // Remove the disconnected player's light from the server's environment
 //                        serverCoordinator.removePlayerFromEnvironment(disconnectedPlayer);

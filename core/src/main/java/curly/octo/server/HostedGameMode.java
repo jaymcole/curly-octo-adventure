@@ -32,15 +32,21 @@ public class HostedGameMode implements GameMode {
     public void initialize() {
         try {
             Log.info("HostedGameMode", "Initializing hosted mode");
-            // Create and start server with its own player list (not shared with client)
+            // Create game object manager
+            ServerGameObjectManager gameObjectManager = new ServerGameObjectManager();
+
+            // Create and start server with the game object manager
             gameServer = new GameServer(
                 this.random,
                 serverCoordinator.getMapManager(), // Will be null initially
-                new ArrayList<>(), // Server gets its own independent player list
+                gameObjectManager,
                 serverCoordinator
             );
             gameServer.start();
             serverStarted = true;
+
+            // Set the game object manager on the coordinator so it can update it
+            serverCoordinator.setGameObjectManager(gameObjectManager);
 
             // Initialize ServerStateManager with dependencies
             ServerStateManager.initializeManager(gameServer, serverCoordinator);
