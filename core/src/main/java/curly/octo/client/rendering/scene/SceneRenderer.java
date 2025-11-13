@@ -326,8 +326,6 @@ public class SceneRenderer extends BaseRenderer {
      * Logs rendering statistics.
      */
     private void logRenderingStats() {
-        Log.debug("SceneRenderer", "Rendered " + opaquePartsRendered + " opaque + " +
-            transparentPartsRendered + " transparent parts");
     }
 
     /**
@@ -374,9 +372,6 @@ public class SceneRenderer extends BaseRenderer {
                         // Set lighting uniforms
                         configureLightUniforms(waterShader, currentLights, currentNumShadowLights);
                         activeShader.setUniformf("u_ambientLight", currentAmbientLight);
-
-                        Log.debug("SceneRenderer", "Rendering water with shader - time=" + elapsedTime +
-                                 ", part=" + nodePart.meshPart.id + ", transparent=" + transparentPass);
                     }
 
                     // Set material properties
@@ -423,8 +418,6 @@ public class SceneRenderer extends BaseRenderer {
     private void updateRenderCounters(boolean transparentPass, NodePart nodePart) {
         if (transparentPass) {
             transparentPartsRendered++;
-            String partId = nodePart.meshPart.id != null ? nodePart.meshPart.id : "UNNAMED";
-            Log.debug("SceneRenderer", "TRANSPARENT PART: '" + partId + "' - vertices: " + nodePart.meshPart.size);
         } else {
             opaquePartsRendered++;
         }

@@ -73,7 +73,7 @@ public class ModelAssetManager implements Disposable {
             FileHandle propsFile = Gdx.files.internal(propsPath);
 
             if (!propsFile.exists()) {
-                Log.debug("ModelAssetManager", "No properties file found for " + assetPath + ", using defaults");
+                Log.info("ModelAssetManager", "No properties file found for " + assetPath + ", using defaults");
                 return PhysicsProperties.DEFAULT;
             }
 
@@ -84,7 +84,7 @@ public class ModelAssetManager implements Disposable {
             float weight = Float.parseFloat(props.getProperty("weight", "1.0"));
             boolean floats = Boolean.parseBoolean(props.getProperty("floats", "false"));
 
-            Log.debug("ModelAssetManager", "Loaded physics properties for " + assetPath + ": " +
+            Log.info("ModelAssetManager", "Loaded physics properties for " + assetPath + ": " +
                      "volume=" + volumeDisplacement + ", weight=" + weight + ", floats=" + floats);
 
             return new PhysicsProperties(volumeDisplacement, weight, floats);

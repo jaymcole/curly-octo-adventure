@@ -35,7 +35,6 @@ public class GameServer {
     private final BulkTransferServer bulkServer;  // Map transfer connection (large buffers)
 
     private final NetworkListener networkListener;
-    private final GameMap map;
     private final ServerGameObjectManager gameObjectManager;
     private final ServerCoordinator serverCoordinator;
     private final Map<Integer, String> connectionToPlayerMap = new HashMap<>();
@@ -54,8 +53,7 @@ public class GameServer {
     private final Map<String, byte[]> serializedMaps = new ConcurrentHashMap<>(); // Cache serialized maps
 
 
-    public GameServer(Random random, GameMap map, ServerGameObjectManager gameObjectManager, ServerCoordinator serverCoordinator) {
-        this.map = map;
+    public GameServer(Random random, ServerGameObjectManager gameObjectManager, ServerCoordinator serverCoordinator) {
         this.gameObjectManager = gameObjectManager;
         this.serverCoordinator = serverCoordinator;
 
@@ -104,6 +102,40 @@ public class GameServer {
                  ": uniqueId=" + identificationMessage.clientUniqueId + ", name=" + identificationMessage.clientName);
         serverCoordinator.registerClientProfile(clientKey, identificationMessage.clientUniqueId, identificationMessage.clientName);
         Log.info("GameServer", "Client profile registered for gameplay connection " + connection.getID());
+
+        // NOW that the client is identified and has a profile, start the map transfer workflow
+        // This ensures the client will be tracked in ServerWaitForClientsToBeReadyState
+        if (hasInitialMap()) {
+            Log.info("GameServer", "Client " + connection.getID() + " identified, starting map transfer");
+
+            // Create player and add to game object manager
+            PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
+            gameObjectManager.add(newPlayer);
+            connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
+
+            // Send map + all game objects to client
+            sendMapRefreshToUser(connection);
+
+            // Defer player assignment if regeneration is in progress (client might get queued)
+            // Otherwise send assignment immediately
+            if (isRegenerating) {
+                Log.info("GameServer", "Deferring player assignment during regeneration for client " + connection.getID());
+                pendingPlayerAssignments.put(connection.getID(), newPlayer.entityId);
+            } else {
+                // Tell client which player UUID is theirs
+                assignPlayer(connection, newPlayer.entityId);
+            }
+        } else {
+            // Trigger initial map generation
+            Log.info("GameServer", "Deferring player assignment until after initial map generation for client " + connection.getID());
+
+            PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
+            gameObjectManager.add(newPlayer);
+            connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
+            pendingPlayerAssignments.put(connection.getID(), newPlayer.entityId);
+
+            triggerInitialMapGeneration(connection);
+        }
     }
 
     public void handlePlayerUpdate(Connection connection, PlayerUpdate update) {
@@ -188,6 +220,11 @@ public class GameServer {
         return bulkServer;
     }
 
+    /**
+     * @deprecated Players are now transferred via MapTransferPayload during map transfer.
+     * This separate roster broadcast is no longer used and will be removed in a future version.
+     */
+    @Deprecated
     public void broadcastNewPlayerRoster() {
         if (server != null) {
             try {
@@ -202,6 +239,11 @@ public class GameServer {
         }
     }
 
+    /**
+     * @deprecated Players are now transferred via MapTransferPayload during map transfer.
+     * This separate roster send is no longer used and will be removed in a future version.
+     */
+    @Deprecated
     public void sendPlayerRosterToConnection(Connection connection) {
         if (server != null && connection != null) {
             try {
@@ -216,6 +258,11 @@ public class GameServer {
         }
     }
 
+    /**
+     * @deprecated Players are now transferred via MapTransferPayload during map transfer.
+     * This roster creation method is no longer used and will be removed in a future version.
+     */
+    @Deprecated
     private PlayerObjectRosterUpdate createPlayerRosterUpdate() {
         PlayerObjectRosterUpdate update = new PlayerObjectRosterUpdate();
         List<PlayerObject> players = gameObjectManager.getAllPlayers();
@@ -292,12 +339,13 @@ public class GameServer {
     }
 
     /**
-     * Completes pending player assignments that were deferred during initial map generation.
-     * This should be called after the initial map has been generated and sent to clients.
+     * Completes pending player assignments that were deferred during initial map generation
+     * or during regeneration when clients connected mid-regeneration.
+     * This should be called after the map transfer has completed.
      */
-    private void completePendingPlayerAssignments() {
+    public void completePendingPlayerAssignments() {
         if (pendingPlayerAssignments.isEmpty()) {
-            Log.debug("GameServer", "No pending player assignments to complete");
+            Log.info("GameServer", "No pending player assignments to complete");
             return;
         }
 
@@ -394,6 +442,16 @@ public class GameServer {
                 // Step 3: Clear cached map data to force fresh serialization
                 serializedMaps.clear();
 
+                // Step 3.5: Clear map-specific game objects (keep players)
+                if (gameObjectManager != null) {
+                    Log.info("GameServer", "Clearing map-specific objects (preserving " +
+                            gameObjectManager.getPlayerCount() + " players)");
+                    gameObjectManager.clearAllLights(); // Clear lights tied to old map
+                    gameObjectManager.clearAllObjects(); // Clears non-player objects only
+                    Log.info("GameServer", "Objects cleared, " + gameObjectManager.getPlayerCount() +
+                            " players preserved");
+                }
+
                 // Step 4: Ask the game world to regenerate the map
                 if (serverCoordinator != null) {
                     serverCoordinator.regenerateMap(newSeed);
@@ -403,17 +461,17 @@ public class GameServer {
                     return;
                 }
 
-                // Step 5: Send new map to all connected clients (now they're ready!)
+                // Step 5: Reset all players to new spawn locations FIRST
+                resetAllPlayersToSpawn();
+
+                // Step 6: Send new map to all connected clients (with updated positions)
                 Log.info("GameServer", "Broadcasting new map to all ready clients");
                 for (Connection connection : server.getConnections()) {
                     sendMapRefreshToUser(connection);
                 }
 
-                // Step 5.1: Complete any pending player assignments for initial generation
-                completePendingPlayerAssignments();
-
-                // Step 6: Reset all players to new spawn locations
-                resetAllPlayersToSpawn();
+                // Pending player assignments will be completed by ServerWaitForClientsToBeReadyState
+                // after transfers complete - this ensures clients have game objects before assignment
 
                 Log.info("GameServer", "Map regeneration completed successfully");
 
@@ -443,14 +501,15 @@ public class GameServer {
      * Resets all connected players to spawn locations on the new map.
      */
     private void resetAllPlayersToSpawn() {
-        if (map == null) {
+        GameMap currentMap = serverCoordinator.getMapManager();
+        if (currentMap == null) {
             Log.error("GameServer", "Cannot reset players - map is null");
             return;
         }
 
         try {
             // Get all spawn points from the new map
-            java.util.ArrayList<MapHint> spawnHints = map.getAllHintsOfType(SpawnPointHint.class);
+            java.util.ArrayList<MapHint> spawnHints = currentMap.getAllHintsOfType(SpawnPointHint.class);
 
             if (spawnHints.isEmpty()) {
                 Log.warn("GameServer", "No spawn points found in new map");
@@ -466,7 +525,7 @@ public class GameServer {
 
                 // Use spawn points in rotation if there are more players than spawn points
                 MapHint spawnHint = spawnHints.get(spawnIndex % spawnHints.size());
-                MapTile spawnTile = map.getTile(spawnHint.tileLookupKey);
+                MapTile spawnTile = currentMap.getTile(spawnHint.tileLookupKey);
 
                 Vector3 spawnPosition;
                 if (spawnTile != null) {
@@ -516,52 +575,15 @@ public class GameServer {
     // =====================================
 
     /**
-     * Handles a client connection event from NetworkListener
+     * Handles a client connection event from NetworkListener.
+     * NOTE: Player creation and map transfer now happen in handleClientIdentification
+     * to ensure the client profile is registered BEFORE they enter the state machine.
      */
     public void handleClientConnected(Connection connection) {
-
-        // Wait to register players until they identify themselves.
-
-        // Register client profile in ServerCoordinator
-//        ClientConnectionKey clientKey = new ClientConnectionKey(connection);
-//        serverCoordinator.registerClientProfile(clientKey);
-
-        // Set gameplay connection ID in profile
-//        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
-//        if (profile != null) {
-//            profile.gameplayConnectionId = connection.getID();
-//            Log.info("GameServer", "Set gameplay connection ID " + connection.getID() + " for client profile: " + clientKey);
-//        }
-
-        // Check if we have an initial map or need to generate one
-        if (hasInitialMap()) {
-            Log.info("connected", "Player is connecting to server");
-
-            // Standard flow: send existing map, then assign player immediately
-            sendMapRefreshToUser(connection);
-
-            PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
-            gameObjectManager.add(newPlayer);
-
-            connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
-            broadcastNewPlayerRoster();
-            // Also send roster directly to the new connection to ensure they get it
-            sendPlayerRosterToConnection(connection);
-            assignPlayer(connection, newPlayer.entityId);
-        } else {
-            // New flow: trigger initial map generation, delay player assignment until after generation
-            Log.info("GameServer", "Deferring player assignment until after initial map generation for client " + connection.getID());
-
-            // Create player but don't send assignment yet - store for later
-            PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
-            gameObjectManager.add(newPlayer);
-            connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
-
-            // Store connection info for later player assignment
-            pendingPlayerAssignments.put(connection.getID(), newPlayer.entityId);
-
-            triggerInitialMapGeneration(connection);
-        }
+        // Connection accepted - existing worker system handles all timing edge cases
+        // The client will send ClientIdentificationMessage immediately after connecting
+        // which will trigger handleClientIdentification() to create the player and start map transfer
+        Log.info("GameServer", "Client " + connection.getID() + " connected, waiting for identification");
     }
 
     /**

@@ -297,7 +297,6 @@ public class BloomRenderer implements Disposable {
         sceneFrameBuffer.getColorBufferTexture().bind(0);
         bloomExtractShader.setUniformi("u_texture", 0);
 
-        Log.debug("BloomRenderer", "Extracting bright areas with threshold: " + bloomThreshold);
 
         // Render fullscreen quad
         fullscreenQuad.render(bloomExtractShader, GL20.GL_TRIANGLES);
@@ -384,7 +383,6 @@ public class BloomRenderer implements Disposable {
         bloomBlurFrameBuffer2.getColorBufferTexture().bind(1);
         bloomCompositeShader.setUniformi("u_bloomTexture", 1);
 
-        Log.debug("BloomRenderer", "Compositing bloom with intensity: " + bloomIntensity);
 
         // Render fullscreen quad
         fullscreenQuad.render(bloomCompositeShader, GL20.GL_TRIANGLES);

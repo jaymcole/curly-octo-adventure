@@ -2,16 +2,51 @@ package curly.octo.lwjgl3;
 
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
+import com.esotericsoftware.minlog.Log;
 import curly.octo.Main;
+import curly.octo.common.DualLogger;
 
 import static curly.octo.common.Constants.DEFAULT_SCREEN_HEIGHT;
 import static curly.octo.common.Constants.DEFAULT_SCREEN_WIDTH;
 
 /** Launches the desktop (LWJGL3) application. */
 public class Lwjgl3Launcher {
+    private static DualLogger dualLogger;
+
     public static void main(String[] args) {
         if (StartupHelper.startNewJvmIfRequired()) return; // This handles macOS support and helps on Windows.
+
+        // Set up file logging before creating the application
+        setupLogging();
+
         createApplication();
+    }
+
+    /**
+     * Sets up dual logging (console + file) using the client's preferred name.
+     */
+    private static void setupLogging() {
+        // Get client preferred name from config (loaded as static field in Main)
+        String logFileName = Main.clientPreferredName;
+
+        // Use default if preferred name is null or empty
+        if (logFileName == null || logFileName.trim().isEmpty()) {
+            logFileName = "client";
+        }
+
+        // Create dual logger with file name
+        dualLogger = new DualLogger(logFileName + ".log");
+        Log.setLogger(dualLogger);
+
+        Log.info("Lwjgl3Launcher", "File logging enabled: logs/" + logFileName + ".log");
+    }
+
+    /**
+     * Gets the DualLogger instance for log file switching.
+     * @return The DualLogger, or null if not initialized
+     */
+    public static DualLogger getDualLogger() {
+        return dualLogger;
     }
 
     private static Lwjgl3Application createApplication() {

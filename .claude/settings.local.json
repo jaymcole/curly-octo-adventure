@@ -24,7 +24,8 @@
       "Bash(do echo \"=== Client $i ===\")",
       "Bash(unzip:*)",
       "Bash(done)",
-      "Bash(java:*)"
+      "Bash(java:*)",
+      "Bash(gradlew.bat compileJava:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

@@ -23,8 +23,9 @@ public class ServerWaitForClientsToBeReadyState extends BaseGameStateServer {
 
     @Override
     public void start() {
-        Log.info("ServerWaitForClientsToBeReadyState", "Entered - waiting for all clients to reach MapTransferCompleteState");
-        Log.info("ServerWaitForClientsToBeReadyState", "Total registered client profiles: " + serverCoordinator.clientProfiles.size());
+        // Complete any pending player assignments now that map transfers are done
+        // This ensures clients have received game objects before getting assignment messages
+        gameServer.completePendingPlayerAssignments();
     }
 
     @Override
@@ -43,15 +44,9 @@ public class ServerWaitForClientsToBeReadyState extends BaseGameStateServer {
                 String currentState = profile.currentState != null ? profile.currentState : "null";
                 String targetState = MapTransferCompleteState.class.getSimpleName();
 
-                Log.info("ServerWaitForClientsToBeReadyState",
-                         "Checking client " + clientKey + " (name=" + profile.userName + "): " +
-                         "state=" + currentState + ", target=" + targetState +
-                         ", match=" + Objects.equals(currentState, targetState));
 
                 if (!Objects.equals(currentState, targetState)) {
                     allClientsReady = false;
-                    Log.info("ServerWaitForClientsToBeReadyState",
-                             "Client " + clientKey + " NOT ready (state=" + currentState + ")");
                 } else {
                     readyCount++;
                 }

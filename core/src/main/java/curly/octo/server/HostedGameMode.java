@@ -38,7 +38,6 @@ public class HostedGameMode implements GameMode {
             // Create and start server with the game object manager
             gameServer = new GameServer(
                 this.random,
-                serverCoordinator.getMapManager(), // Will be null initially
                 gameObjectManager,
                 serverCoordinator
             );

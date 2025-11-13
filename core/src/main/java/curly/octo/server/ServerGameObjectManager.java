@@ -101,7 +101,6 @@ public class ServerGameObjectManager {
     public void add(BaseLight light) {
         gameLights.add(light);
         addToIdMap(light);
-        Log.debug("ServerGameObjectManager", "Added light: " + light.entityId);
     }
 
     /**
@@ -109,7 +108,6 @@ public class ServerGameObjectManager {
      */
     public void remove(BaseLight light) {
         gameLightsToBeRemoved.add(light);
-        Log.debug("ServerGameObjectManager", "Marked light for removal: " + light.entityId);
     }
 
     /**
@@ -123,8 +121,6 @@ public class ServerGameObjectManager {
         if (gameObject instanceof PlayerObject) {
             activePlayers.add((PlayerObject) gameObject);
             Log.info("ServerGameObjectManager", "Added player: " + gameObject.entityId);
-        } else {
-            Log.debug("ServerGameObjectManager", "Added game object: " + gameObject.entityId);
         }
     }
 
@@ -133,7 +129,6 @@ public class ServerGameObjectManager {
      */
     public void remove(GameObject gameObject) {
         gameObjectsToBeRemoved.add(gameObject);
-        Log.debug("ServerGameObjectManager", "Marked game object for removal: " + gameObject.entityId);
     }
 
     // =====================================

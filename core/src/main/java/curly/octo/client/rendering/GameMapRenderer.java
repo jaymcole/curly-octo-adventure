@@ -183,8 +183,6 @@ public class GameMapRenderer implements Disposable {
         if (chunkModelBuilder != null) {
             // For chunked strategy, get only chunks near camera
             Array<ModelInstance> chunks = chunkModelBuilder.getChunksNearPosition(camera.position, Constants.CHUNK_RENDER_DISTANCE);
-            Log.debug("GameMapRenderer", String.format("Rendering %d chunks near camera position (%.1f, %.1f, %.1f)",
-                chunks.size, camera.position.x, camera.position.y, camera.position.z));
             return chunks;
         } else {
             // For traditional strategies, use all instances
@@ -295,10 +293,8 @@ public class GameMapRenderer implements Disposable {
         Vector3 ambientVec;
         if (ambient != null) {
             ambientVec = new Vector3(ambient.color.r, ambient.color.g, ambient.color.b);
-            Log.debug("GameMapRenderer", "Environment has ambient light: (" + ambientVec.x + "," + ambientVec.y + "," + ambientVec.z + ")");
         } else {
             ambientVec = new Vector3(0.02f, 0.02f, 0.03f); // Default very low ambient
-            Log.debug("GameMapRenderer", "No ambient light in environment, using default");
         }
 
         // Ensure minimum ambient light to prevent completely black scenes

@@ -101,8 +101,6 @@ public class DebugRenderer implements Disposable {
 
             waterTriangles.add(new DebugTriangle(new Vector3[]{v0, v1, v2}, meshPartId));
         }
-
-        Log.debug("DebugRenderer", "Collected mesh part #" + meshPartId + " with " + (count / 3) + " triangles");
     }
 
     /**
@@ -170,8 +168,6 @@ public class DebugRenderer implements Disposable {
 
         // Re-enable depth test
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
-
-        Log.debug("DebugRenderer", "Drew " + waterTriangles.size + " water triangles from " + currentMeshPartId + " mesh parts");
     }
 
     /**

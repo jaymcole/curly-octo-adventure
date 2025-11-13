@@ -7,7 +7,11 @@ import curly.octo.client.clientStates.BaseGameStateClient;
 import curly.octo.client.clientStates.BaseScreen;
 import curly.octo.client.clientStates.StateManager;
 import curly.octo.client.clientStates.mapTransferStates.ui.MapTransferScreen;
+import curly.octo.common.GameObject;
 import curly.octo.common.map.GameMap;
+import curly.octo.common.network.messages.MapTransferPayload;
+
+import java.util.List;
 
 import java.io.ByteArrayInputStream;
 
@@ -15,6 +19,7 @@ import static curly.octo.client.clientStates.mapTransferStates.MapTransferShared
 
 public class MapTransferReassemblyState extends BaseGameStateClient {
     private GameMap receivedMap;
+    private List<GameObject> receivedGameObjects;
 
     public MapTransferReassemblyState(BaseScreen screen) {
         super(screen);
@@ -66,10 +71,17 @@ public class MapTransferReassemblyState extends BaseGameStateClient {
 
                 // Get the client's Kryo instance
                 Kryo kryo = getKryoInstance();
-                receivedMap = kryo.readObject(input, GameMap.class);
+                MapTransferPayload payload = kryo.readObject(input, MapTransferPayload.class);
 
-                Log.info("MapTransferReassemblyState", "Map successfully deserialized: " + receivedMap.hashCode() +
+                // Extract map and game objects from payload
+                receivedMap = payload.map;
+                receivedGameObjects = payload.gameObjects;
+
+                Log.info("MapTransferReassemblyState", "Transfer payload successfully deserialized:");
+                Log.info("MapTransferReassemblyState", "  Map: " + receivedMap.hashCode() +
                         " (" + receivedMap.getAllTiles().size() + " tiles)");
+                Log.info("MapTransferReassemblyState", "  Game Objects: " + receivedGameObjects.size() +
+                        " objects received");
                 StateManager.setCurrentState(MapTransferBuildAssetsState.class);
             }
 
@@ -92,6 +104,10 @@ public class MapTransferReassemblyState extends BaseGameStateClient {
 
     public GameMap getReceivedMap() {
         return receivedMap;
+    }
+
+    public List<GameObject> getReceivedGameObjects() {
+        return receivedGameObjects;
     }
 
     @Override

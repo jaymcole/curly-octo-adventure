@@ -181,20 +181,21 @@ public class ServerCoordinator {
         Log.info("ServerCoordinator", "Regenerating host map with seed: " + newSeed);
 
         try {
-            // Dispose current map if it exists
-            if (mapManager != null) {
-                mapManager.dispose();
-                Log.info("ServerCoordinator", "Disposed old map");
-            }
-
-            // Create new map with new seed (server-only mode)
+            // Create new map FIRST (before disposing old one to minimize null window)
             GameMap newMap = new GameMap(newSeed, true);
             Log.info("ServerCoordinator", "Generated new host map with seed: " + newSeed);
             Log.info("ServerCoordinator", "New map has " + newMap.getAllTiles().size() + " tiles, hash: " + newMap.hashCode());
 
-            // Set the new map
+            // Store reference to old map
+            GameMap oldMap = mapManager;
+
+            // Atomically swap to new map
             mapManager = newMap;
 
+            // Dispose old map AFTER swap (minimizes window where map could be null/invalid)
+            if (oldMap != null) {
+                oldMap.dispose();
+            }
             Log.info("ServerCoordinator", "Host map regeneration completed successfully");
 
         } catch (Exception e) {

@@ -9,6 +9,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.client.ClientGameMode;
 import curly.octo.client.ClientGameWorld;
+import curly.octo.common.DualLogger;
 import curly.octo.server.ThreadedHostedGameMode;
 import curly.octo.client.clientStates.BaseScreen;
 import curly.octo.client.clientStates.mainMenuState.MainMenuScreen;
@@ -53,6 +54,15 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
     @Override
     public void onStartServer() {
         Log.info("Main", "Starting server mode");
+
+        // Enable dual-file mode for hosted server (both server and client in same JVM)
+        DualLogger logger = DualLogger.getInstance();
+        if (logger != null) {
+            String serverLogName = "server-" + clientPreferredName + ".log";
+            logger.enableDualFileMode(serverLogName);
+            Log.info("Main", "Dual-file logging enabled - client and server logs separated");
+        }
+
         startServerMode();
     }
 

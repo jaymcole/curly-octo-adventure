@@ -257,6 +257,7 @@ public class PlayerObject extends WorldObject {
             // setWalkDirection expects velocity (units per second), not displacement
             tempVector.set(velocity.x, 0, velocity.z);
             characterController.setWalkDirection(tempVector);
+            Log.info("PlayerObject", entityId + " - setWalkDirection called | walk: " + tempVector + ", position: " + position);
 
             // Check if we can jump (character controller handles ground detection)
             onGround = characterController.canJump();
@@ -443,6 +444,10 @@ public class PlayerObject extends WorldObject {
         this.characterController = characterController;
     }
 
+    public btKinematicCharacterController getCharacterController() {
+        return characterController;
+    }
+
     public MapTileFillType getCurrentTileFillType() {
         return currentTileFillType;
     }
@@ -519,7 +524,6 @@ public class PlayerObject extends WorldObject {
                 // Just ensure we're in a clean state
                 Log.info("PlayerObject", "Physics state reset for player: " + entityId);
             }
-
         } catch (Exception e) {
             Log.error("PlayerObject", "Error resetting physics state for player " + entityId + ": " + e.getMessage());
             e.printStackTrace();

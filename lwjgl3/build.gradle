@@ -17,6 +17,7 @@ apply plugin: 'io.github.fourlastor.construo'
 
 
 import io.github.fourlastor.construo.Target
+import java.nio.file.StandardCopyOption
 
 sourceSets.main.resources.srcDirs += [ rootProject.file('assets').path ]
 mainClassName = 'curly.octo.lwjgl3.Lwjgl3Launcher'
@@ -210,9 +211,8 @@ def createTestClientJarTask(String clientName, int clientNumber) {
         throw new GradleException("Config file not found: ${configFile}")
       }
 
-      // Copy base JAR to target
-      targetJar.delete()
-      java.nio.file.Files.copy(sourceJar.toPath(), targetJar.toPath())
+      // Copy base JAR to target (replace if exists)
+      java.nio.file.Files.copy(sourceJar.toPath(), targetJar.toPath(), StandardCopyOption.REPLACE_EXISTING)
 
       // Create a temporary file for the properties
       def tempProps = file("${buildDir}/tmp/${clientName}/client.properties")

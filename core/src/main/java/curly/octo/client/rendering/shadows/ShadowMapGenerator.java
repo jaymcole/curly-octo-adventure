@@ -125,8 +125,6 @@ public class ShadowMapGenerator implements Disposable {
         for (int i = 0; i < numLights; i++) {
             generateCubeShadowMap(instances, lights.get(i), i);
         }
-
-        Log.debug("ShadowMapGenerator", "Generated shadow maps for " + numLights + " lights");
     }
 
     /**
@@ -141,9 +139,6 @@ public class ShadowMapGenerator implements Disposable {
             Log.warn("ShadowMapGenerator", "Light index " + lightIndex + " exceeds max lights " + maxLights);
             return;
         }
-
-        Log.debug("ShadowMapGenerator", "Generating shadow map " + lightIndex + " for light at " + light.position);
-
         // Position all 6 cameras at the light position
         for (int face = 0; face < 6; face++) {
             PerspectiveCamera camera = lightCameras[face];

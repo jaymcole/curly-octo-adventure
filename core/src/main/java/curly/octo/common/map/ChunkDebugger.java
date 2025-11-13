@@ -28,9 +28,6 @@ public class ChunkDebugger {
         // Step 2: Debug chunk organization
         debugChunkOrganization(gameMap);
 
-        // Step 3: Debug chunked model builder
-        debugChunkedModelBuilder(gameMap);
-
         Log.info("ChunkDebugger", "=== DEBUG COMPLETE ===");
     }
 
@@ -177,30 +174,6 @@ public class ChunkDebugger {
 
         } catch (Exception e) {
             Log.error("ChunkDebugger", "Exception during chunk organization: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    private static void debugChunkedModelBuilder(GameMap gameMap) {
-        Log.info("ChunkDebugger", "--- Chunked Model Builder ---");
-
-        try {
-            ChunkedMapModelBuilder builder = new ChunkedMapModelBuilder(gameMap);
-
-            Log.info("ChunkDebugger", "ChunkedMapModelBuilder created successfully");
-            Log.info("ChunkDebugger", "Strategy description: " + builder.getStrategyDescription());
-            Log.info("ChunkDebugger", "Initial stats - Faces: " + builder.getTotalFacesBuilt() + ", Tiles: " + builder.getTotalTilesProcessed());
-
-            // Try to access populated chunks without building geometry
-            Set<LevelChunk> chunks = builder.getPopulatedChunks();
-            if (chunks == null) {
-                Log.info("ChunkDebugger", "Populated chunks not yet initialized (normal for new builder)");
-            } else {
-                Log.info("ChunkDebugger", "Builder already has " + chunks.size() + " populated chunks");
-            }
-
-        } catch (Exception e) {
-            Log.error("ChunkDebugger", "Exception with ChunkedMapModelBuilder: " + e.getMessage());
             e.printStackTrace();
         }
     }

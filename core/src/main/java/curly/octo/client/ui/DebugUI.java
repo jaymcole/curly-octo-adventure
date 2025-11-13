@@ -168,6 +168,10 @@ public class DebugUI {
         fpsLabel = new Label("FPS: ...", skin);
         debugTable.add(fpsLabel).pad(10).row();
 
+        // Player position
+        playerPositionLabel = new Label("Position: N/A", skin);
+        debugTable.add(playerPositionLabel).pad(10).row();
+
         // Current Tile Template
         currentTileTemplate = new Label("Template: N/A", skin);
         debugTable.add(currentTileTemplate).pad(10).row();

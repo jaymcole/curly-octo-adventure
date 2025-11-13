@@ -322,14 +322,22 @@ public class ClientGameMode implements GameMode {
         // Migrate to NetworkManager pattern - handle messages directly
         NetworkManager.onReceive(PlayerAssignmentUpdate.class, receivedPlayerId -> {
             Gdx.app.postRunnable(() -> {
+                Log.info("ClientGameMode", "=== RECEIVED PlayerAssignmentUpdate ===");
                 Log.info("ClientGameMode", "Assigned player ID: " + receivedPlayerId.playerId);
+                Log.info("ClientGameMode", "Calling setLocalPlayer()...");
                 setLocalPlayer(receivedPlayerId.playerId);
                 playerAssigned = true;
+                Log.info("ClientGameMode", "=== PlayerAssignmentUpdate COMPLETE ===");
             });
         });
 
+        // DEPRECATED: PlayerObjectRosterUpdate is no longer sent by server
+        // Players are now transferred via MapTransferPayload during map transfer
+        // This handler remains for backward compatibility but will not receive messages
         NetworkManager.onReceive(PlayerObjectRosterUpdate.class, roster -> {
             Gdx.app.postRunnable(() -> {
+                Log.warn("ClientGameMode", "Received deprecated PlayerObjectRosterUpdate - " +
+                        "players should come from map transfer");
                 HashSet<String> currentPlayers = new HashSet<>();
                 for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
                     currentPlayers.add(player.entityId);
@@ -507,6 +515,76 @@ public class ClientGameMode implements GameMode {
         */
     }
 
+    /**
+     * Set up physics for a player if not already initialized.
+     * This can be called either when the player is first assigned, or after the map is loaded.
+     * @param player The player to set up physics for
+     */
+    public void setupPlayerPhysics(PlayerObject player) {
+        if (player == null) {
+            Log.error("ClientGameMode", "Cannot setup physics for null player");
+            return;
+        }
+
+        if (gameWorld.getMapManager() == null) {
+            Log.error("ClientGameMode", "Cannot setup physics - MapManager is NULL!");
+            return;
+        }
+
+        Log.info("ClientGameMode", "Setting up physics for player: " + player.entityId);
+        Log.info("ClientGameMode", "Current PlayerController state: " + (gameWorld.getMapManager().getPlayerController() != null ? "EXISTS" : "NULL"));
+
+        // Check if player physics is already set up
+        if (gameWorld.getMapManager().getPlayerController() == null) {
+            Log.info("ClientGameMode", "PlayerController is NULL - creating new physics...");
+            // Add player to physics world only if not already added
+            float playerRadius = 1.0f;
+            float playerHeight = 5.0f;
+            float playerMass = 10.0f;
+            Vector3 playerStart = new Vector3(15, 25, 15);
+            ArrayList<MapHint> spawnHints = gameWorld.getMapManager().getAllHintsOfType(SpawnPointHint.class);
+            if (!spawnHints.isEmpty()) {
+                MapTile spawnTile = gameWorld.getMapManager().getTile(spawnHints.get(0).tileLookupKey);
+                if (spawnTile != null) {
+                    // Spawn directly on the tile - physics will handle proper ground positioning
+                    playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
+                    Log.info("ClientGameMode", "Found spawn tile at: " + playerStart);
+                }
+            }
+            Log.info("ClientGameMode", "Calling addPlayer() at position: " + playerStart);
+            gameWorld.getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
+            Log.info("ClientGameMode", "addPlayer() complete, PlayerController now: " + (gameWorld.getMapManager().getPlayerController() != null ? "EXISTS" : "STILL NULL!"));
+        } else {
+            Log.info("ClientGameMode", "PlayerController already exists, skipping physics creation");
+        }
+
+        // Link the PlayerObject to the physics character controller
+        Log.info("ClientGameMode", "Linking PlayerObject to physics...");
+        player.setGameMap(gameWorld.getMapManager());
+        player.setCharacterController(gameWorld.getMapManager().getPlayerController());
+        Log.info("ClientGameMode", "PlayerObject.characterController set to: " + (player.getCharacterController() != null ? "EXISTS" : "NULL"));
+
+        // Sync PlayerObject position to physics (in case physics was created at different position)
+        if (gameWorld.getMapManager().getPlayerController() != null) {
+            Vector3 physicsPos = gameWorld.getMapManager().getPlayerController()
+                .getGhostObject()
+                .getWorldTransform()
+                .getTranslation(new Vector3());
+            player.setPosition(physicsPos);
+            Log.info("ClientGameMode", "Synced player position to physics: " + physicsPos);
+        }
+
+        Log.info("ClientGameMode", "Player physics setup complete | ID: " + player.entityId + ", position: " + player.getPosition() + ", controller: " + (player.getCharacterController() != null) + ", flyMode: " + player.isFlyModeEnabled());
+    }
+
+    /**
+     * Get the local player object.
+     * @return The local player, or null if not assigned yet
+     */
+    public PlayerObject getLocalPlayer() {
+        return gameWorld.getGameObjectManager().localPlayer;
+    }
+
     private void setLocalPlayer(String localPlayerId) {
         Log.info("ClientGameMode", "Setting local player ID: " + localPlayerId);
         Log.info("ClientGameMode", "Current activePlayers count: " + gameWorld.getGameObjectManager().activePlayers.size());
@@ -517,7 +595,8 @@ public class ClientGameMode implements GameMode {
             Log.info("ClientGameMode", "activePlayers[" + i + "] = " + (p != null ? p.entityId : "NULL"));
         }
 
-        // First, check if a player with this ID already exists in activePlayers (from roster)
+        // NORMAL FLOW: Player should already exist from map transfer
+        // Check if a player with this ID already exists in activePlayers (from map transfer payload)
         PlayerObject existingPlayer = null;
         for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
             if (player != null && player.entityId != null && player.entityId.equals(localPlayerId)) {
@@ -529,8 +608,8 @@ public class ClientGameMode implements GameMode {
         Log.info("ClientGameMode", "Found existing player: " + (existingPlayer != null ? "YES" : "NO"));
 
         if (existingPlayer != null) {
-            // Found existing player from roster, reuse it as the local player
-            Log.info("ClientGameMode", "Found existing player from roster, reusing as local player");
+            // Found existing player from map transfer, reuse it as the local player
+            Log.info("ClientGameMode", "Found existing player from map transfer, reusing as local player");
             Log.info("ClientGameMode", "Existing player graphics initialized: " + existingPlayer.isGraphicsInitialized());
             Log.info("ClientGameMode", "Existing player current position: " + existingPlayer.getPosition());
 
@@ -539,38 +618,10 @@ public class ClientGameMode implements GameMode {
 
             // Set up the existing player for local control with full physics setup
             if (gameWorld.getMapManager() != null) {
-                // Check if player physics is already set up
-                if (gameWorld.getMapManager().getPlayerController() == null) {
-                    // Add player to physics world only if not already added
-                    float playerRadius = 1.0f;
-                    float playerHeight = 5.0f;
-                    float playerMass = 10.0f;
-                    Vector3 playerStart = new Vector3(15, 25, 15);
-                    ArrayList<MapHint> spawnHints = gameWorld.getMapManager().getAllHintsOfType(SpawnPointHint.class);
-                    if (!spawnHints.isEmpty()) {
-                        MapTile spawnTile = gameWorld.getMapManager().getTile(spawnHints.get(0).tileLookupKey);
-                        if (spawnTile != null) {
-                            // Spawn directly on the tile - physics will handle proper ground positioning
-                            playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
-                        }
-                    }
-                    gameWorld.getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
-                }
-
-                // Link the PlayerObject to the physics character controller
-                existingPlayer.setGameMap(gameWorld.getMapManager());
-                existingPlayer.setCharacterController(gameWorld.getMapManager().getPlayerController());
-
-                // Set spawn position
-                Vector3 playerStart = new Vector3(15, 25, 15);
-                ArrayList<MapHint> spawnHints = gameWorld.getMapManager().getAllHintsOfType(SpawnPointHint.class);
-                if (!spawnHints.isEmpty()) {
-                    MapTile spawnTile = gameWorld.getMapManager().getTile(spawnHints.get(0).tileLookupKey);
-                    if (spawnTile != null) {
-                        playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
-                    }
-                }
-                existingPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
+                Log.info("ClientGameMode", "MapManager exists, setting up physics...");
+                setupPlayerPhysics(existingPlayer);
+            } else {
+                Log.error("ClientGameMode", "MapManager is NULL! Cannot set up physics! Will retry after map is loaded.");
             }
 
             inputController.setPossessionTarget(existingPlayer);
@@ -584,9 +635,10 @@ public class ClientGameMode implements GameMode {
             return; // Exit early since we've set up the local player
         }
 
-        // Create a fresh local player only if none exists
+        // FALLBACK: Create a fresh local player only if none exists (shouldn't happen with map transfer)
         if (gameWorld.getGameObjectManager().localPlayer == null) {
-            Log.info("ClientGameMode", "No existing local player found, creating new local player object");
+            Log.warn("ClientGameMode", "No existing player found in map transfer - using fallback creation");
+            Log.info("ClientGameMode", "Creating new local player object");
             gameWorld.setupLocalPlayer();
 
             // Update the entity ID to match the server-assigned ID

@@ -5,6 +5,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.math.Vector3;
+import com.esotericsoftware.minlog.Log;
 
 /**
  * Minimal input controller that handles keyboard/mouse input and applies it to possessable objects.

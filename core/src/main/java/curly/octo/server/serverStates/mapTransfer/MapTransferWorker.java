@@ -30,7 +30,7 @@ public class MapTransferWorker {
     private boolean hasStarted = false;  // Track if start() has been successfully called
 
     // AGGRESSIVE settings for dedicated bulk transfer connection (64KB buffers, no gameplay interference)
-    private static final int MAX_CHUNKS_PER_FRAME = 500; // Max chunks per update (10x original)
+    private static final int MAX_CHUNKS_PER_FRAME = 50; // Max chunks per update (works at least up to 500)
     // Buffer threshold: 88% of 64KB bulk transfer buffer
     // Much higher than gameplay connection since this is dedicated to map transfer
     private static final int MAX_BUFFER_THRESHOLD = 57344; // ~56KB (88% of 64KB, leaves 8KB safety margin)
@@ -62,7 +62,6 @@ public class MapTransferWorker {
         }
 
         if (hasStarted) {
-            Log.debug("MapTransferWorker", "Transfer already started for client " + clientUniqueId);
             return;
         }
 
@@ -179,7 +178,7 @@ public class MapTransferWorker {
             int pendingBytes = bulkConn.getTcpWriteBufferSize();
             if (pendingBytes >= MAX_BUFFER_THRESHOLD) {
                 if (chunksSentThisFrame == 0 && currentChunkIndex % 20 == 0) {
-                    Log.debug("MapTransferWorker", "Bulk buffer full (" + pendingBytes + " bytes), waiting");
+                    Log.info("MapTransferWorker", "Bulk buffer full (" + pendingBytes + " bytes), waiting");
                 }
                 break;
             }
@@ -204,11 +203,6 @@ public class MapTransferWorker {
 
         MapChunkMessage chunkMsg = new MapChunkMessage(mapId, chunkIndex, totalChunks, chunkData);
         bulkConn.sendTCP(chunkMsg);  // Send via BULK connection (required - too large for gameplay buffer)
-
-        if (chunkIndex % 50 == 0) {  // Log less frequently since transfer is much faster
-            Log.debug("MapTransferWorker", "Sent chunk " + chunkIndex + "/" + totalChunks +
-                    " to client " + clientUniqueId + " via bulk connection");
-        }
     }
 
     private void complete() {

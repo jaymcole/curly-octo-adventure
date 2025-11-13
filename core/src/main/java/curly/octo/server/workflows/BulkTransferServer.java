@@ -54,7 +54,7 @@ public class BulkTransferServer {
 
             @Override
             public void received(Connection connection, Object object) {
-                Log.debug("BulkTransferServer", "Received message: " + object.getClass().getSimpleName() +
+                Log.info("BulkTransferServer", "Received message: " + object.getClass().getSimpleName() +
                     " from connection " + connection.getID());
 
                 if (object instanceof ClientIdentificationMessage) {

@@ -19,9 +19,12 @@ import curly.octo.common.map.enums.MapTileFillType;
 import curly.octo.common.network.messages.legacyMessages.MapDataUpdate;
 import curly.octo.common.network.messages.PlayerAssignmentUpdate;
 import curly.octo.common.network.messages.PlayerDisconnectUpdate;
+import curly.octo.common.GameObject;
+import curly.octo.common.network.messages.MapTransferPayload;
 import curly.octo.common.network.messages.PlayerObjectRosterUpdate;
 import curly.octo.common.network.messages.PlayerUpdate;
 import curly.octo.common.PlayerObject;
+import curly.octo.common.WorldObject;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -89,7 +92,9 @@ public class KryoNetwork {
         kryo.register(PlayerUpdate.class);
         kryo.register(PlayerDisconnectUpdate.class);
 
-        // Register Player related classes
+        // Register game object hierarchy
+        kryo.register(GameObject.class);
+        kryo.register(WorldObject.class);
         kryo.register(PlayerObject[].class);
         kryo.register(PlayerObject.class);
         kryo.register(Color.class);
@@ -99,6 +104,9 @@ public class KryoNetwork {
 
         // Register VoxelMap class
         kryo.register(GameMap.class);
+
+        // Register map transfer payload (combines map + game objects)
+        kryo.register(MapTransferPayload.class);
     }
 
     /**

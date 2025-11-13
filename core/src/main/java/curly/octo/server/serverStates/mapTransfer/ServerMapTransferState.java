@@ -12,6 +12,7 @@ import curly.octo.server.playerManagement.ConnectionStatus;
 import curly.octo.server.serverStates.BaseGameStateServer;
 import curly.octo.server.serverStates.ServerStateManager;
 import curly.octo.common.map.GameMap;
+import curly.octo.common.network.messages.MapTransferPayload;
 import curly.octo.server.GameServer;
 import curly.octo.common.network.NetworkManager;
 import curly.octo.common.network.messages.mapTransferMessages.MapTransferAllClientProgressMessage;
@@ -20,7 +21,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
 
 /**
  * Server state that manages map transfers to multiple clients.
@@ -31,6 +34,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
     private byte[] cachedMapData; // Serialize once, reuse for all clients
     private HashMap<Integer, MapTransferWorker> activeWorkers; // connectionId -> worker
     private boolean hasStartedTransfers = false; // Track if any transfers have been initiated
+    private Queue<Connection> pendingClients = new LinkedList<>(); // Clients waiting for cachedMapData
 
     // Progress broadcast rate limiting
     private float progressBroadcastTimer = 0f;
@@ -91,11 +95,19 @@ public class ServerMapTransferState extends BaseGameStateServer {
         }
 
         if (cachedMapData == null) {
-            Log.error("ServerMapTransferState", "Cannot start transfer - no cached map data");
+            Log.info("ServerMapTransferState", "Map data not ready yet, queueing client " + connection.getID());
+            pendingClients.add(connection);
             return;
         }
 
-        MapTransferWorker worker = new MapTransferWorker(connection, gameServer, serverCoordinator, cachedMapData, serverCoordinator.getMapManager().getMapId());
+        // Verify map is available before starting transfer
+        GameMap currentMap = serverCoordinator.getMapManager();
+        if (currentMap == null) {
+            Log.error("ServerMapTransferState", "Cannot start transfer - map is null (possibly being regenerated)");
+            return;
+        }
+
+        MapTransferWorker worker = new MapTransferWorker(connection, gameServer, serverCoordinator, cachedMapData, currentMap.getMapId());
         activeWorkers.put(connection.getID(), worker);
         worker.start();
         hasStartedTransfers = true; // Mark that we've started at least one transfer
@@ -114,6 +126,15 @@ public class ServerMapTransferState extends BaseGameStateServer {
             // Broadcast progress to ALL clients (including those already in ClientPlayingState)
             NetworkManager.sendToAllClients(groupProgress);
             progressBroadcastTimer = 0f;
+        }
+
+        // Process any clients that were queued waiting for cachedMapData
+        if (!pendingClients.isEmpty() && cachedMapData != null) {
+            Log.info("ServerMapTransferState", "Processing " + pendingClients.size() + " pending client(s)");
+            while (!pendingClients.isEmpty()) {
+                Connection pendingConn = pendingClients.poll();
+                startTransferForClient(pendingConn); // Retry - will succeed now
+            }
         }
 
         // Update all active workers
@@ -173,6 +194,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
                 activeWorkers.size() + " active workers");
         activeWorkers.clear();
         cachedMapData = null; // Release memory
+        pendingClients.clear();
     }
 
     private byte[] getSerializedMapData() {
@@ -182,17 +204,32 @@ public class ServerMapTransferState extends BaseGameStateServer {
             return null;
         }
 
+        // Gather all game objects from ServerGameObjectManager
+        MapTransferPayload payload = new MapTransferPayload();
+        payload.map = currentMap;
+
+        if (serverCoordinator.getGameObjectManager() != null) {
+            payload.gameObjects = serverCoordinator.getGameObjectManager().getAllObjects();
+            Log.info("ServerMapTransferState", "Including " + payload.gameObjects.size() +
+                    " game objects in transfer (" +
+                    serverCoordinator.getGameObjectManager().getPlayerCount() + " players)");
+        } else {
+            Log.warn("ServerMapTransferState", "No game object manager - transferring map only");
+        }
+
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              Output output = new Output(baos)) {
             Kryo kryo = gameServer.getServer().getKryo();
-            kryo.writeObject(output, currentMap);
+            kryo.writeObject(output, payload);
             output.flush();
             byte[] mapData = baos.toByteArray();
-            Log.info("ServerMapTransferState", "Serialized map: " + currentMap.hashCode() +
-                    " (" + mapData.length + " bytes, " + currentMap.getAllTiles().size() + " tiles)");
+            Log.info("ServerMapTransferState", "Serialized transfer payload: map " + currentMap.hashCode() +
+                    " + " + payload.gameObjects.size() + " objects " +
+                    "(" + mapData.length + " bytes, " + currentMap.getAllTiles().size() + " tiles)");
             return mapData;
         } catch (IOException exception) {
-            Log.error("ServerMapTransferState", "Failed to serialize map: " + exception.getMessage());
+            Log.error("ServerMapTransferState", "Failed to serialize transfer payload: " + exception.getMessage());
+            exception.printStackTrace();
             return null;
         }
     }

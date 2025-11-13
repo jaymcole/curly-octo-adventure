@@ -117,7 +117,6 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
 
         // Organize map into chunks using BFS from spawn points
         populatedChunks = chunkManager.organizeIntoChunks();
-        Log.info("ChunkedMapModelBuilder", "Creating separate models for " + populatedChunks.size() + " populated chunks");
 
         // Calculate face visibility for each chunk
         calculateChunkFaceVisibility();
@@ -125,10 +124,6 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
         // Build individual models for each chunk
         buildIndividualChunkModels(stoneMaterial, dirtMaterial, grassMaterial,
                                  spawnMaterial, wallMaterial, waterMaterial);
-
-        Log.info("ChunkedMapModelBuilder", String.format(
-            "Created %d chunk models with %d total faces and %d tiles",
-            chunkModels.size(), totalFacesBuilt, totalTilesProcessed));
     }
 
     /**
@@ -160,11 +155,6 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
                 ChunkModelData modelData = new ChunkModelData(chunk, chunkModel, chunkInstance);
                 chunkModels.put(chunk, modelData);
                 allChunkInstances.add(chunkInstance);
-
-                Log.debug("ChunkedMapModelBuilder", String.format(
-                    "Created model for chunk (%d,%d,%d) with %d tiles",
-                    (int)chunk.getChunkCoordinates().x, (int)chunk.getChunkCoordinates().y,
-                    (int)chunk.getChunkCoordinates().z, chunk.getSolidTileCount()));
             }
         }
     }
@@ -292,21 +282,10 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
     @Override
     public void buildWaterGeometry(ModelBuilder modelBuilder, Material waterMaterial) {
         // Build water as a SEPARATE model to avoid transparency contamination of solid geometry
-        Log.info("ChunkedMapModelBuilder", "Building water surfaces as separate model");
 
         if (populatedChunks == null || populatedChunks.isEmpty()) {
             Log.warn("ChunkedMapModelBuilder", "No populated chunks found - cannot build water geometry");
             return;
-        }
-
-        Log.info("ChunkedMapModelBuilder", "Checking " + populatedChunks.size() + " chunks for water tiles");
-
-        // Debug: Check water material attributes
-        if (waterMaterial != null) {
-            Log.info("ChunkedMapModelBuilder", "Water material has " + waterMaterial.size() + " attributes");
-            for (com.badlogic.gdx.graphics.g3d.Attribute attr : waterMaterial) {
-                Log.info("ChunkedMapModelBuilder", "  - " + attr.getClass().getSimpleName() + ": " + attr);
-            }
         }
 
         modelBuilder.begin();
@@ -342,35 +321,13 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
             }
         }
 
-        Log.info("ChunkedMapModelBuilder", String.format(
-            "Found %d water tiles (EMPTY+WATER), %d are topmost, built %d surfaces",
-            totalWaterTiles, topMostWaterTiles, waterSurfacesBuilt));
-
         if (waterSurfacesBuilt > 0) {
             waterModel = modelBuilder.end();
             ModelInstance waterInstance = new ModelInstance(waterModel);
 
-            // Debug: Check the created model's materials
-            Log.info("ChunkedMapModelBuilder", "Water model has " + waterModel.nodes.size + " nodes");
-            for (com.badlogic.gdx.graphics.g3d.model.Node node : waterModel.nodes) {
-                for (com.badlogic.gdx.graphics.g3d.model.NodePart part : node.parts) {
-                    Log.info("ChunkedMapModelBuilder", "  Node part '" + part.meshPart.id + "' material has " +
-                        (part.material != null ? part.material.size() + " attributes" : "NULL"));
-                    if (part.material != null) {
-                        for (com.badlogic.gdx.graphics.g3d.Attribute attr : part.material) {
-                            Log.info("ChunkedMapModelBuilder", "    - " + attr.getClass().getSimpleName());
-                        }
-                    }
-                }
-            }
-
             allChunkInstances.add(waterInstance);
-
-            Log.info("ChunkedMapModelBuilder", "Created separate water model with " + waterSurfacesBuilt + " surfaces");
-            Log.info("ChunkedMapModelBuilder", "Total instances now: " + allChunkInstances.size);
         } else {
             modelBuilder.end(); // Must call end() even if no geometry was built
-            Log.info("ChunkedMapModelBuilder", "No water surfaces found");
         }
     }
 
@@ -378,14 +335,12 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
     public void buildLavaGeometry(ModelBuilder modelBuilder, Material lavaMaterial) {
         // Lava geometry would be built into individual chunk models during buildGeometry()
         // This method is kept for compatibility but does nothing as lava would be handled per-chunk
-        Log.info("ChunkedMapModelBuilder", "Lava geometry would be built into individual chunk models - no separate lava model needed");
     }
 
     @Override
     public void buildFogGeometry(ModelBuilder modelBuilder, Material fogMaterial) {
         // Fog geometry would be built into individual chunk models during buildGeometry()
         // This method is kept for compatibility but does nothing as fog would be handled per-chunk
-        Log.info("ChunkedMapModelBuilder", "Fog geometry would be built into individual chunk models - no separate fog model needed");
     }
 
     @Override
@@ -407,9 +362,6 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
 
         // First, identify all reachable empty tiles using BFS from spawn points
         Set<MapTile> reachableEmptyTiles = findReachableEmptyTiles();
-
-        Log.info("ChunkedMapModelBuilder", String.format(
-            "Found %d reachable empty tiles for improved face culling", reachableEmptyTiles.size()));
 
         for (LevelChunk chunk : populatedChunks) {
             ChunkFaceInfo faceInfo = new ChunkFaceInfo();
@@ -459,12 +411,6 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
                 }
             }
         }
-
-        TileExplorationManager.ExplorationStats stats = explorationManager.getStats();
-        Log.info("ChunkedMapModelBuilder", String.format(
-            "Multi-pass BFS found %d reachable empty tiles across %d regions: %s",
-            reachableEmptyTiles.size(), allRegions.size(), stats.toString()));
-
         return reachableEmptyTiles;
     }
 
@@ -622,10 +568,6 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
             totalChunksProcessed++;
             totalTilesProcessed += chunk.getSolidTileCount();
         }
-
-        Log.info("ChunkedMapModelBuilder",
-            String.format("Processed %d/%d chunks, rendered %d tiles with %d faces",
-                totalChunksProcessed, populatedChunks.size(), totalRenderedTiles, totalFacesBuilt));
     }
 
     /**
@@ -929,16 +871,6 @@ public class ChunkedMapModelBuilder extends MapModelBuilder implements Disposabl
     private boolean isTopMostFillTile(int x, int y, int z, MapTileFillType fillType) {
         MapTile tileAbove = gameMap.getTile(x, y + 1, z);
         boolean isTopMost = tileAbove == null || tileAbove.fillType != fillType;
-
-        if (tileAbove != null) {
-            Log.debug("ChunkedMapModelBuilder", String.format(
-                "  Tile above (%d,%d,%d): fillType=%s, geometryType=%s -> isTopMost=%b",
-                x, y + 1, z, tileAbove.fillType, tileAbove.geometryType, isTopMost));
-        } else {
-            Log.debug("ChunkedMapModelBuilder", String.format(
-                "  Tile above (%d,%d,%d): NULL -> isTopMost=%b",
-                x, y + 1, z, isTopMost));
-        }
 
         return isTopMost;
     }
