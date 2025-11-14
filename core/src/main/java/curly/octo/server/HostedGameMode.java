@@ -8,7 +8,7 @@ import curly.octo.common.GameMode;
 import curly.octo.server.serverStates.ServerStateManager;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Random;
 
 /**
  * Hosted game mode that runs both a server and connects as a client to localhost.
@@ -17,7 +17,7 @@ import java.util.ArrayList;
 public class HostedGameMode implements GameMode {
 
     private final ServerCoordinator serverCoordinator;
-    private final java.util.Random random;
+    private final Random random;
     private GameServer gameServer;
     private ClientGameMode clientGameMode;
     private boolean active = false;

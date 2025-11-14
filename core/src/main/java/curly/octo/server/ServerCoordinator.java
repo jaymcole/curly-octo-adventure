@@ -4,6 +4,7 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.server.playerManagement.ClientConnectionKey;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.server.serverAgents.BaseAgent;
+import curly.octo.server.serverAgents.PlayerCollisionAgent;
 import curly.octo.server.serverStates.ServerStateManager;
 import curly.octo.common.map.GameMap;
 
@@ -54,6 +55,7 @@ public class ServerCoordinator {
 
     private void instantiateServerAgents() {
         this.serverAgents = new ArrayList<>();
+        serverAgents.add(new PlayerCollisionAgent(gameObjectManager));
     }
 
     /**
@@ -167,14 +169,12 @@ public class ServerCoordinator {
     }
 
     public void update(float deltaTime) {
-        // Update game objects (players, NPCs, etc.)
-//         TODO: I don't think we need to update game objects server-side. We'll update objects as we receive messages from clients.
-//        if (gameObjectManager != null) {
-//            gameObjectManager.update(deltaTime);
-//        }
-
         // Update server state machine
         ServerStateManager.update(deltaTime);
+        for(BaseAgent agent : serverAgents) {
+            agent.update(deltaTime);
+        }
+
     }
 
     public void regenerateMap(long newSeed) {
@@ -217,6 +217,7 @@ public class ServerCoordinator {
     public void setGameObjectManager(ServerGameObjectManager gameObjectManager) {
         this.gameObjectManager = gameObjectManager;
         Log.info("ServerCoordinator", "Game object manager set");
+        instantiateServerAgents();
     }
 
     public void dispose() {

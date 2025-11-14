@@ -257,7 +257,6 @@ public class PlayerObject extends WorldObject {
             // setWalkDirection expects velocity (units per second), not displacement
             tempVector.set(velocity.x, 0, velocity.z);
             characterController.setWalkDirection(tempVector);
-            Log.info("PlayerObject", entityId + " - setWalkDirection called | walk: " + tempVector + ", position: " + position);
 
             // Check if we can jump (character controller handles ground detection)
             onGround = characterController.canJump();
