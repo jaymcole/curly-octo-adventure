@@ -10,6 +10,7 @@ import curly.octo.server.NetworkListener;
 import curly.octo.server.ServerCoordinator;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.common.network.KryoNetwork;
+import curly.octo.server.playerManagement.ClientUniqueId;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,7 +29,7 @@ public class BulkTransferServer {
     private ServerCoordinator serverCoordinator = null;  // Set by GameServer
 
     // Track bulk connections by client unique ID
-    private final Map<String, Connection> clientIdToConnection = new HashMap<>();
+    private final Map<ClientUniqueId, Connection> clientIdToConnection = new HashMap<>();
 
     public BulkTransferServer() {
         // Create server with large buffers for bulk transfers
@@ -59,7 +60,7 @@ public class BulkTransferServer {
 
                 if (object instanceof ClientIdentificationMessage) {
                     ClientIdentificationMessage msg = (ClientIdentificationMessage) object;
-                    registerClient(msg.clientUniqueId, connection);
+                    registerClient(new ClientUniqueId(msg.clientUniqueId), connection);
                     Log.info("BulkTransferServer", "Registered bulk connection for client: " + msg.clientUniqueId +
                         " (connection ID: " + connection.getID() + ")");
                 } else {
@@ -70,7 +71,7 @@ public class BulkTransferServer {
 
             @Override
             public void disconnected(Connection connection) {
-                String clientUniqueId = unregisterClient(connection);
+                ClientUniqueId clientUniqueId = unregisterClient(connection);
                 if (clientUniqueId != null) {
                     Log.info("BulkTransferServer", "Client disconnected and cleaned up: " + clientUniqueId +
                         " (connection ID: " + connection.getID() + ")");
@@ -95,13 +96,13 @@ public class BulkTransferServer {
     /**
      * Register a client's bulk connection by their unique ID.
      */
-    private synchronized void registerClient(String clientUniqueId, Connection connection) {
+    private synchronized void registerClient(ClientUniqueId clientUniqueId, Connection connection) {
         clientIdToConnection.put(clientUniqueId, connection);
 
         // Update ClientProfile with bulk connection ID
         if (serverCoordinator != null) {
             // Find the profile with this clientUniqueId
-            for (ClientProfile profile : serverCoordinator.getClientProfiles().values()) {
+            for (ClientProfile profile : serverCoordinator.clientManager.getAllClientProfiles()) {
                 if (profile != null && clientUniqueId.equals(profile.clientUniqueId)) {
                     profile.bulkConnectionId = connection.getID();
                     Log.info("BulkTransferServer", "Set bulk connection ID " + connection.getID() +
@@ -118,10 +119,10 @@ public class BulkTransferServer {
      * @param connection the disconnected connection
      * @return the clientUniqueId that was removed, or null if connection was never registered
      */
-    private synchronized String unregisterClient(Connection connection) {
+    private synchronized ClientUniqueId unregisterClient(Connection connection) {
         // Find the clientUniqueId by searching the map for this connection
-        String clientUniqueId = null;
-        for (Map.Entry<String, Connection> entry : clientIdToConnection.entrySet()) {
+        ClientUniqueId clientUniqueId = null;
+        for (Map.Entry<ClientUniqueId, Connection> entry : clientIdToConnection.entrySet()) {
             if (entry.getValue() == connection || entry.getValue().getID() == connection.getID()) {
                 clientUniqueId = entry.getKey();
                 break;
@@ -138,7 +139,7 @@ public class BulkTransferServer {
 
         // Clear bulkConnectionId in ClientProfile
         if (serverCoordinator != null) {
-            for (ClientProfile profile : serverCoordinator.getClientProfiles().values()) {
+            for (ClientProfile profile : serverCoordinator.clientManager.getAllClientProfiles()) {
                 if (profile != null && clientUniqueId.equals(profile.clientUniqueId)) {
                     profile.bulkConnectionId = null;
                     Log.info("BulkTransferServer", "Cleared bulk connection ID for client " + clientUniqueId);
@@ -153,7 +154,7 @@ public class BulkTransferServer {
     /**
      * Get a bulk connection by client unique ID (reliable cross-server matching).
      */
-    public synchronized Connection getConnectionByClientId(String clientUniqueId) {
+    public synchronized Connection getConnectionByClientId(ClientUniqueId clientUniqueId) {
         return clientIdToConnection.get(clientUniqueId);
     }
 

@@ -7,22 +7,23 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.Align;
 import curly.octo.client.ui.UIAssetCache;
+import curly.octo.server.playerManagement.ClientUniqueId;
 
 public class ClientProgressElement extends Table {
 
     private final Label clientIdLabel;
     private final ProgressBar progressBar;
-    private final String clientUniqueId;
+    private final ClientUniqueId clientUniqueId;
 
-    public ClientProgressElement(String clientUniqueId) {
+    public ClientProgressElement(ClientUniqueId clientUniqueId) {
         this(clientUniqueId, UIAssetCache.getDefaultSkin());
     }
 
-    public ClientProgressElement(String clientUniqueId, Skin skin) {
+    public ClientProgressElement(ClientUniqueId clientUniqueId, Skin skin) {
         this.clientUniqueId = clientUniqueId;
 
         // Create client ID label
-        clientIdLabel = new Label(clientUniqueId, skin);
+        clientIdLabel = new Label(clientUniqueId.toString(), skin);
         clientIdLabel.setAlignment(Align.center);
         clientIdLabel.setColor(Color.WHITE);
 
@@ -62,7 +63,7 @@ public class ClientProgressElement extends Table {
     /**
      * Get the client unique ID this element represents
      */
-    public String getClientUniqueId() {
+    public ClientUniqueId getClientUniqueId() {
         return clientUniqueId;
     }
 

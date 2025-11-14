@@ -9,6 +9,7 @@ import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.server.GameServer;
 import curly.octo.common.network.messages.legacyMessages.MapChunkMessage;
 import curly.octo.common.network.messages.mapTransferMessages.MapTransferBeginMessage;
+import curly.octo.server.playerManagement.ClientUniqueId;
 
 /**
  * Handles map transfer for a single client.
@@ -16,7 +17,7 @@ import curly.octo.common.network.messages.mapTransferMessages.MapTransferBeginMe
  * Uses dedicated bulk transfer connection with large buffers (64KB).
  */
 public class MapTransferWorker {
-    private String clientUniqueId;  // Client unique ID to match across gameplay and bulk servers (may be null initially)
+    private ClientUniqueId clientUniqueId;  // Client unique ID to match across gameplay and bulk servers (may be null initially)
     private final int gameplayConnectionId;  // For logging and profile lookup
     private final GameServer gameServer;
     private final ServerCoordinator serverCoordinator;
@@ -214,7 +215,7 @@ public class MapTransferWorker {
         return transferComplete;
     }
 
-    public String getClientUniqueId() {
+    public ClientUniqueId getClientUniqueId() {
         return clientUniqueId;
     }
 

@@ -17,6 +17,7 @@ import curly.octo.client.clientStates.StateManager;
 import curly.octo.common.Constants;
 import curly.octo.common.map.MapTile;
 import curly.octo.client.ui.DebugUI;
+import curly.octo.server.playerManagement.ClientUniqueId;
 
 import java.io.IOException;
 import java.util.Random;
@@ -28,7 +29,7 @@ import java.util.Random;
 public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuListener, DebugUI.DebugListener, ClientGameMode.MapRegenerationListener {
     // Client configuration loaded from properties file
     private static ClientConfig clientConfig = new ClientConfig();
-    public static String clientUniqueId = clientConfig.getClientId();
+    public static ClientUniqueId clientUniqueId = new ClientUniqueId(clientConfig.getClientId());
     public static String clientPreferredName = clientConfig.getClientName();
     //---------------------------------------------------------------------------
 

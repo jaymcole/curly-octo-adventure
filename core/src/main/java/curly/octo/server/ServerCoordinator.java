@@ -1,8 +1,10 @@
 package curly.octo.server;
 
 import com.esotericsoftware.minlog.Log;
+import curly.octo.server.playerManagement.ClientManager;
 import curly.octo.server.playerManagement.ClientConnectionKey;
 import curly.octo.server.playerManagement.ClientProfile;
+import curly.octo.server.playerManagement.ClientUniqueId;
 import curly.octo.server.serverAgents.BaseAgent;
 import curly.octo.server.serverAgents.PlayerCollisionAgent;
 import curly.octo.server.serverStates.ServerStateManager;
@@ -25,8 +27,9 @@ public class ServerCoordinator {
     protected Random random;
     protected boolean disposed = false;
 
-    public HashMap<ClientConnectionKey, ClientProfile> clientProfiles;
-    public ArrayList<ClientProfile> homelessedProfiles;
+    public ClientManager clientManager;
+//    public HashMap<ClientConnectionKey, ClientProfile> clientProfiles;
+//    public ArrayList<ClientProfile> homelessedProfiles;
     public ArrayList<BaseAgent> serverAgents;
 
     // Queue for state updates that arrive before client identification
@@ -47,8 +50,7 @@ public class ServerCoordinator {
 
     public ServerCoordinator(Random random) {
         this.random = random;
-        clientProfiles = new HashMap<>();
-        homelessedProfiles = new ArrayList<>();
+        clientManager = new ClientManager();
         pendingStateUpdates = new HashMap<>();
         instantiateServerAgents();
     }
@@ -71,8 +73,8 @@ public class ServerCoordinator {
      * Get all client profiles.
      * @return HashMap of client profiles keyed by client key
      */
-    public HashMap<ClientConnectionKey, ClientProfile> getClientProfiles() {
-        return clientProfiles;
+    public ClientManager getClientProfiles() {
+        return clientManager;
     }
 
     /**
@@ -81,25 +83,25 @@ public class ServerCoordinator {
      * @return ClientProfile or null if not found
      */
     public ClientProfile getClientProfile(ClientConnectionKey clientKey) {
-        return clientProfiles.get(clientKey);
+        return clientManager.getClientProfile(clientKey);
     }
 
     /**
      * Register a new client profile.
      * @param clientKey The client identifier
      */
-    public void registerClientProfile(ClientConnectionKey clientKey, String uniqueIdentifier, String preferredName) {
+    public void registerClientProfile(ClientConnectionKey clientKey, ClientUniqueId uniqueIdentifier, String preferredName) {
         Log.info("registerClientProfile","Client connecting...");
-        if (clientProfiles.containsKey(clientKey)) {
+        if (clientManager.clientProfileExists(clientKey)) {
             Log.info("registerClientProfile","Client connection id already has entry");
-            if (clientProfiles.get(clientKey).clientUniqueId.compareTo(uniqueIdentifier) != 0) {
+            if (clientManager.getClientProfile(clientKey).clientUniqueId.equals(uniqueIdentifier)) {
                 Log.info("registerClientProfile","Client uniqueId does not match existing entry. Homelessing existing user");
-                homelessedProfiles.add(clientProfiles.get(clientKey));
-                clientProfiles.put(clientKey, new ClientProfile());
+                clientManager.deactivateProfile(clientKey);
+                clientManager.createNewProfile(clientKey);
             } else {
                 ClientProfile existingProfile = null;
-                for(ClientProfile homeless : homelessedProfiles) {
-                    if (homeless.clientUniqueId.compareTo(uniqueIdentifier) == 0) {
+                for(ClientProfile homeless : clientManager.getAllInactiveProfiles()) {
+                    if (homeless.clientUniqueId.equals(uniqueIdentifier)) {
                         Log.info("registerClientProfile","Found a client profile in homeless camp");
                         existingProfile = homeless;
                         break;
@@ -107,19 +109,17 @@ public class ServerCoordinator {
                 }
                 if (existingProfile != null) {
                     Log.info("registerClientProfile", "replacing homeless");
-
-                    clientProfiles.put(clientKey, existingProfile);
-                    homelessedProfiles.remove(existingProfile);
+                    clientManager.activateProfile(clientKey, existingProfile.clientUniqueId);
                 }
             }
         } else {
             Log.info("registerClientProfile", "creating new profile");
-            clientProfiles.put(clientKey, new ClientProfile());
+            clientManager.createNewProfile(clientKey);
         }
-        clientProfiles.get(clientKey).clientUniqueId = uniqueIdentifier;
-        clientProfiles.get(clientKey).userName = preferredName;
+        clientManager.getClientProfile(clientKey).clientUniqueId = uniqueIdentifier;
+        clientManager.getClientProfile(clientKey).userName = preferredName;
         Log.info("ServerCoordinator", "Profile successfully registered: " + clientKey + " -> uniqueId=" +
-                 uniqueIdentifier + ", name=" + preferredName + " (Total profiles: " + clientProfiles.size() + ")");
+                 uniqueIdentifier + ", name=" + preferredName + " (Total profiles: " + clientManager.getAllClientProfiles().size() + ")");
 
         // Process any pending state updates for this client
         if (pendingStateUpdates.containsKey(clientKey)) {
@@ -130,7 +130,7 @@ public class ServerCoordinator {
                 long age = System.currentTimeMillis() - update.timestamp;
                 Log.info("ServerCoordinator", "  Applying queued update (age=" + age + "ms): " +
                          update.oldState + " -> " + update.newState);
-                clientProfiles.get(clientKey).currentState = update.newState;
+                clientManager.getClientProfile(clientKey).currentState = update.newState;
             }
 
             // Clear the queue
@@ -146,7 +146,7 @@ public class ServerCoordinator {
      * @param newState The new state
      */
     public void updateClientState(ClientConnectionKey clientKey, String oldState, String newState) {
-        ClientProfile profile = clientProfiles.get(clientKey);
+        ClientProfile profile = getClientProfile(clientKey);
         if (profile != null) {
             profile.currentState = newState;
             Log.info("ServerCoordinator", "Client (" + clientKey + ") transitioned from [" + oldState + "] to [" + newState + "]");
@@ -248,7 +248,7 @@ public class ServerCoordinator {
             mapManager = null;
         }
 
-        clientProfiles.clear();
+        clientManager.clearProfiles();
         disposed = true;
         Log.info("ServerCoordinator", "Server coordinator disposed");
     }

@@ -4,7 +4,7 @@ public class ClientProfile {
 
     public ConnectionStatus connectionStatus;
     public String currentState;
-    public String clientUniqueId;
+    public ClientUniqueId clientUniqueId;
     public String userName;
 
     // Connection tracking

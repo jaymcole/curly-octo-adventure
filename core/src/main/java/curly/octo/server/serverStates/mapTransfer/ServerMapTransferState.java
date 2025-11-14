@@ -6,9 +6,7 @@ import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.server.ServerCoordinator;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferSharedStatics;
-import curly.octo.server.playerManagement.ClientConnectionKey;
-import curly.octo.server.playerManagement.ClientProfile;
-import curly.octo.server.playerManagement.ConnectionStatus;
+import curly.octo.server.playerManagement.*;
 import curly.octo.server.serverStates.BaseGameStateServer;
 import curly.octo.server.serverStates.ServerStateManager;
 import curly.octo.common.map.GameMap;
@@ -159,7 +157,7 @@ public class ServerMapTransferState extends BaseGameStateServer {
     }
 
     private MapTransferAllClientProgressMessage constructGroupProgressMessage() {
-        HashMap<String, Integer> clientIdToChunkProgressMap = new HashMap<>();
+        HashMap<ClientUniqueId, Integer> clientIdToChunkProgressMap = new HashMap<>();
         // Iterate through ALL connected clients
         for (Connection conn : gameServer.getServer().getConnections()) {
             ClientConnectionKey clientKey = new ClientConnectionKey(conn);

@@ -8,6 +8,7 @@ import com.esotericsoftware.minlog.Log;
 import curly.octo.common.network.messages.*;
 import curly.octo.server.playerManagement.ClientConnectionKey;
 import curly.octo.server.playerManagement.ClientProfile;
+import curly.octo.server.playerManagement.ClientUniqueId;
 import curly.octo.server.serverStates.ServerStateManager;
 import curly.octo.server.playerManagement.ConnectionStatus;
 import curly.octo.server.serverStates.mapTransfer.ServerMapTransferState;
@@ -100,7 +101,9 @@ public class GameServer {
         ClientConnectionKey clientKey = new ClientConnectionKey(connection);
         Log.info("GameServer", "Received identification from gameplay connection " + connection.getID() +
                  ": uniqueId=" + identificationMessage.clientUniqueId + ", name=" + identificationMessage.clientName);
-        serverCoordinator.registerClientProfile(clientKey, identificationMessage.clientUniqueId, identificationMessage.clientName);
+
+
+        serverCoordinator.registerClientProfile(clientKey, new ClientUniqueId(identificationMessage.clientUniqueId), identificationMessage.clientName);
         Log.info("GameServer", "Client profile registered for gameplay connection " + connection.getID());
 
         // NOW that the client is identified and has a profile, start the map transfer workflow

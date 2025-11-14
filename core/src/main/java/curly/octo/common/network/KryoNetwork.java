@@ -12,6 +12,7 @@ import curly.octo.common.map.enums.MapTileMaterial;
 import curly.octo.common.map.hints.LightHint;
 import curly.octo.common.map.hints.MapHint;
 import curly.octo.common.map.hints.SpawnPointHint;
+import curly.octo.server.playerManagement.ClientUniqueId;
 import org.bitlet.weupnp.GatewayDevice;
 import org.bitlet.weupnp.GatewayDiscover;
 import curly.octo.common.map.GameMap;
@@ -107,7 +108,11 @@ public class KryoNetwork {
 
         // Register map transfer payload (combines map + game objects)
         kryo.register(MapTransferPayload.class);
+
+        // Register client management classes
+        kryo.register(ClientUniqueId.class);
     }
+
 
     /**
      * Attempts to forward ports using UPnP.

@@ -221,7 +221,7 @@ public class GameClient {
         // Send identification on bulk connection so BulkTransferServer can track it
         // NOTE: This does NOT create a ClientProfile because BulkTransferServer's NetworkListener
         // has gameServer=null, so GameServer handlers are never called for bulk connections
-        ClientIdentificationMessage identMsg = new ClientIdentificationMessage(Main.clientUniqueId, Main.clientPreferredName);
+        ClientIdentificationMessage identMsg = new ClientIdentificationMessage(Main.clientUniqueId.uniqueId, Main.clientPreferredName);
         bulkClient.getClient().sendTCP(identMsg);
         Log.info("GameClient", "Sent identification on bulk connection: " + Main.clientUniqueId);
 
@@ -278,7 +278,7 @@ public class GameClient {
     public void sendClientIdentification() {
         if (client != null && client.isConnected()) {
             ClientIdentificationMessage message =
-                new ClientIdentificationMessage(Main.clientUniqueId, Main.clientPreferredName);
+                new ClientIdentificationMessage(Main.clientUniqueId.uniqueId, Main.clientPreferredName);
             client.sendTCP(message);
             Log.info("GameClient", "Sent client identification: " + Main.clientUniqueId + " (" + Main.clientPreferredName + ")");
         } else {

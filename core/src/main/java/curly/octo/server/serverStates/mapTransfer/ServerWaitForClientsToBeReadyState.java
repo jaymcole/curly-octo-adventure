@@ -31,20 +31,17 @@ public class ServerWaitForClientsToBeReadyState extends BaseGameStateServer {
     @Override
     public void update(float delta) {
         // Fix: If no clients are registered, allClientsReady should be false
-        boolean allClientsReady = !serverCoordinator.clientProfiles.isEmpty();
+
+        boolean allClientsReady = !serverCoordinator.clientManager.getAllClientProfiles().isEmpty();
         int connectedCount = 0;
         int readyCount = 0;
 
-        for(Map.Entry<ClientConnectionKey, ClientProfile> client : serverCoordinator.clientProfiles.entrySet()) {
-            ClientProfile profile = client.getValue();
-            String clientKey = client.getKey().toString();
+        for(ClientProfile client : serverCoordinator.clientManager.getAllClientProfiles()) {
 
-            if (profile.connectionStatus == ConnectionStatus.CONNECTED) {
+            if (client.connectionStatus == ConnectionStatus.CONNECTED) {
                 connectedCount++;
-                String currentState = profile.currentState != null ? profile.currentState : "null";
+                String currentState = client.currentState != null ? client.currentState : "null";
                 String targetState = MapTransferCompleteState.class.getSimpleName();
-
-
                 if (!Objects.equals(currentState, targetState)) {
                     allClientsReady = false;
                 } else {

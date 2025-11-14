@@ -11,6 +11,7 @@ import curly.octo.Main;
 import curly.octo.client.clientStates.BaseScreen;
 import curly.octo.client.clientStates.StateManager;
 import curly.octo.client.ui.UIAssetCache;
+import curly.octo.server.playerManagement.ClientUniqueId;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,7 +26,7 @@ public class MapTransferScreen extends BaseScreen {
     private static Label clientUniqueIdLabel;
     private static ProgressBar clientMapTransferProgress;
     private static Table clientProgressTable; // Container for client progress elements
-    private static Map<String, ClientProgressElement> clientProgressElements = new HashMap<>();
+    private static Map<ClientUniqueId, ClientProgressElement> clientProgressElements = new HashMap<>();
 
     @Override
     protected void createStage() {
@@ -85,14 +86,14 @@ public class MapTransferScreen extends BaseScreen {
      * @param currentClientId The unique ID of the current client (to exclude from the list)
      * @param totalChunks Total number of chunks for percentage calculation
      */
-    public static void updateAllClientProgress(Map<String, Integer> clientProgress, String currentClientId, int totalChunks) {
+    public static void updateAllClientProgress(Map<ClientUniqueId, Integer> clientProgress, ClientUniqueId currentClientId, int totalChunks) {
         if (clientProgress == null || clientProgressTable == null) {
             return;
         }
 
         // Filter out the current client
-        Map<String, Integer> otherClients = new HashMap<>();
-        for (Map.Entry<String, Integer> entry : clientProgress.entrySet()) {
+        Map<ClientUniqueId, Integer> otherClients = new HashMap<>();
+        for (Map.Entry<ClientUniqueId, Integer> entry : clientProgress.entrySet()) {
             if (!entry.getKey().equals(currentClientId)) {
                 otherClients.put(entry.getKey(), entry.getValue());
             }
@@ -113,7 +114,7 @@ public class MapTransferScreen extends BaseScreen {
      * Rebuild the entire client progress UI from scratch.
      * Creates a two-column layout of ClientProgressElements.
      */
-    private static void rebuildClientProgressUI(Map<String, Integer> clientProgress, int totalChunks) {
+    private static void rebuildClientProgressUI(Map<ClientUniqueId, Integer> clientProgress, int totalChunks) {
         // Clear existing elements
         clientProgressTable.clear();
         clientProgressElements.clear();
@@ -124,8 +125,8 @@ public class MapTransferScreen extends BaseScreen {
 
         // Create new elements in two-column layout
         int index = 0;
-        for (Map.Entry<String, Integer> entry : clientProgress.entrySet()) {
-            String clientId = entry.getKey();
+        for (Map.Entry<ClientUniqueId, Integer> entry : clientProgress.entrySet()) {
+            ClientUniqueId clientId = entry.getKey();
             int chunks = entry.getValue();
 
             ClientProgressElement element = new ClientProgressElement(clientId);
@@ -153,10 +154,10 @@ public class MapTransferScreen extends BaseScreen {
      * Update progress values for existing client progress elements.
      * Does not rebuild the UI structure.
      */
-    private static void updateClientProgressValues(Map<String, Integer> clientProgress, int totalChunks) {
-        clientUniqueIdLabel.setText(Main.clientUniqueId);
-        for (Map.Entry<String, Integer> entry : clientProgress.entrySet()) {
-            String clientId = entry.getKey();
+    private static void updateClientProgressValues(Map<ClientUniqueId, Integer> clientProgress, int totalChunks) {
+        clientUniqueIdLabel.setText(Main.clientUniqueId.toString());
+        for (Map.Entry<ClientUniqueId, Integer> entry : clientProgress.entrySet()) {
+            ClientUniqueId clientId = entry.getKey();
             int chunks = entry.getValue();
 
             ClientProgressElement element = clientProgressElements.get(clientId);

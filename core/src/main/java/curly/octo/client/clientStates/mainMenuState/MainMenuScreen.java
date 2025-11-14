@@ -112,7 +112,7 @@ public class MainMenuScreen extends BaseScreen {
 //        this.uniqueIdField.setDisabled(true);
 //        mainTable.add(this.uniqueIdField).padBottom(10).row();
 
-        Label uniqueIdValueLabel = new Label(Main.clientUniqueId, skin);
+        Label uniqueIdValueLabel = new Label(Main.clientUniqueId.toString(), skin);
         mainTable.add(uniqueIdValueLabel).padBottom(10).row();
     }
 
