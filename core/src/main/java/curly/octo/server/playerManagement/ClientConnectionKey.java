@@ -9,6 +9,13 @@ public class ClientConnectionKey {
         connectionId = connection.getID() + "";
     }
 
+    /**
+     * Gets the connection ID as an integer
+     * @return The connection ID
+     */
+    public int getConnectionId() {
+        return Integer.parseInt(connectionId);
+    }
 
     @Override
     public String toString() {

@@ -15,6 +15,9 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.Constants;
+import curly.octo.common.PlayerObject;
+
+import java.util.ArrayList;
 
 /**
  * Handles debug visualization for rendering.
@@ -201,6 +204,106 @@ public class DebugRenderer implements Disposable {
 
         shapeRenderer.end();
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+    }
+
+    /**
+     * Renders a capsule wireframe representing a player physics body.
+     * A capsule consists of a cylinder with hemispherical caps on top and bottom.
+     *
+     * @param camera The camera for projection matrix
+     * @param position The world position of the capsule center
+     * @param radius The capsule radius
+     * @param height The capsule height (cylinder portion)
+     * @param color The wireframe color
+     */
+    public void renderCapsule(Camera camera, Vector3 position, float radius, float height, Color color) {
+        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
+
+        shapeRenderer.setProjectionMatrix(camera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        shapeRenderer.setColor(color);
+
+        int segments = 16; // Number of segments for circles
+        float angleStep = 360f / segments;
+
+        // Draw circles at different heights to represent the capsule
+        // Bottom cap (hemisphere)
+        drawCircle(position.x, position.y - height/2, position.z, radius, segments);
+
+        // Middle cylinder
+        drawCircle(position.x, position.y, position.z, radius, segments);
+
+        // Top cap (hemisphere)
+        drawCircle(position.x, position.y + height/2, position.z, radius, segments);
+
+        // Draw vertical lines connecting the circles (4 lines at cardinal directions)
+        for (int i = 0; i < 4; i++) {
+            float angle = (float)Math.toRadians(i * 90);
+            float x = position.x + radius * (float)Math.cos(angle);
+            float z = position.z + radius * (float)Math.sin(angle);
+
+            // Line from bottom to top
+            shapeRenderer.line(x, position.y - height/2, z, x, position.y + height/2, z);
+        }
+
+        shapeRenderer.end();
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+    }
+
+    /**
+     * Helper method to draw a horizontal circle in 3D space.
+     */
+    private void drawCircle(float centerX, float centerY, float centerZ, float radius, int segments) {
+        float angleStep = 360f / segments;
+        Vector3 prev = new Vector3();
+        Vector3 current = new Vector3();
+
+        for (int i = 0; i <= segments; i++) {
+            float angle = (float)Math.toRadians(i * angleStep);
+            current.set(
+                centerX + radius * (float)Math.cos(angle),
+                centerY,
+                centerZ + radius * (float)Math.sin(angle)
+            );
+
+            if (i > 0) {
+                shapeRenderer.line(prev, current);
+            }
+            prev.set(current);
+        }
+    }
+
+    /**
+     * Renders all player physics capsules.
+     * Local player is rendered in green, remote players in yellow.
+     *
+     * @param camera The camera for projection matrix
+     * @param remotePlayers List of remote players
+     * @param localPlayer The local player (can be null)
+     * @param radius The capsule radius (typically 1.0f)
+     * @param height The capsule height (typically 5.0f)
+     */
+    public void renderPlayerCapsules(Camera camera, ArrayList<PlayerObject> remotePlayers,
+                                      PlayerObject localPlayer, float radius, float height) {
+        // Note: btCapsuleShape height is cylinder only, total height = height + 2*radius
+        // Position capsule center accounting for the hemispheres
+
+        // Render local player in bright green
+        if (localPlayer != null && localPlayer.getPosition() != null) {
+            Vector3 pos = localPlayer.getPosition();
+            // Offset position to capsule center (position is at feet, add cylinder half + radius for hemisphere)
+            Vector3 capsuleCenter = new Vector3(pos.x, pos.y + height/2f + radius, pos.z);
+            renderCapsule(camera, capsuleCenter, radius, height, Color.GREEN);
+        }
+
+        // Render remote players in bright yellow
+        for (PlayerObject player : remotePlayers) {
+            if (player != null && player.getPosition() != null) {
+                Vector3 pos = player.getPosition();
+                Vector3 capsuleCenter = new Vector3(pos.x, pos.y + height/2f + radius, pos.z);
+                renderCapsule(camera, capsuleCenter, radius, height, Color.YELLOW);
+            }
+        }
     }
 
     public int getWaterTriangleCount() {

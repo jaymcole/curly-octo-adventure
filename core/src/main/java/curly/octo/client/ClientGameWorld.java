@@ -288,7 +288,21 @@ public class ClientGameWorld {
 
             // Render physics debug information if enabled
             if (getMapManager() != null) {
-                getMapManager().renderPhysicsDebug(camera);
+                if (getMapManager().isPlayerOnlyDebugEnabled()) {
+                    // Render only player capsules (performance-friendly)
+                    if (mapRenderer != null && mapRenderer.getDebugRenderer() != null) {
+                        mapRenderer.getDebugRenderer().renderPlayerCapsules(
+                            camera,
+                            getGameObjectManager().activePlayers,
+                            getGameObjectManager().localPlayer,
+                            1.0f,  // radius
+                            5.0f   // height
+                        );
+                    }
+                } else {
+                    // Render full physics debug (includes terrain mesh)
+                    getMapManager().renderPhysicsDebug(camera);
+                }
             }
 
             // Apply post-processing effects to the rendered scene
@@ -629,6 +643,14 @@ public class ClientGameWorld {
         }
     }
 
+    public void togglePlayerPhysicsDebug() {
+        if (mapManager != null) {
+            boolean newState = !mapManager.isPlayerOnlyDebugEnabled();
+            mapManager.setPlayerOnlyDebugEnabled(newState);
+            Log.info("ClientGameWorld", "Player-only physics debug toggled: " + newState);
+        }
+    }
+
     public void togglePhysicsStrategy() {
         if (mapManager != null) {
             // Switch between strategies
@@ -645,6 +667,10 @@ public class ClientGameWorld {
 
     public boolean isPhysicsDebugEnabled() {
         return mapManager != null && mapManager.isDebugRenderingEnabled();
+    }
+
+    public boolean isPlayerPhysicsDebugEnabled() {
+        return mapManager != null && mapManager.isPlayerOnlyDebugEnabled();
     }
 
     public String getPhysicsStrategyInfo() {

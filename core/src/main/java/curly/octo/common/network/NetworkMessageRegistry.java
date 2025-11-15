@@ -58,7 +58,7 @@ public class NetworkMessageRegistry {
         registerMessage(kryo, PlayerObjectRosterUpdate.class);
         registerMessage(kryo, PlayerDisconnectUpdate.class);
         registerMessage(kryo, PlayerResetMessage.class);
-        registerMessage(kryo, PlayerResetMessage.class);
+        registerMessage(kryo, PlayerImpulseMessage.class);
 
         // Legacy player messages (not NetworkMessage types yet)
         registerMessage(kryo, PlayerUpdate.class);

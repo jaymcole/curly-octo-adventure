@@ -44,7 +44,7 @@ public class GameMap {
     private transient btCollisionDispatcher dispatcher;
     private transient btDbvtBroadphase broadphase;
     private transient btSequentialImpulseConstraintSolver solver;
-    private transient btDiscreteDynamicsWorld dynamicsWorld;
+    public transient btDiscreteDynamicsWorld dynamicsWorld;
     private transient DebugDrawer debugDrawer;
     private transient final List<btRigidBody> staticBodies = new ArrayList<>();
     private transient final List<btCollisionShape> staticShapes = new ArrayList<>();
@@ -54,6 +54,7 @@ public class GameMap {
 
     // Debug rendering
     private transient boolean debugRenderingEnabled = true;
+    private transient boolean playerOnlyDebugEnabled = false; // Toggle for player-only debug rendering
 
     // Triangle mesh physics optimization
     private transient btTriangleMesh triangleMesh;
@@ -361,6 +362,24 @@ public class GameMap {
     }
 
     /**
+     * Enable or disable player-only physics debug rendering.
+     * When enabled, only player capsules are rendered (not terrain mesh).
+     * @param enabled Whether to show only player physics wireframes
+     */
+    public void setPlayerOnlyDebugEnabled(boolean enabled) {
+        this.playerOnlyDebugEnabled = enabled;
+        Log.info("GameMap", "Player-only physics debug " + (enabled ? "enabled" : "disabled"));
+    }
+
+    /**
+     * Check if player-only physics debug rendering is enabled.
+     * @return True if player-only debug rendering is enabled
+     */
+    public boolean isPlayerOnlyDebugEnabled() {
+        return playerOnlyDebugEnabled;
+    }
+
+    /**
      * Render physics debug information. Call this after your normal rendering.
      * Disables depth testing to show all wireframes, even those behind geometry.
      */
@@ -410,7 +429,8 @@ public class GameMap {
 
         btCapsuleShape capsule = new btCapsuleShape(radius, height);
         // Position capsule so its bottom sits on the ground, not its center
-        Matrix4 transform = new Matrix4().setToTranslation(x, y + height/2f, z);
+        // Note: btCapsuleShape height is cylinder only, total = height + 2*radius
+        Matrix4 transform = new Matrix4().setToTranslation(x, y + height/2f + radius, z);
 
         playerGhostObject = new btPairCachingGhostObject();
         playerGhostObject.setWorldTransform(transform);
@@ -424,7 +444,8 @@ public class GameMap {
         playerController.setMaxJumpHeight(4f);
         playerController.setUseGhostSweepTest(false);
 
-        dynamicsWorld.addCollisionObject(playerGhostObject, PLAYER_GROUP, GROUND_GROUP);
+        // Add player to physics world - collides with ground AND other players
+        dynamicsWorld.addCollisionObject(playerGhostObject, PLAYER_GROUP, GROUND_GROUP | PLAYER_GROUP);
         dynamicsWorld.addAction(playerController);
         playerGhostObject.setUserPointer(0L);
 

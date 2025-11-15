@@ -1,6 +1,8 @@
 package curly.octo.common;
 
 import com.badlogic.gdx.graphics.g3d.loader.ObjLoader;
+import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
+import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import net.mgsx.gltf.loaders.gltf.GLTFLoader;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
@@ -27,6 +29,8 @@ public class PlayerObject extends WorldObject {
 
     private transient GameMap gameMap;
     private transient btKinematicCharacterController characterController;
+    private transient btRigidBody remotePhysicsBody; // For remote players to block movement
+    private transient btCapsuleShape remotePhysicsShape; // Collision shape for remote physics
     private transient boolean graphicsInitialized = false;
     private transient ModelAssetManager.ModelBounds modelBounds;
 
@@ -36,6 +40,7 @@ public class PlayerObject extends WorldObject {
     private MapTileFillType headTileFillType = MapTileFillType.AIR;
     private MapTile headTile = null;
     private Vector3 velocity = new Vector3();
+    private Vector3 externalForce = new Vector3(); // Accumulated impulses from collisions, etc.
     private Vector3 tempVector = new Vector3();
     private boolean possessed = false;
 
@@ -253,10 +258,26 @@ public class PlayerObject extends WorldObject {
     private void updatePhysicsMode(float delta) {
         // Use character controller for physics-based movement
         if (characterController != null) {
-            // Apply horizontal movement via character controller
+            // Combine player input velocity with external forces (impulses, collisions, etc.)
+            // velocity = player input (from move() method)
+            // externalForce = accumulated impulses from network/physics
+            tempVector.set(velocity.x + externalForce.x, 0, velocity.z + externalForce.z);
+
+            // Log when external forces are significant
+            if (externalForce.len2() > 1.0f) {
+                Log.info("PlayerObject.Physics", "Player " + entityId + ": inputVel=(" +
+                         String.format("%.2f", velocity.x) + "," + String.format("%.2f", velocity.z) +
+                         "), extForce=(" + String.format("%.2f", externalForce.x) + "," +
+                         String.format("%.2f", externalForce.z) + "), COMBINED=(" +
+                         String.format("%.2f", tempVector.x) + "," + String.format("%.2f", tempVector.z) + ")");
+            }
+
+            // Apply combined velocity to character controller
             // setWalkDirection expects velocity (units per second), not displacement
-            tempVector.set(velocity.x, 0, velocity.z);
             characterController.setWalkDirection(tempVector);
+
+            // Apply damping to external forces for smooth deceleration
+            externalForce.scl(0.95f);
 
             // Check if we can jump (character controller handles ground detection)
             onGround = characterController.canJump();
@@ -362,6 +383,25 @@ public class PlayerObject extends WorldObject {
         }
     }
 
+    /**
+     * Applies an impulse force to the player. The impulse is accumulated in the externalForce
+     * vector and gradually damped over time for smooth, realistic push effects.
+     * Used for physics-based interactions like player collisions, explosions, etc.
+     *
+     * @param impulse The impulse vector to apply (in world space)
+     */
+    public void applyImpulse(Vector3 impulse) {
+        if (flyModeEnabled) {
+            // In fly mode, add impulse to fly velocity
+            flyVelocity.add(impulse);
+            Log.info("PlayerObject", "Applied impulse to fly velocity: " + impulse + " (player: " + entityId + ")");
+        } else {
+            // In physics mode, add to external force accumulator
+            externalForce.add(impulse);
+            Log.info("PlayerObject", "Applied impulse: " + impulse + " → externalForce now: " + externalForce + " (player: " + entityId + ")");
+        }
+    }
+
     @Override
     public void rotateLook(float deltaYaw, float deltaPitch) {
         addYaw(deltaYaw);
@@ -447,6 +487,87 @@ public class PlayerObject extends WorldObject {
         return characterController;
     }
 
+    /**
+     * Initializes physics collision body for remote players (non-local players).
+     * Creates a kinematic rigid body that blocks movement but is controlled by network updates.
+     * This allows the local player to collide with remote players while the server controls positions.
+     *
+     * @param map The GameMap containing the physics world
+     * @param radius The capsule radius
+     * @param height The capsule height
+     */
+    public void initializeRemotePhysics(GameMap map, float radius, float height) {
+        // Clean up any existing remote physics body
+        disposeRemotePhysics(map);
+
+        // Create capsule collision shape (same as local player)
+        remotePhysicsShape = new com.badlogic.gdx.physics.bullet.collision.btCapsuleShape(radius, height);
+
+        // Position capsule so its bottom sits on the ground
+        // Note: btCapsuleShape height is cylinder only, total height = height + 2*radius
+        com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4()
+            .setToTranslation(position.x, position.y + height/2f + radius, position.z);
+
+        // Create kinematic rigid body (mass = 0, controlled manually not by physics)
+        com.badlogic.gdx.physics.bullet.dynamics.btRigidBody.btRigidBodyConstructionInfo bodyInfo =
+            new com.badlogic.gdx.physics.bullet.dynamics.btRigidBody.btRigidBodyConstructionInfo(
+                0, null, remotePhysicsShape, new Vector3(0, 0, 0));
+        remotePhysicsBody = new com.badlogic.gdx.physics.bullet.dynamics.btRigidBody(bodyInfo);
+        bodyInfo.dispose();
+
+        // Set as kinematic object (position controlled manually, not by physics simulation)
+        remotePhysicsBody.setCollisionFlags(
+            remotePhysicsBody.getCollisionFlags() |
+            com.badlogic.gdx.physics.bullet.collision.btCollisionObject.CollisionFlags.CF_KINEMATIC_OBJECT
+        );
+
+        // Set initial transform
+        remotePhysicsBody.setWorldTransform(transform);
+
+        // Add to physics world with player collision group
+        map. dynamicsWorld.addRigidBody(remotePhysicsBody, GameMap.PLAYER_GROUP, GameMap.GROUND_GROUP | GameMap.PLAYER_GROUP);
+
+        Log.info("PlayerObject", "Initialized remote physics body for player " + entityId +
+                 " at position " + position + " (radius: " + radius + ", height: " + height + ")");
+    }
+
+    /**
+     * Updates the position of the remote physics body to match the player's network position.
+     * Should be called whenever position is updated from network for remote players.
+     */
+    public void updateRemotePhysicsPosition() {
+        if (remotePhysicsBody != null && remotePhysicsShape != null) {
+            // Get capsule dimensions from the shape
+            float height = remotePhysicsShape.getHalfHeight() * 2.0f;
+            float radius = remotePhysicsShape.getRadius();
+
+            // Update transform to match current position
+            // Note: btCapsuleShape height is cylinder only, total height = height + 2*radius
+            com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4()
+                .setToTranslation(position.x, position.y + height/2f + radius, position.z);
+            remotePhysicsBody.setWorldTransform(transform);
+        }
+    }
+
+    /**
+     * Disposes of the remote physics body and removes it from the physics world.
+     *
+     * @param map The GameMap containing the physics world
+     */
+    public void disposeRemotePhysics(GameMap map) {
+        if (remotePhysicsBody != null) {
+            if (map != null && map.dynamicsWorld != null) {
+                map.dynamicsWorld.removeRigidBody(remotePhysicsBody);
+            }
+            remotePhysicsBody.dispose();
+            remotePhysicsBody = null;
+        }
+        if (remotePhysicsShape != null) {
+            remotePhysicsShape.dispose();
+            remotePhysicsShape = null;
+        }
+    }
+
     public MapTileFillType getCurrentTileFillType() {
         return currentTileFillType;
     }
@@ -496,6 +617,15 @@ public class PlayerObject extends WorldObject {
             return false;
         }
         return true;
+    }
+
+    @Override
+    public void dispose() {
+        // Clean up remote physics body if it exists
+        disposeRemotePhysics(gameMap);
+
+        // Call parent dispose to clean up other resources
+        super.dispose();
     }
 
     /**

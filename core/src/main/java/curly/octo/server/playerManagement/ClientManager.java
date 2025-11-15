@@ -7,15 +7,16 @@ public class ClientManager {
     // Active players
     private HashMap<ClientConnectionKey, ClientProfile> clientProfiles;
 
-    // Connecting players that haven't yet identified themselves.
-//    private HashMap<ClientConnectionKey, ClientProfile> unidentifiedProfiles;
-
     // Non-active players. They disconnected for some reason. We'll keep their profile safe in case they come back.
     private HashMap<ClientUniqueId, ClientProfile> inactiveProfiles;
+
+    // Mapping from player UUID to client profile for quick lookup
+    private HashMap<String, ClientProfile> playerUUIDToProfile;
 
     public ClientManager() {
         clientProfiles = new HashMap<>();
         inactiveProfiles = new HashMap<>();
+        playerUUIDToProfile = new HashMap<>();
 
     }
 
@@ -60,6 +61,36 @@ public class ClientManager {
     public void clearProfiles() {
         clientProfiles.clear();
         inactiveProfiles.clear();
+        playerUUIDToProfile.clear();
+    }
+
+    /**
+     * Associates a player UUID with a client profile for quick lookup
+     * @param playerUUID The UUID of the player object
+     * @param key The connection key of the client
+     */
+    public void addPlayerMapping(String playerUUID, ClientConnectionKey key) {
+        ClientProfile profile = getClientProfile(key);
+        if (profile != null) {
+            playerUUIDToProfile.put(playerUUID, profile);
+        }
+    }
+
+    /**
+     * Removes the player UUID mapping when a player is removed
+     * @param playerUUID The UUID of the player object
+     */
+    public void removePlayerMapping(String playerUUID) {
+        playerUUIDToProfile.remove(playerUUID);
+    }
+
+    /**
+     * Gets a client profile by player UUID
+     * @param playerUUID The UUID of the player object
+     * @return The client profile, or null if not found
+     */
+    public ClientProfile getClientProfileByPlayerUUID(String playerUUID) {
+        return playerUUIDToProfile.get(playerUUID);
     }
 
 }

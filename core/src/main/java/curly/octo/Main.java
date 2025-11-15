@@ -333,6 +333,7 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
             ClientGameWorld clientGameWorld = clientGameMode.getGameWorld();
             clientGameWorld.togglePhysicsDebug();
             Log.info("Main", "Physics debug toggled: " + clientGameWorld.isPhysicsDebugEnabled());
+            updatePhysicsDebugUI(clientGameWorld);
         }
     }
 
@@ -344,6 +345,34 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
             clientGameWorld.togglePhysicsStrategy();
             Log.info("Main", "Physics strategy switched to: " + clientGameWorld.getPhysicsStrategyInfo());
         }
+    }
+
+    @Override
+    public void onTogglePlayerPhysicsDebug() {
+        // Debug controls operate on the client's world (where rendering happens)
+        if (clientGameMode != null && clientGameMode.getGameWorld() != null) {
+            ClientGameWorld clientGameWorld = clientGameMode.getGameWorld();
+            clientGameWorld.togglePlayerPhysicsDebug();
+            Log.info("Main", "Player physics debug toggled: " + clientGameWorld.isPlayerPhysicsDebugEnabled());
+            updatePhysicsDebugUI(clientGameWorld);
+        }
+    }
+
+    /**
+     * Updates the debug UI to reflect the current physics debug mode.
+     */
+    private void updatePhysicsDebugUI(ClientGameWorld clientGameWorld) {
+        if (debugUI == null) return;
+
+        String mode;
+        if (clientGameWorld.isPlayerPhysicsDebugEnabled()) {
+            mode = "Players Only";
+        } else if (clientGameWorld.isPhysicsDebugEnabled()) {
+            mode = "Full Physics";
+        } else {
+            mode = "Off";
+        }
+        debugUI.setPhysicsDebugMode(mode);
     }
 
     @Override

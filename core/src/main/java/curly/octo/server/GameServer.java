@@ -116,6 +116,9 @@ public class GameServer {
             gameObjectManager.add(newPlayer);
             connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
 
+            // Register player mapping in ClientManager for quick lookup
+            serverCoordinator.clientManager.addPlayerMapping(newPlayer.entityId, clientKey);
+
             // Send map + all game objects to client
             sendMapRefreshToUser(connection);
 
@@ -136,6 +139,9 @@ public class GameServer {
             gameObjectManager.add(newPlayer);
             connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
             pendingPlayerAssignments.put(connection.getID(), newPlayer.entityId);
+
+            // Register player mapping in ClientManager for quick lookup
+            serverCoordinator.clientManager.addPlayerMapping(newPlayer.entityId, clientKey);
 
             triggerInitialMapGeneration(connection);
         }
@@ -293,6 +299,27 @@ public class GameServer {
             PlayerDisconnectUpdate disconnectUpdate = new PlayerDisconnectUpdate(playerId);
             NetworkManager.sendToAllClients(disconnectUpdate);
             Log.info("GameServer", "Broadcasting player disconnect for player " + playerId);
+        }
+    }
+
+    /**
+     * Sends an impulse to a specific player via their client connection.
+     * Uses ClientManager to lookup the client profile by player UUID.
+     *
+     * @param playerId The UUID of the player to receive the impulse
+     * @param impulse The impulse vector to apply to the player
+     */
+    public void sendImpulseToPlayer(String playerId, Vector3 impulse) {
+        if (server != null) {
+            ClientProfile profile = serverCoordinator.clientManager.getClientProfileByPlayerUUID(playerId);
+            if (profile != null) {
+                PlayerImpulseMessage impulseMessage = new PlayerImpulseMessage(playerId, impulse);
+                NetworkManager.sendToClient(profile.gameplayConnectionId, impulseMessage);
+                Log.info("GameServer", "Sent impulse to player " + playerId + " (connection " +
+                         profile.gameplayConnectionId + "): " + impulse);
+            } else {
+                Log.warn("GameServer", "Could not send impulse to player " + playerId + " - no client profile found");
+            }
         }
     }
 
@@ -613,6 +640,9 @@ public class GameServer {
         // Find and remove the disconnected player using the connection mapping
         String playerId = connectionToPlayerMap.remove(connection.getID());
         if (playerId != null) {
+            // Remove player mapping from ClientManager
+            serverCoordinator.clientManager.removePlayerMapping(playerId);
+
             PlayerObject disconnectedPlayer = gameObjectManager.getPlayerById(playerId);
 
             if (disconnectedPlayer != null) {

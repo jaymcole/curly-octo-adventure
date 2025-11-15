@@ -15,6 +15,7 @@ import curly.octo.common.network.messages.PlayerUpdate;
 import curly.octo.common.network.messages.PlayerAssignmentUpdate;
 import curly.octo.common.network.messages.PlayerObjectRosterUpdate;
 import curly.octo.common.network.messages.PlayerDisconnectUpdate;
+import curly.octo.common.network.messages.PlayerImpulseMessage;
 import curly.octo.common.PlayerObject;
 import curly.octo.common.InputController;
 import curly.octo.common.MinimalPlayerController;
@@ -397,122 +398,57 @@ public class ClientGameMode implements GameMode {
 
                 // If player not found, create a new one
                 if (targetPlayer == null) {
-                    Log.info("ClientGameMode", "Creating new player controller for player " + playerUpdate.playerId);
+                    Log.info("ClientGameMode", "Creating new remote player for player " + playerUpdate.playerId);
                     targetPlayer = new PlayerObject(playerUpdate.playerId); // client mode - need graphics
                     gameWorld.getGameObjectManager().activePlayers.add(targetPlayer);
                     gameWorld.getGameObjectManager().add(targetPlayer);
+
+                    // Initialize physics collision body for remote player
+                    // This allows the local player to collide with remote players
+                    targetPlayer.initializeRemotePhysics(gameWorld.getMapManager(), 1.0f, 5.0f);
                 }
 
                 targetPlayer.setPosition(new Vector3(playerUpdate.x, playerUpdate.y, playerUpdate.z));
                 targetPlayer.setYaw(playerUpdate.yaw);
                 targetPlayer.setPitch(playerUpdate.pitch);
+
+                // Update physics body position to match network position
+                targetPlayer.updateRemotePhysicsPosition();
             });
         });
 
-        // TODO: Map regeneration start listener - migrate to NetworkManager
-        // Commented out during NetworkManager migration - functionality moved to state system
-        /*
-        gameClient.setMapRegenerationStartListener(mapRegenerationStart -> {
+        NetworkManager.onReceive(PlayerImpulseMessage.class, impulseMessage -> {
             Gdx.app.postRunnable(() -> {
-                Log.info("ClientGameMode", "Map regeneration starting - performing immediate resource cleanup");
-                Log.info("ClientGameMode", "New map seed: " + mapRegenerationStart.newMapSeed +
-                         ", Reason: " + mapRegenerationStart.reason);
+                // Find the target player (could be local or remote)
+                PlayerObject targetPlayer = null;
+                String playerType = "UNKNOWN";
 
-                // Immediately disable player input to prevent movement during regeneration
-                disableInput();
-
-                // IMMEDIATELY dispose of current map resources - don't wait for cleanup state
-                performImmediateMapCleanup();
-
-                // Update debug UI with new seed via callback
-                if (mapRegenerationListener != null) {
-                    mapRegenerationListener.onMapSeedChanged(mapRegenerationStart.newMapSeed);
-                    Log.info("ClientGameMode", "Notified main of seed change to: " + mapRegenerationStart.newMapSeed);
-                }
-
-                // Store regeneration data and transition to cleanup state
-                java.util.Map<String, Object> stateData = new java.util.HashMap<>();
-                stateData.put("new_map_seed", mapRegenerationStart.newMapSeed);
-                stateData.put("regeneration_reason", mapRegenerationStart.reason);
-                stateData.put("regeneration_timestamp", mapRegenerationStart.timestamp);
-                stateData.put("is_initial_generation", mapRegenerationStart.isInitialGeneration);
-
-                // Transition to cleanup state - this will trigger the state handlers
-                stateManager.requestStateChange(GameState.MAP_REGENERATION_CLEANUP, stateData);
-
-                Log.info("ClientGameMode", "State transition requested to MAP_REGENERATION_CLEANUP");
-            });
-        });
-        */
-
-        // TODO: Player reset listener - migrate to NetworkManager
-        // Commented out during NetworkManager migration - functionality moved to state system
-        /*
-        gameClient.setPlayerResetListener(playerReset -> {
-            Gdx.app.postRunnable(() -> {
-                Log.info("ClientGameMode", "Received player reset for: " + playerReset.playerId);
-
-                // Check if this is for our local player
-                String localId = getLocalPlayerId();
-                if (localId != null && localId.equals(playerReset.playerId)) {
-                    Log.info("ClientGameMode", "Resetting local player to new spawn position");
-
-                    if (gameWorld instanceof ClientGameWorld) {
-                        ClientGameWorld clientWorld = (ClientGameWorld) gameWorld;
-                        clientWorld.resetLocalPlayerToSpawn(
-                            playerReset.getSpawnPosition(),
-                            playerReset.spawnYaw
-                        );
-                    }
+                // First check if this is the local player
+                PlayerObject localPlayer = gameWorld.getGameObjectManager().localPlayer;
+                if (localPlayer != null && localPlayer.entityId.equals(impulseMessage.playerId)) {
+                    targetPlayer = localPlayer;
+                    playerType = "LOCAL";
                 } else {
-                    Log.info("ClientGameMode", "Player reset for remote player: " + playerReset.playerId);
-
-                    // Find and reset remote player
+                    // Search remote players in activePlayers list
                     for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
-                        if (player.entityId.equals(playerReset.playerId)) {
-                            player.setPosition(playerReset.getSpawnPosition());
-                            player.setYaw(playerReset.spawnYaw);
-                            player.resetPhysicsState();
-                            Log.info("ClientGameMode", "Reset remote player " + playerReset.playerId);
+                        if (player.entityId.equals(impulseMessage.playerId)) {
+                            targetPlayer = player;
+                            playerType = "REMOTE";
                             break;
                         }
                     }
                 }
+
+                if (targetPlayer != null) {
+                    Vector3 impulse = new Vector3(impulseMessage.impulseX, impulseMessage.impulseY, impulseMessage.impulseZ);
+                    Log.info("ClientGameMode", "Received impulse for " + playerType + " player " +
+                             impulseMessage.playerId + ": " + impulse);
+                    targetPlayer.applyImpulse(impulse);
+                } else {
+                    Log.warn("ClientGameMode", "Received impulse for unknown player: " + impulseMessage.playerId);
+                }
             });
         });
-        */
-
-        // TODO: Map transfer progress listeners - migrate to NetworkManager
-        // These will be migrated to use NetworkManager.onReceive() pattern
-        /*
-        gameClient.setMapTransferStartListener(message -> {
-            Log.info("ClientGameMode", "MAP TRANSFER START LISTENER CALLED: mapId=" + message.mapId + ", totalChunks=" + message.totalChunks + ", thread=" + Thread.currentThread().getName());
-            Gdx.app.postRunnable(() -> {
-                Log.info("ClientGameMode", "POSTING MAP TRANSFER START TO MAIN THREAD");
-                onMapTransferStart(message.mapId, message.totalChunks, message.totalSize);
-            });
-        });
-
-        gameClient.setMapTransferBeginListener(message -> {
-            Log.info("ClientGameMode", "MAP TRANSFER START LISTENER CALLED: mapId=" + message.mapId + ", totalChunks=" + message.totalChunks + ", thread=" + Thread.currentThread().getName());
-            Gdx.app.postRunnable(() -> {
-                Log.info("ClientGameMode", "POSTING MAP TRANSFER START TO MAIN THREAD");
-                onMapTransferBegin(message.mapId, message.totalChunks, message.totalSize);
-            });
-        });
-
-        gameClient.setMapChunkListener(message -> {
-            // Process chunk data immediately on network thread to avoid lag
-            // Only post UI updates to main thread
-            onChunkReceived(message.mapId, message.chunkIndex, message.chunkData);
-        });
-
-        gameClient.setMapTransferCompleteListener(message -> {
-            Gdx.app.postRunnable(() -> {
-                onMapTransferComplete(message.mapId);
-            });
-        });
-        */
     }
 
     /**

@@ -41,6 +41,10 @@ public class HostedGameMode implements GameMode {
                 gameObjectManager,
                 serverCoordinator
             );
+
+            // Set the game server reference on coordinator (required for server agents)
+            serverCoordinator.setGameServer(gameServer);
+
             gameServer.start();
             serverStarted = true;
 

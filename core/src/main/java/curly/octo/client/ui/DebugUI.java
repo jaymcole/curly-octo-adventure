@@ -43,6 +43,7 @@ public class DebugUI {
     public interface DebugListener {
         void onTogglePhysicsDebug();
         void onTogglePhysicsStrategy();
+        void onTogglePlayerPhysicsDebug();
         void onRegenerateMap();
     }
     private DebugListener debugListener;
@@ -176,6 +177,10 @@ public class DebugUI {
         currentTileTemplate = new Label("Template: N/A", skin);
         debugTable.add(currentTileTemplate).pad(10).row();
 
+        // Physics Debug Mode
+        physicsDebugLabel = new Label("Physics Debug: Off", skin);
+        debugTable.add(physicsDebugLabel).pad(10).row();
+
         stage.addActor(debugTable);
 
         // Debug: Add input event listener to stage to see if events are reaching it
@@ -222,6 +227,9 @@ public class DebugUI {
             }
             if (Gdx.input.isKeyJustPressed(Input.Keys.F2)) {
                 debugListener.onTogglePhysicsStrategy();
+            }
+            if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
+                debugListener.onTogglePlayerPhysicsDebug();
             }
         }
     }
@@ -278,7 +286,15 @@ public class DebugUI {
     }
 
     public void setPhysicsDebugEnabled(boolean enabled) {
-//        physicsDebugLabel.setText("Physics Debug: " + (enabled ? "ON" : "OFF"));
+        // Deprecated - use setPhysicsDebugMode() instead
+    }
+
+    /**
+     * Updates the physics debug label with the current mode.
+     * @param mode One of: "Off", "Full Physics", "Players Only"
+     */
+    public void setPhysicsDebugMode(String mode) {
+        physicsDebugLabel.setText("Physics Debug: " + mode);
     }
 
     public void setPhysicsStrategy(String strategy, long triangleCount) {

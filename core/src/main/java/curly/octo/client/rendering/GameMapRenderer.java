@@ -515,6 +515,10 @@ public class GameMapRenderer implements Disposable {
         return bloomRenderer != null ? bloomRenderer.getBloomIntensity() : 0.8f;
     }
 
+    public DebugRenderer getDebugRenderer() {
+        return debugRenderer;
+    }
+
     @Override
     public void dispose() {
         if (disposed) {

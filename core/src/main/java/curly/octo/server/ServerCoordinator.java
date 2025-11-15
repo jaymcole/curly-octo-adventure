@@ -26,6 +26,7 @@ public class ServerCoordinator {
     protected ServerGameObjectManager gameObjectManager;
     protected Random random;
     protected boolean disposed = false;
+    private GameServer gameServer; // Reference to GameServer for agents
 
     public ClientManager clientManager;
 //    public HashMap<ClientConnectionKey, ClientProfile> clientProfiles;
@@ -52,12 +53,27 @@ public class ServerCoordinator {
         this.random = random;
         clientManager = new ClientManager();
         pendingStateUpdates = new HashMap<>();
+        // Note: serverAgents will be instantiated when setGameServer() is called
+    }
+
+    /**
+     * Sets the GameServer reference and initializes server agents that depend on it.
+     * This must be called after GameServer is created to complete initialization.
+     *
+     * @param gameServer The GameServer instance
+     */
+    public void setGameServer(GameServer gameServer) {
+        this.gameServer = gameServer;
         instantiateServerAgents();
     }
 
     private void instantiateServerAgents() {
+        if (gameServer == null) {
+            Log.warn("ServerCoordinator", "Cannot instantiate server agents without GameServer reference");
+            return;
+        }
         this.serverAgents = new ArrayList<>();
-        serverAgents.add(new PlayerCollisionAgent(gameObjectManager));
+        serverAgents.add(new PlayerCollisionAgent(gameObjectManager, gameServer));
     }
 
     /**
@@ -118,8 +134,10 @@ public class ServerCoordinator {
         }
         clientManager.getClientProfile(clientKey).clientUniqueId = uniqueIdentifier;
         clientManager.getClientProfile(clientKey).userName = preferredName;
+        clientManager.getClientProfile(clientKey).gameplayConnectionId = clientKey.getConnectionId();
         Log.info("ServerCoordinator", "Profile successfully registered: " + clientKey + " -> uniqueId=" +
-                 uniqueIdentifier + ", name=" + preferredName + " (Total profiles: " + clientManager.getAllClientProfiles().size() + ")");
+                 uniqueIdentifier + ", name=" + preferredName + ", connectionId=" + clientKey.getConnectionId() +
+                 " (Total profiles: " + clientManager.getAllClientProfiles().size() + ")");
 
         // Process any pending state updates for this client
         if (pendingStateUpdates.containsKey(clientKey)) {
