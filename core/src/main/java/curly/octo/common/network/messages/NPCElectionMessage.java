@@ -3,18 +3,30 @@ package curly.octo.common.network.messages;
 import curly.octo.common.network.NetworkMessage;
 
 /**
- * Server announces NPC sync authority election results to all clients.
- * One client is elected to broadcast synchronization corrections.
+ * Message broadcast by server to announce NPC sync authority elections.
+ * Each NPC is assigned to exactly one client for position synchronization.
  */
 public class NPCElectionMessage extends NetworkMessage {
 
-    /** ClientUniqueId of the elected sync authority */
+    /**
+     * Reason for this election.
+     */
+    public enum ElectionReason {
+        INITIAL,           // NPC just spawned
+        CLIENT_DISCONNECT, // Previous authority disconnected
+        MANUAL             // Manually triggered
+    }
+
+    /** Entity ID of the NPC this election is for */
+    public String npcId;
+
+    /** ClientUniqueId of the elected sync authority for this NPC */
     public String electedClientId;
 
-    /** Server timestamp when election occurred (milliseconds) */
+    /** Timestamp when this election was conducted (milliseconds since epoch) */
     public long electionTimestamp;
 
-    /** Reason for the election */
+    /** Reason for this election */
     public ElectionReason reason;
 
     /**
@@ -26,7 +38,8 @@ public class NPCElectionMessage extends NetworkMessage {
     /**
      * Convenience constructor for creating election messages.
      */
-    public NPCElectionMessage(String electedClientId, long electionTimestamp, ElectionReason reason) {
+    public NPCElectionMessage(String npcId, String electedClientId, long electionTimestamp, ElectionReason reason) {
+        this.npcId = npcId;
         this.electedClientId = electedClientId;
         this.electionTimestamp = electionTimestamp;
         this.reason = reason;
@@ -35,29 +48,10 @@ public class NPCElectionMessage extends NetworkMessage {
     @Override
     public String toString() {
         return "NPCElectionMessage{" +
-                "electedClientId='" + electedClientId + '\'' +
+                "npcId='" + npcId + '\'' +
+                ", electedClientId='" + electedClientId + '\'' +
                 ", electionTimestamp=" + electionTimestamp +
                 ", reason=" + reason +
                 '}';
-    }
-
-    /**
-     * Reasons for triggering an NPC sync authority election.
-     */
-    public enum ElectionReason {
-        /** Initial election when server starts */
-        INITIAL,
-
-        /** Client joined and became first in sorted order */
-        CLIENT_JOIN,
-
-        /** Elected client disconnected, need new authority */
-        CLIENT_DISCONNECT,
-
-        /** Elected client became unresponsive, forced failover */
-        FAILOVER,
-
-        /** Manual re-election triggered by server admin */
-        MANUAL
     }
 }

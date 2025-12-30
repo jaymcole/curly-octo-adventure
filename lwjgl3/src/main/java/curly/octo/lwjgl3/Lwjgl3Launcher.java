@@ -16,6 +16,29 @@ public class Lwjgl3Launcher {
     public static void main(String[] args) {
         if (StartupHelper.startNewJvmIfRequired()) return; // This handles macOS support and helps on Windows.
 
+        // Set up global uncaught exception handler to log fatal errors
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            // Use System.err as logger may not be initialized yet
+            System.err.println("FATAL: Uncaught exception in thread " + thread.getName());
+            throwable.printStackTrace(System.err);
+
+            // Try to log if logger is available
+            try {
+                Log.error("UncaughtException", "Fatal error in thread " + thread.getName(), throwable);
+            } catch (Exception e) {
+                // Logger might be broken, ignore
+            }
+
+            // Ensure logger is closed
+            if (dualLogger != null) {
+                try {
+                    dualLogger.close();
+                } catch (Exception e) {
+                    System.err.println("Failed to close logger: " + e.getMessage());
+                }
+            }
+        });
+
         // Set up file logging before creating the application
         setupLogging();
 
@@ -38,6 +61,14 @@ public class Lwjgl3Launcher {
         dualLogger = new DualLogger(logFileName + ".log");
         Log.setLogger(dualLogger);
 
+        // Register shutdown hook to ensure logger is closed on JVM exit
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            Log.info("ShutdownHook", "JVM shutdown detected, closing logger");
+            if (dualLogger != null) {
+                dualLogger.close();
+            }
+        }, "LoggerShutdownHook"));
+
         Log.info("Lwjgl3Launcher", "File logging enabled: logs/" + logFileName + ".log");
     }
 
@@ -55,7 +86,13 @@ public class Lwjgl3Launcher {
 
     private static Lwjgl3ApplicationConfiguration getDefaultConfiguration() {
         Lwjgl3ApplicationConfiguration configuration = new Lwjgl3ApplicationConfiguration();
-        configuration.setTitle("CurlyOctoAdventure");
+
+        // Build window title with client name if available
+        String windowTitle = "CurlyOctoAdventure";
+        if (Main.clientPreferredName != null && !Main.clientPreferredName.trim().isEmpty()) {
+            windowTitle += " - " + Main.clientPreferredName;
+        }
+        configuration.setTitle(windowTitle);
         //// Vsync limits the frames per second to what your hardware can display, and helps eliminate
         //// screen tearing. This setting doesn't always work on Linux, so the line after is a safeguard.
         configuration.useVsync(true);

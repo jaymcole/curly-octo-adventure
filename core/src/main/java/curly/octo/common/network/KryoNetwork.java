@@ -112,11 +112,8 @@ public class KryoNetwork {
         // Register client management classes
         kryo.register(ClientUniqueId.class);
 
-        // Register NPC messages
-        kryo.register(NPCElectionMessage.class);
-        kryo.register(NPCElectionManager.class);
-        kryo.register(NPCInstructionMessage.class);
-        kryo.register(NPCSyncMessage.class);
+        // NOTE: NPC messages are already registered in NetworkMessageRegistry.registerAllMessages()
+        // Do not register them again here to avoid ID conflicts and deserialization errors
     }
 
 

@@ -69,10 +69,14 @@ public class GameServer {
         NetworkManager.onReceive(PlayerUpdate.class, this::handlePlayerUpdate);
         NetworkManager.onReceive(ClientStateChangeMessage.class, this::handleClientStateChangeMessage);
         NetworkManager.onReceive(ClientIdentificationMessage.class, this::handleClientIdentification);
-        // DISABLED: NPC sync relay (needs election fix)
-        // NetworkManager.onReceive(curly.octo.common.network.messages.NPCSyncMessage.class, this::handleNPCSync);
+        // NPC sync relay (per-NPC authority system)
+        NetworkManager.onReceive(curly.octo.common.network.messages.NPCSyncMessage.class, this::handleNPCSync);
 
         server.addListener(networkListener);
+
+        // Diagnostic: Check handler registration count
+        int npcSyncHandlerCount = NetworkManager.getHandlerCount(curly.octo.common.network.messages.NPCSyncMessage.class);
+        Log.info("GameServer", "NPCSyncMessage handler count after registration: " + npcSyncHandlerCount);
 
         // Create bulk transfer server (will be started in start() method)
         this.bulkServer = new BulkTransferServer();
@@ -81,8 +85,6 @@ public class GameServer {
         bulkServer.setServerCoordinator(serverCoordinator);
 
         Log.info("GameServer", "Initialized with dual-connection architecture (gameplay: 8KB, bulk: 64KB)");
-
-        server.addListener(networkListener);
     }
 
     public void handleClientStateChangeMessage(Connection connection, ClientStateChangeMessage stateChangeMessage) {
@@ -174,9 +176,9 @@ public class GameServer {
      * The elected client sends sync corrections to the server, which relays them to observer clients.
      */
     public void handleNPCSync(Connection connection, curly.octo.common.network.messages.NPCSyncMessage syncMessage) {
-        // Relay to all clients (including sender for simplicity - sender will ignore it)
+        // Relay to all clients EXCEPT sender (matches PlayerUpdate pattern to prevent feedback loop)
         for (Connection conn : server.getConnections()) {
-            if (readyClients.contains(conn.getID())) {
+            if (readyClients.contains(conn.getID()) && conn.getID() != connection.getID()) {
                 conn.sendUDP(syncMessage);
             }
         }
@@ -209,7 +211,7 @@ public class GameServer {
             Log.warn("Server", "Please configure port forwarding manually in your router settings if needed.");
         }
 
-        Log.info("Server", "NPC Election Manager initialized and ready");
+        Log.info("Server", "Server initialized - NPC Election Manager ready");
     }
 
     /**
@@ -219,6 +221,10 @@ public class GameServer {
      * Stops the server and cleans up any port forwarding rules.
      */
     public void stop() {
+        // Clear network handlers to prevent accumulation across server restarts
+        Log.info("GameServer", "Clearing network handlers (static storage)");
+        NetworkManager.clearHandlers();
+
         if (server != null) {
             // Remove port forwarding rules
             KryoNetwork.removePortForwarding();
@@ -312,17 +318,24 @@ public class GameServer {
         readyClients.add(connection.getID());
         Log.info("GameServer", "Client " + connection.getID() + " marked as ready for position updates");
 
-        // Run NPC sync authority election
-        NPCElectionMessage.ElectionReason reason = npcElectionManager.hasAuthority() ?
-            NPCElectionMessage.ElectionReason.CLIENT_JOIN :
-            NPCElectionMessage.ElectionReason.INITIAL;
+        // NOTE: NPC authority elections happen per-NPC at spawn time (see NPCSpawnerAgent)
+    }
 
-        NPCElectionMessage electionResult = npcElectionManager.runElection(reason);
-
+    /**
+     * Elect a sync authority for a specific NPC and broadcast the result.
+     * Called when NPCs are spawned to assign them to clients.
+     *
+     * @param npcId The NPC entity ID to elect authority for
+     * @param reason The reason for this election
+     */
+    public void electNPCAuthority(String npcId, NPCElectionMessage.ElectionReason reason) {
+        NPCElectionMessage electionResult = npcElectionManager.runElection(npcId, reason);
         if (electionResult != null) {
             NetworkManager.sendToAllClients(electionResult);
-            Log.info("GameServer", "NPC sync authority election: " + electionResult.electedClientId +
-                    " (reason: " + reason + ")");
+            Log.info("GameServer", "Elected NPC sync authority for " + npcId + ": " +
+                    electionResult.electedClientId + " (reason: " + reason + ")");
+        } else {
+            Log.warn("GameServer", "Could not elect authority for NPC " + npcId + " - no clients available");
         }
     }
 
@@ -691,26 +704,23 @@ public class GameServer {
             }
         }
 
-        // Check if we need to re-elect NPC sync authority
+        // Reassign NPCs owned by the disconnected client
         if (profile != null && profile.clientUniqueId != null) {
-            if (npcElectionManager.isReElectionNeeded(profile.clientUniqueId)) {
-                Log.info("GameServer", "Elected NPC sync authority disconnected, running re-election");
-                // Deactivate the profile before re-election
-                serverCoordinator.clientManager.deactivateProfile(clientKey);
+            // Deactivate the profile before reassignment
+            serverCoordinator.clientManager.deactivateProfile(clientKey);
 
-                NPCElectionMessage electionResult = npcElectionManager.runElection(
-                    NPCElectionMessage.ElectionReason.CLIENT_DISCONNECT
-                );
+            // Find and reassign all NPCs owned by this client
+            ArrayList<NPCElectionMessage> reassignments = npcElectionManager.reassignOrphanedNPCs(profile.clientUniqueId);
 
-                if (electionResult != null) {
-                    NetworkManager.sendToAllClients(electionResult);
-                    Log.info("GameServer", "New NPC sync authority elected: " + electionResult.electedClientId);
-                } else {
-                    Log.info("GameServer", "No clients available for NPC sync election");
+            if (!reassignments.isEmpty()) {
+                Log.info("GameServer", "Reassigning " + reassignments.size() + " NPCs from disconnected client " +
+                        profile.clientUniqueId.uniqueId);
+
+                // Broadcast all reassignment elections
+                for (NPCElectionMessage election : reassignments) {
+                    NetworkManager.sendToAllClients(election);
+                    Log.info("GameServer", "NPC " + election.npcId + " reassigned to " + election.electedClientId);
                 }
-            } else {
-                // Still deactivate the profile even if not authority
-                serverCoordinator.clientManager.deactivateProfile(clientKey);
             }
         }
     }

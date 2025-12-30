@@ -207,7 +207,10 @@ public class GameMap {
         // Only initialize Bullet once per application to prevent crashes
         if (!bulletInitialized) {
             Log.info("GameMap", "Initializing Bullet Physics (first time)");
-            Bullet.init();
+            // Bullet.init(useRefCounting, logging)
+            // First param: false = disable automatic ref counting (we manage manually)
+            // Second param: false = disable GC error logging
+            Bullet.init(false, false);
             bulletInitialized = true;
         } else {
             Log.info("GameMap", "Bullet Physics already initialized, skipping Bullet.init()");

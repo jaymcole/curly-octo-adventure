@@ -8,6 +8,8 @@ import curly.octo.common.map.GameMap;
 import curly.octo.common.map.MapTile;
 import curly.octo.common.map.hints.MapHint;
 import curly.octo.common.map.hints.SpawnPointHint;
+import curly.octo.common.network.messages.NPCElectionMessage;
+import curly.octo.server.GameServer;
 import curly.octo.server.ServerGameObjectManager;
 
 import java.util.ArrayList;
@@ -20,14 +22,16 @@ import java.util.UUID;
 public class NPCSpawnerAgent extends BaseAgent {
 
     private final GameMap gameMap;
+    private final GameServer gameServer;
     private final Random random;
     private int npcCount = 0;
     private static final int MAX_NPCS = 10; // Maximum number of NPCs to spawn
     private boolean spawnComplete = false;
 
-    public NPCSpawnerAgent(ServerGameObjectManager objectManager, GameMap gameMap) {
+    public NPCSpawnerAgent(ServerGameObjectManager objectManager, GameMap gameMap, GameServer gameServer) {
         super(objectManager);
         this.gameMap = gameMap;
+        this.gameServer = gameServer;
         this.random = new Random();
 
         // Spawn NPCs immediately upon agent creation
@@ -103,6 +107,11 @@ public class NPCSpawnerAgent extends BaseAgent {
         objectManager.add(npc);
 
         Log.info("NPCSpawnerAgent", "Spawned NPC " + npcId + " at " + position);
+
+        // Trigger election for this NPC if server is available and clients are connected
+        if (gameServer != null) {
+            gameServer.electNPCAuthority(npcId, NPCElectionMessage.ElectionReason.INITIAL);
+        }
     }
 
     /**

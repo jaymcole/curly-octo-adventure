@@ -276,53 +276,66 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
 
     @Override
     public void dispose() {
-        Log.info("Main.Dispose", "");
-        Log.info("Main.Dispose", "");
-        Log.info("Main.Dispose", "");
-        Log.info("Main.Dispose", "");
-        Log.info("Main.Dispose", "");
-        Log.info("Main.Dispose", "DISPOSE");
-        Log.info("Main.Dispose", "");
-        Log.info("Main.Dispose", "");
-        Log.info("Main.Dispose", "");
-        Log.info("Main.Dispose", "");
-        Log.info("Main.Dispose", "");
-
-        long startTime = System.currentTimeMillis();
-        Log.info("Main", "Disposing resources...");
-
-        // Dispose game modes (they handle their own game worlds)
-        long gameModeStart = System.currentTimeMillis();
-        disposePreviousGameModes();
-        long gameModeEnd = System.currentTimeMillis();
-        Log.info("Main", "Game modes disposed in " + (gameModeEnd - gameModeStart) + "ms");
-
-        // Dispose UI components
-
-        StateManager.dispose();
-
         try {
-            if (debugUI != null) {
-                debugUI.dispose();
-                Log.info("Main", "Debug UI disposed");
+            Log.info("Main.Dispose", "");
+            Log.info("Main.Dispose", "");
+            Log.info("Main.Dispose", "");
+            Log.info("Main.Dispose", "");
+            Log.info("Main.Dispose", "");
+            Log.info("Main.Dispose", "DISPOSE");
+            Log.info("Main.Dispose", "");
+            Log.info("Main.Dispose", "");
+            Log.info("Main.Dispose", "");
+            Log.info("Main.Dispose", "");
+            Log.info("Main.Dispose", "");
+
+            long startTime = System.currentTimeMillis();
+            Log.info("Main", "Disposing resources...");
+
+            // Dispose game modes (they handle their own game worlds)
+            long gameModeStart = System.currentTimeMillis();
+            disposePreviousGameModes();
+            long gameModeEnd = System.currentTimeMillis();
+            Log.info("Main", "Game modes disposed in " + (gameModeEnd - gameModeStart) + "ms");
+
+            // Dispose UI components
+
+            StateManager.dispose();
+
+            try {
+                if (debugUI != null) {
+                    debugUI.dispose();
+                    Log.info("Main", "Debug UI disposed");
+                }
+            } catch (Exception e) {
+                Log.error("Main", "Error disposing debug UI: " + e.getMessage());
             }
-        } catch (Exception e) {
-            Log.error("Main", "Error disposing debug UI: " + e.getMessage());
-        }
 
 
-        // Dispose model batch last
-        try {
-            if (modelBatch != null) {
-                modelBatch.dispose();
-                Log.info("Main", "Model batch disposed");
+            // Dispose model batch last
+            try {
+                if (modelBatch != null) {
+                    modelBatch.dispose();
+                    Log.info("Main", "Model batch disposed");
+                }
+            } catch (Exception e) {
+                Log.error("Main", "Error disposing model batch: " + e.getMessage());
             }
-        } catch (Exception e) {
-            Log.error("Main", "Error disposing model batch: " + e.getMessage());
-        }
 
-        long totalTime = System.currentTimeMillis() - startTime;
-        Log.info("Main", "All resources disposed in " + totalTime + "ms");
+            long totalTime = System.currentTimeMillis() - startTime;
+            Log.info("Main", "All resources disposed in " + totalTime + "ms");
+        } finally {
+            // Ensure logger is closed even if disposal fails
+            try {
+                DualLogger logger = DualLogger.getInstance();
+                if (logger != null) {
+                    Log.info("Main", "Closing logger from Main.dispose()");
+                    logger.close();
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to close logger in dispose(): " + e.getMessage());
+            }
+        }
     }
 
     // DebugUI.DebugListener implementation

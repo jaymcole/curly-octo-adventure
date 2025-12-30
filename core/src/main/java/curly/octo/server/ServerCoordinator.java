@@ -77,7 +77,7 @@ public class ServerCoordinator {
 
         // Add NPC agents if map is available
         if (mapManager != null) {
-            serverAgents.add(new curly.octo.server.serverAgents.NPCSpawnerAgent(gameObjectManager, mapManager));
+            serverAgents.add(new curly.octo.server.serverAgents.NPCSpawnerAgent(gameObjectManager, mapManager, gameServer));
             serverAgents.add(new curly.octo.server.serverAgents.NPCBehaviorAgent(gameObjectManager));
             Log.info("ServerCoordinator", "NPC agents initialized");
         }

@@ -3,34 +3,27 @@ package curly.octo.common.network.messages;
 import curly.octo.common.network.NetworkMessage;
 
 /**
- * Elected client broadcasts NPC position corrections to all other clients.
- * Used to fix minor inconsistencies from deterministic instruction execution.
+ * Proximity-authority client broadcasts position correction for a single NPC.
+ * Sent by the client closest to the NPC to correct drift on other clients.
+ * Simple, robust format with minimal fields.
  */
 public class NPCSyncMessage extends NetworkMessage {
 
-    /** Incremental sync counter for detecting missed messages */
-    public long syncId;
+    /** ID of the NPC this sync is for */
+    public String npcId;
 
-    /** Server timestamp of this sync (milliseconds) */
+    /** Position data: [x, y, z] - initialized to prevent serialization errors */
+    public float[] position = new float[3];
+
+    /** Yaw rotation in degrees */
+    public float yaw;
+
+    /** Timestamp when this correction was sent (milliseconds) */
     public long timestamp;
-
-    /** Type of synchronization */
-    public SyncType syncType;
-
-    /** IDs of NPCs included in this sync */
-    public String[] npcIds;
-
-    /** Packed position data: x,y,z triplets for each NPC */
-    public float[] positions;
-
-    /** Packed orientation data: yaw,pitch pairs for each NPC (degrees) */
-    public float[] orientations;
-
-    /** Active instruction ID for each NPC */
-    public long[] activeInstructionIds;
 
     /**
      * Default constructor required for Kryo serialization.
+     * Arrays initialized in field declaration to prevent corruption.
      */
     public NPCSyncMessage() {
     }
@@ -38,71 +31,33 @@ public class NPCSyncMessage extends NetworkMessage {
     /**
      * Convenience constructor for creating sync messages.
      */
-    public NPCSyncMessage(long syncId, long timestamp, SyncType syncType, int npcCount) {
-        this.syncId = syncId;
-        this.timestamp = timestamp;
-        this.syncType = syncType;
-        this.npcIds = new String[npcCount];
-        this.positions = new float[npcCount * 3]; // x, y, z per NPC
-        this.orientations = new float[npcCount * 2]; // yaw, pitch per NPC
-        this.activeInstructionIds = new long[npcCount];
+    public NPCSyncMessage(String npcId, float x, float y, float z, float yaw) {
+        this.npcId = npcId;
+        this.position[0] = x;
+        this.position[1] = y;
+        this.position[2] = z;
+        this.yaw = yaw;
+        this.timestamp = System.currentTimeMillis();
     }
 
     /**
-     * Set position for an NPC at the given index.
+     * Set position data.
      */
-    public void setPosition(int index, float x, float y, float z) {
-        positions[index * 3] = x;
-        positions[index * 3 + 1] = y;
-        positions[index * 3 + 2] = z;
-    }
-
-    /**
-     * Get position for an NPC at the given index.
-     */
-    public void getPosition(int index, float[] outPosition) {
-        outPosition[0] = positions[index * 3];
-        outPosition[1] = positions[index * 3 + 1];
-        outPosition[2] = positions[index * 3 + 2];
-    }
-
-    /**
-     * Set orientation for an NPC at the given index.
-     */
-    public void setOrientation(int index, float yaw, float pitch) {
-        orientations[index * 2] = yaw;
-        orientations[index * 2 + 1] = pitch;
-    }
-
-    /**
-     * Get orientation for an NPC at the given index.
-     */
-    public void getOrientation(int index, float[] outOrientation) {
-        outOrientation[0] = orientations[index * 2];
-        outOrientation[1] = orientations[index * 2 + 1];
+    public void setPosition(float x, float y, float z) {
+        if (position == null) position = new float[3];
+        position[0] = x;
+        position[1] = y;
+        position[2] = z;
     }
 
     @Override
     public String toString() {
         return "NPCSyncMessage{" +
-                "syncId=" + syncId +
+                "npcId='" + npcId + '\'' +
+                ", position=[" + (position != null && position.length == 3 ?
+                    position[0] + "," + position[1] + "," + position[2] : "null") + "]" +
+                ", yaw=" + yaw +
                 ", timestamp=" + timestamp +
-                ", syncType=" + syncType +
-                ", npcCount=" + (npcIds != null ? npcIds.length : 0) +
                 '}';
-    }
-
-    /**
-     * Types of synchronization messages.
-     */
-    public enum SyncType {
-        /** Complete state for all NPCs - sent periodically for consistency */
-        FULL,
-
-        /** Only NPCs that have moved significantly - sent frequently */
-        DELTA,
-
-        /** Immediate sync for critical events (spawn, death, etc.) */
-        CRITICAL
     }
 }

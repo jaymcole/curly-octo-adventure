@@ -27,6 +27,7 @@ public class DualLogger extends Log.Logger {
     private String clientLogFile;
     private String serverLogFile;
     private boolean isDualFileMode = false;
+    private volatile boolean isClosed = false;  // Track if logger has been closed
 
     /**
      * Creates a dual logger that writes to both console and file.
@@ -157,7 +158,17 @@ public class DualLogger extends Log.Logger {
 
     @Override
     public void log(int level, String category, String message, Throwable ex) {
+        // Skip logging if logger is closed
+        if (isClosed) {
+            return;
+        }
+
         synchronized (LOCK) {
+            // Double-check inside lock in case close() was called concurrently
+            if (isClosed) {
+                return;
+            }
+
             // Format the log message
             String levelStr = getLevelString(level);
             String timestamp = DATE_FORMAT.format(new Date());
@@ -267,10 +278,21 @@ public class DualLogger extends Log.Logger {
     /**
      * Closes all log files.
      * Call this before application shutdown.
+     * Safe to call multiple times - subsequent calls are ignored.
      */
     public void close() {
         synchronized (LOCK) {
-            closeFileWriters();
+            if (isClosed) {
+                return; // Already closed, skip
+            }
+            isClosed = true;
+
+            try {
+                closeFileWriters();
+            } catch (Exception e) {
+                System.err.println("Error closing file writers: " + e.getMessage());
+                e.printStackTrace(System.err);
+            }
         }
     }
 }

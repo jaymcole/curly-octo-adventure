@@ -4,39 +4,49 @@ import curly.octo.common.network.messages.NPCElectionMessage;
 import curly.octo.server.playerManagement.ClientManager;
 import curly.octo.server.playerManagement.ClientProfile;
 import curly.octo.server.playerManagement.ClientUniqueId;
+import com.esotericsoftware.minlog.Log;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Manages the election of a sync authority for NPC synchronization.
- * Uses deterministic election based on ClientUniqueId sorting.
+ * Manages per-NPC sync authority elections.
+ * Each NPC is assigned to exactly one client authority using deterministic sorting.
  */
 public class NPCElectionManager {
 
     private final ClientManager clientManager;
-    private ClientUniqueId currentAuthority;
-    private long lastElectionTimestamp;
+
+    /** Map of NPC ID to its elected sync authority */
+    private final Map<String, ClientUniqueId> npcAuthorities;
+
+    /** Timestamp of last election per NPC */
+    private final Map<String, Long> npcElectionTimestamps;
 
     public NPCElectionManager(ClientManager clientManager) {
         this.clientManager = clientManager;
-        this.currentAuthority = null;
-        this.lastElectionTimestamp = 0;
+        this.npcAuthorities = new HashMap<>();
+        this.npcElectionTimestamps = new HashMap<>();
     }
 
     /**
-     * Run an election to determine the NPC sync authority.
+     * Run an election to determine sync authority for a specific NPC.
      * Uses deterministic sorting: first client alphabetically by UUID wins.
      *
+     * @param npcId The NPC entity ID to elect authority for
      * @param reason The reason for this election
      * @return Election message to broadcast, or null if no clients available
      */
-    public NPCElectionMessage runElection(NPCElectionMessage.ElectionReason reason) {
+    public NPCElectionMessage runElection(String npcId, NPCElectionMessage.ElectionReason reason) {
         ArrayList<ClientProfile> activeProfiles = clientManager.getAllClientProfiles();
 
         // No clients connected - no authority needed
         if (activeProfiles.isEmpty()) {
-            currentAuthority = null;
+            npcAuthorities.remove(npcId);
+            npcElectionTimestamps.remove(npcId);
+            Log.warn("NPCElectionManager", "No clients available for NPC election: " + npcId);
             return null;
         }
 
@@ -47,76 +57,141 @@ public class NPCElectionManager {
         ClientUniqueId elected = activeProfiles.get(0).clientUniqueId;
 
         // Update internal state
-        currentAuthority = elected;
-        lastElectionTimestamp = System.currentTimeMillis();
+        npcAuthorities.put(npcId, elected);
+        long timestamp = System.currentTimeMillis();
+        npcElectionTimestamps.put(npcId, timestamp);
+
+        Log.info("NPCElectionManager",
+                "Elected authority for NPC " + npcId + ": " + elected.uniqueId +
+                " (reason: " + reason + ")");
 
         // Create election message
         return new NPCElectionMessage(
+                npcId,
                 elected.uniqueId,
-                lastElectionTimestamp,
+                timestamp,
                 reason
         );
     }
 
     /**
-     * Check if a re-election is needed due to client disconnect.
+     * Reassign all NPCs owned by a disconnected client to a new authority.
+     * Returns list of election messages to broadcast.
      *
      * @param disconnectedClientId The client that disconnected
-     * @return True if the disconnected client was the current authority
+     * @return List of election messages for reassigned NPCs
      */
-    public boolean isReElectionNeeded(ClientUniqueId disconnectedClientId) {
-        if (currentAuthority == null) {
+    public ArrayList<NPCElectionMessage> reassignOrphanedNPCs(ClientUniqueId disconnectedClientId) {
+        ArrayList<NPCElectionMessage> elections = new ArrayList<>();
+
+        // Find all NPCs owned by the disconnected client
+        ArrayList<String> orphanedNPCs = new ArrayList<>();
+        for (Map.Entry<String, ClientUniqueId> entry : npcAuthorities.entrySet()) {
+            if (entry.getValue().equals(disconnectedClientId)) {
+                orphanedNPCs.add(entry.getKey());
+            }
+        }
+
+        if (orphanedNPCs.isEmpty()) {
+            Log.info("NPCElectionManager",
+                    "Client " + disconnectedClientId.uniqueId +
+                    " disconnected but owned no NPCs");
+            return elections;
+        }
+
+        Log.info("NPCElectionManager",
+                "Reassigning " + orphanedNPCs.size() + " NPCs from disconnected client " +
+                disconnectedClientId.uniqueId);
+
+        // Run election for each orphaned NPC
+        for (String npcId : orphanedNPCs) {
+            NPCElectionMessage election = runElection(npcId, NPCElectionMessage.ElectionReason.CLIENT_DISCONNECT);
+            if (election != null) {
+                elections.add(election);
+            }
+        }
+
+        return elections;
+    }
+
+    /**
+     * Get the current sync authority for a specific NPC.
+     *
+     * @param npcId The NPC entity ID
+     * @return ClientUniqueId of the authority, or null if none assigned
+     */
+    public ClientUniqueId getAuthorityForNPC(String npcId) {
+        return npcAuthorities.get(npcId);
+    }
+
+    /**
+     * Check if a specific client is the authority for a given NPC.
+     *
+     * @param npcId The NPC entity ID
+     * @param clientId The ClientUniqueId to check
+     * @return True if this client is the authority for this NPC
+     */
+    public boolean isAuthorityForNPC(String npcId, ClientUniqueId clientId) {
+        if (clientId == null) {
             return false;
         }
-        return currentAuthority.equals(disconnectedClientId);
+        ClientUniqueId authority = npcAuthorities.get(npcId);
+        return authority != null && authority.equals(clientId);
     }
 
     /**
-     * Get the currently elected sync authority.
-     *
-     * @return ClientUniqueId of the current authority, or null if none elected
-     */
-    public ClientUniqueId getCurrentAuthority() {
-        return currentAuthority;
-    }
-
-    /**
-     * Check if a specific client is the current authority.
+     * Get all NPCs managed by a specific client.
      *
      * @param clientId The ClientUniqueId to check
-     * @return True if this client is the current authority
+     * @return List of NPC IDs managed by this client
      */
-    public boolean isAuthority(ClientUniqueId clientId) {
-        if (currentAuthority == null || clientId == null) {
-            return false;
+    public ArrayList<String> getNPCsManagedByClient(ClientUniqueId clientId) {
+        ArrayList<String> managedNPCs = new ArrayList<>();
+        for (Map.Entry<String, ClientUniqueId> entry : npcAuthorities.entrySet()) {
+            if (entry.getValue().equals(clientId)) {
+                managedNPCs.add(entry.getKey());
+            }
         }
-        return currentAuthority.equals(clientId);
+        return managedNPCs;
     }
 
     /**
-     * Get the timestamp of the last election.
+     * Get the timestamp of the last election for a specific NPC.
      *
-     * @return Milliseconds since epoch of last election
+     * @param npcId The NPC entity ID
+     * @return Milliseconds since epoch of last election, or 0 if never elected
      */
-    public long getLastElectionTimestamp() {
-        return lastElectionTimestamp;
+    public long getElectionTimestamp(String npcId) {
+        return npcElectionTimestamps.getOrDefault(npcId, 0L);
     }
 
     /**
-     * Check if an election has ever been run.
+     * Check if a specific NPC has an assigned authority.
      *
-     * @return True if an authority has been elected
+     * @param npcId The NPC entity ID
+     * @return True if an authority has been assigned
      */
-    public boolean hasAuthority() {
-        return currentAuthority != null;
+    public boolean hasAuthority(String npcId) {
+        return npcAuthorities.containsKey(npcId);
     }
 
     /**
-     * Force a re-election (for manual admin commands or failover).
+     * Remove election data for a specific NPC (e.g., when NPC is despawned).
      *
-     * @return Election message to broadcast
+     * @param npcId The NPC entity ID to clear
      */
-    public NPCElectionMessage forceReElection() {
-        return runElection(NPCElectionMessage.ElectionReason.MANUAL);
+    public void clearNPCElection(String npcId) {
+        npcAuthorities.remove(npcId);
+        npcElectionTimestamps.remove(npcId);
+        Log.info("NPCElectionManager", "Cleared election data for NPC: " + npcId);
+    }
+
+    /**
+     * Get total number of NPCs with assigned authorities.
+     *
+     * @return Count of NPCs with authorities
+     */
+    public int getManagedNPCCount() {
+        return npcAuthorities.size();
     }
 }
