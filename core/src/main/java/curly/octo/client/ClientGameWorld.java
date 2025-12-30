@@ -75,6 +75,16 @@ public class ClientGameWorld {
                 map.regeneratePhysics();
             }
 
+            // Initialize physics for remote players that were created before map was ready
+            Log.info("ClientGameWorld", "Checking for remote players needing physics initialization");
+            for (PlayerObject player : gameObjectManager.activePlayers) {
+                // Skip local player (they get full character controller physics)
+                if (player != gameObjectManager.localPlayer && !player.isRemotePhysicsInitialized()) {
+                    Log.info("ClientGameWorld", "Initializing remote physics for player: " + player.entityId);
+                    player.initializeRemotePhysics(map, 1.0f, 5.0f);
+                }
+            }
+
             if (mapRenderer == null) {
                 mapRenderer = new GameMapRenderer(gameObjectManager);
             }

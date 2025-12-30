@@ -53,7 +53,9 @@ public class GameObjectManager implements Disposable {
             if (!gameObjectsToBeRemoved.contains(object) && object instanceof WorldObject) {
                 WorldObject worldObject = (WorldObject) object;
                 ModelInstance instance = worldObject.getModelInstance();
-                if (!RENDER_SELF && instance != null && !object.entityId.equals(localPlayer.entityId)) {
+
+                // Render all objects except the local player (first-person view)
+                if (instance != null && (localPlayer == null || !object.entityId.equals(localPlayer.entityId))) {
                     renderQueue.add(instance);
                 }
             }
@@ -104,8 +106,25 @@ public class GameObjectManager implements Disposable {
             if (gameObject instanceof PlayerObject) {
                 PlayerObject playerObject = (PlayerObject) gameObject;
                 // Initialize graphics with model asset manager for proper bounds calculation
-                if (!playerObject.isGraphicsInitialized()) {
+                // Only initialize if position is set to avoid frozen models at origin
+                if (!playerObject.isGraphicsInitialized() && playerObject.getPosition() != null) {
                     playerObject.initializeGraphicsWithManager(modelAssetManager);
+                } else if (playerObject.getPosition() == null) {
+                    Log.warn("GameObjectManager", "Player " + playerObject.entityId +
+                            " added without position - graphics initialization deferred");
+                }
+            }
+
+            // Special handling for NPCObjects
+            if (gameObject instanceof curly.octo.common.NPCObject) {
+                curly.octo.common.NPCObject npcObject = (curly.octo.common.NPCObject) gameObject;
+                Log.info("GameObjectManager", "Adding NPC: " + npcObject.entityId + " at position: " + npcObject.getPosition());
+                // Initialize graphics with placeholder model
+                if (!npcObject.isGraphicsInitialized()) {
+                    npcObject.initializeGraphics(modelAssetManager);
+                    Log.info("GameObjectManager", "NPC graphics initialized for: " + npcObject.entityId);
+                } else {
+                    Log.info("GameObjectManager", "NPC graphics already initialized for: " + npcObject.entityId);
                 }
             }
 
@@ -121,6 +140,14 @@ public class GameObjectManager implements Disposable {
 
     public GameObject getObjectById(String id) {
         return idToGameObjectMap.getOrDefault(id, null);
+    }
+
+    /**
+     * Gets all game objects (defensive copy for safe iteration).
+     * Used for NPC sync broadcasting.
+     */
+    public java.util.List<GameObject> getAllObjects() {
+        return new ArrayList<>(gameObjects);
     }
 
     public Array<ModelInstance> getRenderQueue() {

@@ -134,7 +134,7 @@ public class MapTransferWorker {
         }
 
         if (gameplayConn == null) {
-            Log.error("MapTransferWorker", "Gameplay connection lost for client " + clientUniqueId);
+            Log.info("MapTransferWorker", "Gameplay connection lost for client " + clientUniqueId);
             return;
         }
 

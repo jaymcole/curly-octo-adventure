@@ -568,6 +568,13 @@ public class PlayerObject extends WorldObject {
         }
     }
 
+    /**
+     * Check if remote physics has been initialized for this player.
+     */
+    public boolean isRemotePhysicsInitialized() {
+        return remotePhysicsBody != null;
+    }
+
     public MapTileFillType getCurrentTileFillType() {
         return currentTileFillType;
     }

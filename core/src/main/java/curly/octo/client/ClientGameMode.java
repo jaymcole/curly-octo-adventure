@@ -16,6 +16,8 @@ import curly.octo.common.network.messages.PlayerAssignmentUpdate;
 import curly.octo.common.network.messages.PlayerObjectRosterUpdate;
 import curly.octo.common.network.messages.PlayerDisconnectUpdate;
 import curly.octo.common.network.messages.PlayerImpulseMessage;
+import curly.octo.common.network.messages.NPCElectionMessage;
+import curly.octo.common.network.messages.NPCInstructionMessage;
 import curly.octo.common.PlayerObject;
 import curly.octo.common.InputController;
 import curly.octo.common.MinimalPlayerController;
@@ -74,6 +76,15 @@ public class ClientGameMode implements GameMode {
 
     // Buffer monitoring
     private long lastBufferCheckTime = System.currentTimeMillis();
+
+    // NPC sync election state
+    private boolean isNPCSyncAuthority = false;
+    private String npcSyncAuthorityClientId = null;
+    private long lastElectionTimestamp = 0;
+
+    // NPC sync broadcasting (for elected client)
+    private float npcSyncTimer = 0f;
+    private static final float NPC_SYNC_INTERVAL = 0.2f; // 5 FPS
 
     public ClientGameMode(String host, java.util.Random random) {
         this.host = host;
@@ -404,8 +415,12 @@ public class ClientGameMode implements GameMode {
                     gameWorld.getGameObjectManager().add(targetPlayer);
 
                     // Initialize physics collision body for remote player
-                    // This allows the local player to collide with remote players
-                    targetPlayer.initializeRemotePhysics(gameWorld.getMapManager(), 1.0f, 5.0f);
+                    // Only if map exists and physics is initialized to avoid Bullet JNI crash
+                    if (gameWorld.getMapManager() != null && gameWorld.getMapManager().isPhysicsInitialized()) {
+                        targetPlayer.initializeRemotePhysics(gameWorld.getMapManager(), 1.0f, 5.0f);
+                    } else {
+                        Log.warn("ClientGameMode", "Skipping remote physics init - map not ready yet. Will initialize later.");
+                    }
                 }
 
                 targetPlayer.setPosition(new Vector3(playerUpdate.x, playerUpdate.y, playerUpdate.z));
@@ -449,6 +464,65 @@ public class ClientGameMode implements GameMode {
                 }
             });
         });
+
+        NetworkManager.onReceive(NPCElectionMessage.class, electionMessage -> {
+            Gdx.app.postRunnable(() -> {
+                Log.info("ClientGameMode", "=== RECEIVED NPCElectionMessage ===");
+                Log.info("ClientGameMode", "Elected client: " + electionMessage.electedClientId);
+                Log.info("ClientGameMode", "Election reason: " + electionMessage.reason);
+                Log.info("ClientGameMode", "Election timestamp: " + electionMessage.electionTimestamp);
+
+                // Update election state
+                npcSyncAuthorityClientId = electionMessage.electedClientId;
+                lastElectionTimestamp = electionMessage.electionTimestamp;
+
+                // Check if this client was elected
+                String myClientId = curly.octo.Main.clientUniqueId != null ?
+                                    curly.octo.Main.clientUniqueId.uniqueId : "NULL";
+                Log.info("ClientGameMode", "My client ID: " + myClientId);
+                Log.info("ClientGameMode", "Elected client ID: " + electionMessage.electedClientId);
+
+                isNPCSyncAuthority = myClientId.equals(electionMessage.electedClientId);
+
+                if (isNPCSyncAuthority) {
+                    Log.info("ClientGameMode", "*** THIS CLIENT IS NOW THE NPC SYNC AUTHORITY ***");
+                } else {
+                    Log.info("ClientGameMode", "This client will receive sync corrections from authority: " +
+                            electionMessage.electedClientId);
+                }
+            });
+        });
+
+        NetworkManager.onReceive(NPCInstructionMessage.class, instructionMessage -> {
+            Gdx.app.postRunnable(() -> {
+                Log.info("ClientGameMode", "=== RECEIVED NPCInstructionMessage ===");
+                Log.info("ClientGameMode", "NPC: " + instructionMessage.npcId +
+                        ", Type: " + instructionMessage.type +
+                        ", Duration: " + instructionMessage.duration);
+
+                // Find the NPC in the game object manager
+                GameObjectManager gom = gameWorld.getGameObjectManager();
+                curly.octo.common.GameObject obj = gom.getObjectById(instructionMessage.npcId);
+
+                if (obj instanceof curly.octo.common.NPCObject) {
+                    curly.octo.common.NPCObject npc = (curly.octo.common.NPCObject) obj;
+                    npc.executeInstruction(instructionMessage);
+                    Log.info("ClientGameMode", "Applied instruction to NPC " + instructionMessage.npcId);
+                } else {
+                    Log.warn("ClientGameMode", "NPC " + instructionMessage.npcId + " not found or not an NPCObject");
+                }
+            });
+        });
+
+        // DISABLED: Sync corrections (needs election fix)
+        // NetworkManager.onReceive(curly.octo.common.network.messages.NPCSyncMessage.class, syncMessage -> {
+        //     Gdx.app.postRunnable(() -> {
+        //         // Skip if we're the sync authority (don't correct ourselves)
+        //         if (isNPCSyncAuthority) return;
+        //
+        //         applySyncCorrections(syncMessage);
+        //     });
+        // });
     }
 
     /**
@@ -616,6 +690,15 @@ public class ClientGameMode implements GameMode {
             inputController.handleInput(deltaTime, gameWorld.getGameObjectManager().localPlayer, camera);
         }
 
+        // NPC sync broadcasting (DISABLED - needs election fix)
+        // if (isNPCSyncAuthority) {
+        //     npcSyncTimer += deltaTime;
+        //     if (npcSyncTimer >= NPC_SYNC_INTERVAL) {
+        //         broadcastNPCSync();
+        //         npcSyncTimer = 0f;
+        //     }
+        // }
+
         // Update game world (physics, player movement)
         gameWorld.update(deltaTime);
     }
@@ -754,15 +837,6 @@ public class ClientGameMode implements GameMode {
                 float pitch = gom.localPlayer.getPitch();
                 PlayerUpdate update = new PlayerUpdate(playerId, position, yaw, pitch);
                 gameClient.sendUDP(update);
-
-                // Debug: Track actual position update frequency (only incremented when actually sent)
-                lastPositionUpdateCount++;
-                long currentTime = System.currentTimeMillis();
-                if (currentTime - lastPositionUpdateTime >= 1000) {
-                    Log.info("ClientGameMode", "Actual position updates per second: " + lastPositionUpdateCount);
-                    lastPositionUpdateCount = 0;
-                    lastPositionUpdateTime = currentTime;
-                }
             }
         }
     }
@@ -922,5 +996,102 @@ public class ClientGameMode implements GameMode {
      */
     public void setMapRegenerationListener(MapRegenerationListener listener) {
         this.mapRegenerationListener = listener;
+    }
+
+    /**
+     * Broadcast NPC sync corrections to all clients (elected authority only).
+     * Called at NPC_SYNC_INTERVAL (5 FPS) to prevent drift between clients.
+     */
+    private void broadcastNPCSync() {
+        // Collect all NPCs from the game world
+        java.util.List<curly.octo.common.NPCObject> npcs = new java.util.ArrayList<>();
+        for (curly.octo.common.GameObject obj : gameWorld.getGameObjectManager().getAllObjects()) {
+            if (obj instanceof curly.octo.common.NPCObject) {
+                npcs.add((curly.octo.common.NPCObject) obj);
+            }
+        }
+
+        if (npcs.isEmpty()) {
+            return; // No NPCs to sync
+        }
+
+        // Create sync message
+        curly.octo.common.network.messages.NPCSyncMessage sync = new curly.octo.common.network.messages.NPCSyncMessage();
+        sync.syncId = System.currentTimeMillis();
+        sync.timestamp = sync.syncId;
+        sync.syncType = curly.octo.common.network.messages.NPCSyncMessage.SyncType.DELTA;
+
+        // Pack NPC data into arrays
+        sync.npcIds = new String[npcs.size()];
+        sync.positions = new float[npcs.size() * 3];
+        sync.orientations = new float[npcs.size() * 2];
+        sync.activeInstructionIds = new long[npcs.size()];
+
+        for (int i = 0; i < npcs.size(); i++) {
+            curly.octo.common.NPCObject npc = npcs.get(i);
+            sync.npcIds[i] = npc.entityId;
+            Vector3 pos = npc.getPosition();
+            sync.positions[i*3] = pos.x;
+            sync.positions[i*3+1] = pos.y;
+            sync.positions[i*3+2] = pos.z;
+            sync.orientations[i*2] = npc.getYaw();
+            sync.orientations[i*2+1] = 0f; // pitch (not currently used by NPCs)
+            sync.activeInstructionIds[i] = npc.getCurrentInstructionId();
+        }
+
+        // DISABLED: Broadcasting causes all clients to think they're authority
+        // This needs election logic fix first
+        // NetworkManager.sendToServer(sync);
+        // Log.info("NPCSync", "Sent sync to server for " + npcs.size() + " NPCs");
+    }
+
+    /**
+     * Apply NPC sync corrections from the elected authority.
+     * Observer clients use this to fix simulation drift.
+     */
+    private void applySyncCorrections(curly.octo.common.network.messages.NPCSyncMessage sync) {
+        int correctionCount = 0;
+        int snapCount = 0;
+        int lerpCount = 0;
+
+        for (int i = 0; i < sync.npcIds.length; i++) {
+            curly.octo.common.GameObject obj = gameWorld.getGameObjectManager().getObjectById(sync.npcIds[i]);
+            if (obj instanceof curly.octo.common.NPCObject) {
+                curly.octo.common.NPCObject npc = (curly.octo.common.NPCObject) obj;
+
+                Vector3 authorityPos = new Vector3(
+                    sync.positions[i*3],
+                    sync.positions[i*3+1],
+                    sync.positions[i*3+2]
+                );
+
+                Vector3 currentPos = npc.getPosition();
+                float distance = currentPos.dst(authorityPos);
+
+                // Apply correction based on drift magnitude
+                if (distance > 0.5f) {
+                    // Large drift - snap immediately
+                    npc.setPosition(authorityPos);
+                    snapCount++;
+                    correctionCount++;
+                    Log.warn("NPCSync", "Large drift for " + npc.entityId + ": " +
+                            String.format("%.2f", distance) + " units - SNAP");
+                } else if (distance > 0.05f) {
+                    // Small drift - smooth lerp (30% blend to reduce jitter)
+                    npc.setPosition(currentPos.lerp(authorityPos, 0.3f));
+                    lerpCount++;
+                    correctionCount++;
+                }
+                // else: negligible drift < 0.05 units, ignore
+
+                // Apply orientation correction
+                npc.setYaw(sync.orientations[i*2]);
+            }
+        }
+
+        if (correctionCount > 0) {
+            Log.info("NPCSync", "Applied " + correctionCount + " corrections (" +
+                    snapCount + " snaps, " + lerpCount + " lerps)");
+        }
     }
 }

@@ -60,6 +60,14 @@ public class NetworkMessageRegistry {
         registerMessage(kryo, PlayerResetMessage.class);
         registerMessage(kryo, PlayerImpulseMessage.class);
 
+        // NPC sync messages
+        registerMessage(kryo, NPCInstructionMessage.class);
+        registerMessage(kryo, NPCInstructionMessage.InstructionType.class);
+        registerMessage(kryo, NPCElectionMessage.class);
+        registerMessage(kryo, NPCElectionMessage.ElectionReason.class);
+        registerMessage(kryo, NPCSyncMessage.class);
+        registerMessage(kryo, NPCSyncMessage.SyncType.class);
+
         // Legacy player messages (not NetworkMessage types yet)
         registerMessage(kryo, PlayerUpdate.class);
         registerMessage(kryo, ClientStateChangeMessage.class);

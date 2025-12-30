@@ -12,18 +12,15 @@ import curly.octo.common.map.enums.MapTileMaterial;
 import curly.octo.common.map.hints.LightHint;
 import curly.octo.common.map.hints.MapHint;
 import curly.octo.common.map.hints.SpawnPointHint;
+import curly.octo.common.network.messages.*;
+import curly.octo.server.NPCElectionManager;
 import curly.octo.server.playerManagement.ClientUniqueId;
 import org.bitlet.weupnp.GatewayDevice;
 import org.bitlet.weupnp.GatewayDiscover;
 import curly.octo.common.map.GameMap;
 import curly.octo.common.map.enums.MapTileFillType;
 import curly.octo.common.network.messages.legacyMessages.MapDataUpdate;
-import curly.octo.common.network.messages.PlayerAssignmentUpdate;
-import curly.octo.common.network.messages.PlayerDisconnectUpdate;
 import curly.octo.common.GameObject;
-import curly.octo.common.network.messages.MapTransferPayload;
-import curly.octo.common.network.messages.PlayerObjectRosterUpdate;
-import curly.octo.common.network.messages.PlayerUpdate;
 import curly.octo.common.PlayerObject;
 import curly.octo.common.WorldObject;
 
@@ -61,7 +58,9 @@ public class KryoNetwork {
         kryo.register(boolean[].class);
         kryo.register(long.class);
         kryo.register(Long.class);
+        kryo.register(long[].class);
         kryo.register(String.class);
+        kryo.register(String[].class);
         kryo.register(Class.class);
 
         // Register LibGDX math classes
@@ -98,6 +97,7 @@ public class KryoNetwork {
         kryo.register(WorldObject.class);
         kryo.register(PlayerObject[].class);
         kryo.register(PlayerObject.class);
+        kryo.register(curly.octo.common.NPCObject.class);
         kryo.register(Color.class);
 
         kryo.register(PlayerObjectRosterUpdate.class);
@@ -111,6 +111,12 @@ public class KryoNetwork {
 
         // Register client management classes
         kryo.register(ClientUniqueId.class);
+
+        // Register NPC messages
+        kryo.register(NPCElectionMessage.class);
+        kryo.register(NPCElectionManager.class);
+        kryo.register(NPCInstructionMessage.class);
+        kryo.register(NPCSyncMessage.class);
     }
 
 

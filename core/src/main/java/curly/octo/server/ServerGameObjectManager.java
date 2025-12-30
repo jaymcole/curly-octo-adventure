@@ -121,6 +121,8 @@ public class ServerGameObjectManager {
         if (gameObject instanceof PlayerObject) {
             activePlayers.add((PlayerObject) gameObject);
             Log.info("ServerGameObjectManager", "Added player: " + gameObject.entityId);
+        } else if (gameObject instanceof curly.octo.common.NPCObject) {
+            Log.info("ServerGameObjectManager", "Added NPC: " + gameObject.entityId);
         }
     }
 

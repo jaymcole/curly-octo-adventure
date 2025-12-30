@@ -177,13 +177,13 @@ public class GameClient {
                 client.update(0);
                 long updateTime = (System.nanoTime() - startTime) / 1_000_000;
 
-                if (updateTime > 50) {
-                    Log.warn("GameClient", "Gameplay client.update(0) took " + updateTime + "ms");
-                    if (client.isConnected()) {
-                        int rtt = client.getReturnTripTime();
-                        Log.warn("GameClient", "Connection RTT: " + rtt + "ms");
-                    }
-                }
+//                if (updateTime > 50) {
+//                    Log.warn("GameClient", "Gameplay client.update(0) took " + updateTime + "ms");
+//                    if (client.isConnected()) {
+//                        int rtt = client.getReturnTripTime();
+//                        Log.warn("GameClient", "Connection RTT: " + rtt + "ms");
+//                    }
+//                }
             } catch (Exception e) {
                 long errorTime = (System.nanoTime() - startTime) / 1_000_000;
                 Log.error("GameClient", "Gameplay client.update() failed after " + errorTime + "ms: " + e.getMessage());

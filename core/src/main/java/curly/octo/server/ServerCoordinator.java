@@ -74,6 +74,13 @@ public class ServerCoordinator {
         }
         this.serverAgents = new ArrayList<>();
         serverAgents.add(new PlayerCollisionAgent(gameObjectManager, gameServer));
+
+        // Add NPC agents if map is available
+        if (mapManager != null) {
+            serverAgents.add(new curly.octo.server.serverAgents.NPCSpawnerAgent(gameObjectManager, mapManager));
+            serverAgents.add(new curly.octo.server.serverAgents.NPCBehaviorAgent(gameObjectManager));
+            Log.info("ServerCoordinator", "NPC agents initialized");
+        }
     }
 
     /**
@@ -214,6 +221,12 @@ public class ServerCoordinator {
             if (oldMap != null) {
                 oldMap.dispose();
             }
+
+            // Re-instantiate server agents now that map exists
+            // This is critical for NPC spawning which requires the map
+            Log.info("ServerCoordinator", "Map regenerated, re-instantiating server agents with new map");
+            instantiateServerAgents();
+
             Log.info("ServerCoordinator", "Host map regeneration completed successfully");
 
         } catch (Exception e) {
