@@ -25,7 +25,8 @@
       "Bash(unzip:*)",
       "Bash(done)",
       "Bash(java:*)",
-      "Bash(gradlew.bat compileJava:*)"
+      "Bash(gradlew.bat compileJava:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

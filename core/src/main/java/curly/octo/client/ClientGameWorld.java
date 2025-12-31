@@ -309,6 +309,17 @@ public class ClientGameWorld {
                             1.0f,  // radius
                             5.0f   // height
                         );
+
+                        // Render NPC paths (waypoints, wander zones)
+                        java.util.ArrayList<curly.octo.common.NPCObject> npcs = new java.util.ArrayList<>();
+                        for (curly.octo.common.GameObject obj : getGameObjectManager().getAllObjects()) {
+                            if (obj instanceof curly.octo.common.NPCObject) {
+                                npcs.add((curly.octo.common.NPCObject) obj);
+                            }
+                        }
+                        if (!npcs.isEmpty()) {
+                            mapRenderer.getDebugRenderer().renderNPCPaths(camera, npcs);
+                        }
                     }
                 } else {
                     // Render full physics debug (includes terrain mesh)

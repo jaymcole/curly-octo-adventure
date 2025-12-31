@@ -9,7 +9,6 @@ import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
-import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.network.messages.NPCInstructionMessage;
 
@@ -31,19 +30,28 @@ public class NPCObject extends WorldObject {
     private transient long instructionStartTime;
     private transient Random instructionRng;
 
-    // Behavior state
-    private transient Vector3 currentWaypoint;
-    private transient Vector3 wanderCenter;
-    private transient float wanderRadius;
+    // Behavior state (waypoint queue navigation - server-provided paths)
+    private transient java.util.List<Vector3> waypointQueue;    // Queue of waypoints to navigate
+    private transient int currentWaypointIndex;                  // Index in queue
+    private transient Vector3 targetWaypoint;                    // Current target from queue
     private transient float movementSpeed;
+
+    // Legacy fields (kept for backward compatibility but deprecated)
+    @Deprecated
+    private transient Vector3 currentWaypoint;
+    @Deprecated
+    private transient Vector3 wanderCenter;
+    @Deprecated
+    private transient float wanderRadius;
 
     // Network sync state
     private transient Vector3 lastSyncedPosition;
     private transient Vector3 targetPosition; // For interpolation
     private transient float interpolationAlpha;
 
-    // Physics
-    private transient btRigidBody physicsBody;
+    // Physics - using character controller like players for proper physics-based movement
+    private transient com.badlogic.gdx.physics.bullet.collision.btPairCachingGhostObject ghostObject;
+    private transient com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController characterController;
     private transient btCapsuleShape physicsShape;
     private transient boolean physicsInitialized = false;
     private Vector3 externalForce = new Vector3(0, 0, 0);  // For push mechanics
@@ -54,6 +62,15 @@ public class NPCObject extends WorldObject {
 
     // Orientation
     private float yaw = 0f; // Degrees
+
+    // Navigation (legacy - kept for old methods that haven't been removed yet)
+    @Deprecated
+    private transient curly.octo.common.map.GameMap gameMap; // For legacy waypoint generation methods
+    private transient Vector3 lastPosition; // Track position for stuck detection
+    private transient float stuckTimer = 0f; // Accumulator for stuck time
+    private static final float STUCK_THRESHOLD = 3.0f; // Seconds before considering stuck
+    private static final float STUCK_DISTANCE = 0.1f; // Units - minimum movement to not be stuck
+    private static final int MAX_WAYPOINT_ATTEMPTS = 10; // Max tries to find valid waypoint
 
     /**
      * No-arg constructor for Kryo serialization.
@@ -83,12 +100,24 @@ public class NPCObject extends WorldObject {
      * Initialize transient fields that don't serialize.
      */
     private void initializeTransientFields() {
+        // Waypoint queue navigation (new system)
+        this.waypointQueue = new java.util.ArrayList<>();
+        this.currentWaypointIndex = 0;
+        this.targetWaypoint = new Vector3();
+
+        // Legacy fields (deprecated)
         this.currentWaypoint = new Vector3();
         this.wanderCenter = new Vector3();
+
+        // Network sync
         this.lastSyncedPosition = new Vector3();
         this.targetPosition = new Vector3();
+        this.lastPosition = new Vector3();
         this.interpolationAlpha = 1.0f;
-        this.movementSpeed = 2.0f; // Default speed
+
+        // Movement
+        this.movementSpeed = 0.3f; // Default speed - slow walking pace
+        this.stuckTimer = 0f;
     }
 
     /**
@@ -126,8 +155,8 @@ public class NPCObject extends WorldObject {
     }
 
     /**
-     * Initialize physics body for collision detection.
-     * NPCs use kinematic rigid bodies (similar to remote players).
+     * Initialize physics using character controller for proper physics-based movement.
+     * NPCs use the same character controller as players for consistent movement behavior.
      */
     public void initializePhysics(com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld dynamicsWorld) {
         if (physicsInitialized || position == null) return;
@@ -138,42 +167,47 @@ public class NPCObject extends WorldObject {
             float capsuleHeight = 5.0f;
             physicsShape = new btCapsuleShape(capsuleRadius, capsuleHeight);
 
-            // Create rigid body with zero mass (kinematic)
-            btRigidBody.btRigidBodyConstructionInfo constructionInfo =
-                    new btRigidBody.btRigidBodyConstructionInfo(0, null, physicsShape, Vector3.Zero);
-
-            physicsBody = new btRigidBody(constructionInfo);
-            physicsBody.setCollisionFlags(
-                    physicsBody.getCollisionFlags() |
-                            btRigidBody.CollisionFlags.CF_KINEMATIC_OBJECT
-            );
-            physicsBody.setActivationState(com.badlogic.gdx.physics.bullet.collision.Collision.DISABLE_DEACTIVATION);
-
-            // Set initial position (capsule center is at height/2 + radius above ground)
+            // Position capsule so its bottom sits on the ground
             com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4();
             transform.setToTranslation(
                 position.x,
                 position.y + capsuleHeight / 2f + capsuleRadius,
                 position.z
             );
-            transform.rotate(Vector3.Y, yaw);
-            physicsBody.setWorldTransform(transform);
+
+            // Create ghost object for character controller
+            ghostObject = new com.badlogic.gdx.physics.bullet.collision.btPairCachingGhostObject();
+            ghostObject.setWorldTransform(transform);
+            ghostObject.setCollisionShape(physicsShape);
+            ghostObject.setCollisionFlags(
+                ghostObject.getCollisionFlags() |
+                com.badlogic.gdx.physics.bullet.collision.btCollisionObject.CollisionFlags.CF_CHARACTER_OBJECT
+            );
+
+            // Create character controller with same settings as player
+            characterController = new com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController(
+                ghostObject, physicsShape, 1.0f
+            );
+            characterController.setGravity(new Vector3(0, curly.octo.common.Constants.PHYSICS_GRAVITY, 0));
+            characterController.setMaxSlope((float)Math.toRadians(curly.octo.common.Constants.PHYSICS_MAX_SLOPE_DEGREES));
+            characterController.setJumpSpeed(0f); // NPCs don't jump
+            characterController.setUseGhostSweepTest(false);
 
             // Add to dynamics world with collision groups
-            dynamicsWorld.addRigidBody(physicsBody,
+            dynamicsWorld.addCollisionObject(ghostObject,
                 curly.octo.common.map.GameMap.NPC_GROUP,
                 curly.octo.common.map.GameMap.GROUND_GROUP |
                 curly.octo.common.map.GameMap.PLAYER_GROUP |
                 curly.octo.common.map.GameMap.NPC_GROUP
             );
-
-            constructionInfo.dispose();
+            dynamicsWorld.addAction(characterController);
 
             physicsInitialized = true;
-            Log.info("NPCObject", "Physics initialized for NPC " + entityId + " with capsule collision (r=" +
+            Log.info("NPCObject", "Physics initialized for NPC " + entityId + " with character controller (r=" +
                 capsuleRadius + ", h=" + capsuleHeight + ")");
         } catch (Exception e) {
             Log.error("NPCObject", "Failed to initialize physics for NPC " + entityId + ": " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -204,14 +238,64 @@ public class NPCObject extends WorldObject {
                 break;
 
             case WANDER:
-                wanderCenter.set(
-                        instruction.params.get("centerX"),
-                        instruction.params.get("centerY"),
-                        instruction.params.get("centerZ")
-                );
-                wanderRadius = instruction.params.get("radius");
-                movementSpeed = instruction.params.get("speed");
-                generateNewWaypoint();
+                // Extract waypoint list from instruction (new tile index system)
+                waypointQueue.clear();
+                currentWaypointIndex = 0;
+
+                int[] waypointTileIndices = instruction.waypointTileIndices;
+
+                // DIAGNOSTIC LOGGING
+                Log.info("NPCObject", "DIAGNOSTIC - NPC " + entityId + " processing WANDER instruction");
+                Log.info("NPCObject", "  waypointTileIndices: " + (waypointTileIndices != null ?
+                         "array[" + waypointTileIndices.length + "]" : "NULL"));
+
+                if (waypointTileIndices != null && waypointTileIndices.length > 0) {
+                    Log.info("NPCObject", "  Parsing " + (waypointTileIndices.length / 3) + " tile waypoints...");
+
+                    // Parse tile indices and convert to world positions: [x1,y1,z1, x2,y2,z2, ...]
+                    for (int i = 0; i < waypointTileIndices.length; i += 3) {
+                        if (i + 2 < waypointTileIndices.length) {  // Ensure we have x,y,z
+                            int tileX = waypointTileIndices[i];
+                            int tileY = waypointTileIndices[i + 1];
+                            int tileZ = waypointTileIndices[i + 2];
+
+                            // Convert tile indices to world coordinates
+                            float worldX = tileX * curly.octo.common.Constants.MAP_TILE_SIZE;
+                            float worldY = tileY * curly.octo.common.Constants.MAP_TILE_SIZE;
+                            float worldZ = tileZ * curly.octo.common.Constants.MAP_TILE_SIZE;
+
+                            Vector3 waypoint = new Vector3(worldX, worldY, worldZ);
+                            waypointQueue.add(waypoint);
+
+                            Log.debug("NPCObject", "  Tile [" + tileX + "," + tileY + "," + tileZ + "] → World " +
+                                     String.format("(%.1f, %.1f, %.1f)", worldX, worldY, worldZ));
+                        }
+                    }
+
+                    if (!waypointQueue.isEmpty()) {
+                        targetWaypoint.set(waypointQueue.get(0));
+                        movementSpeed = instruction.params.getOrDefault("speed", 0.1f);
+
+                        Log.info("NPCObject", "✓ NPC " + entityId + " loaded path with " +
+                                 waypointQueue.size() + " waypoints (speed: " + movementSpeed + ")");
+
+                        int[] firstTile = new int[]{waypointTileIndices[0], waypointTileIndices[1], waypointTileIndices[2]};
+                        int lastIdx = waypointTileIndices.length - 3;
+                        int[] lastTile = new int[]{waypointTileIndices[lastIdx], waypointTileIndices[lastIdx+1], waypointTileIndices[lastIdx+2]};
+
+                        Log.info("NPCObject", "  First waypoint: Tile [" + firstTile[0] + "," + firstTile[1] + "," + firstTile[2] + "] = " +
+                                 String.format("(%.1f, %.1f, %.1f)", targetWaypoint.x, targetWaypoint.y, targetWaypoint.z));
+                        Log.info("NPCObject", "  Last waypoint: Tile [" + lastTile[0] + "," + lastTile[1] + "," + lastTile[2] + "] = " +
+                                 String.format("(%.1f, %.1f, %.1f)",
+                                     waypointQueue.get(waypointQueue.size()-1).x,
+                                     waypointQueue.get(waypointQueue.size()-1).y,
+                                     waypointQueue.get(waypointQueue.size()-1).z));
+                    } else {
+                        Log.error("NPCObject", "✗ NPC " + entityId + " parsed 0 waypoints from tile indices!");
+                    }
+                } else {
+                    Log.error("NPCObject", "✗ NPC " + entityId + " received WANDER with NO TILE WAYPOINT DATA!");
+                }
                 break;
 
             case PATROL:
@@ -226,64 +310,281 @@ public class NPCObject extends WorldObject {
 
     /**
      * Generate a new random waypoint for wandering.
+     * Validates waypoints to ensure they're not in walls or over holes.
+     * Uses deterministic retry logic to maintain sync across clients.
+     *
+     * Two modes:
+     * - Map-wide (wanderRadius == 0): Pick random floor tile from entire map
+     * - Radius-based (wanderRadius > 0): Pick random point within radius of center
      */
     private void generateNewWaypoint() {
         if (currentInstruction == null || instructionRng == null) return;
 
-        // Generate random point within wander radius
-        float angle = instructionRng.nextFloat() * (float) Math.PI * 2;
-        float distance = instructionRng.nextFloat() * wanderRadius;
+        // Check if we're in map-wide wandering mode
+        if (wanderRadius == 0f && gameMap != null) {
+            // Map-wide mode: pick a random walkable tile from entire map
+            generateMapWideWaypoint();
+        } else {
+            // Radius-based mode: pick random point within wander radius
+            generateRadiusWaypoint();
+        }
+    }
 
-        currentWaypoint.set(
-                wanderCenter.x + (float) Math.cos(angle) * distance,
-                wanderCenter.y,
-                wanderCenter.z + (float) Math.sin(angle) * distance
-        );
+    /**
+     * Generate waypoint by picking a random walkable tile from the entire map.
+     * Uses intermediate waypoints - picks tiles within a safe distance on the same floor level.
+     */
+    private void generateMapWideWaypoint() {
+        if (gameMap == null || position == null) {
+            Log.warn("NPCObject", "Cannot generate map-wide waypoint - no map reference or position");
+            return;
+        }
+
+        // Get all tiles from the map
+        java.util.ArrayList<curly.octo.common.map.MapTile> allTiles = gameMap.getAllTiles();
+
+        if (allTiles.isEmpty()) {
+            Log.warn("NPCObject", "No tiles available for waypoint generation");
+            return;
+        }
+
+        // Strategy: Pick tiles that are:
+        // 1. Within a reasonable distance (10-30 units for intermediate waypoints)
+        // 2. At the same height level (±2 units to allow for slopes)
+        // 3. Walkable (not walls or over holes)
+
+        float currentHeight = position.y;
+        float minDistance = 10.0f;  // Minimum distance to make it interesting
+        float maxDistance = 30.0f;  // Maximum distance for safe navigation
+        float maxHeightDiff = 2.0f; // Stay on same floor (allow small height changes)
+
+        // Try to find a suitable tile
+        Log.info("NPCObject", "NPC " + entityId + " generating map-wide waypoint (current pos: " +
+                String.format("%.1f, %.1f, %.1f", position.x, position.y, position.z) +
+                ", available tiles: " + allTiles.size() + ")");
+
+        for (int attempt = 0; attempt < MAX_WAYPOINT_ATTEMPTS * 10; attempt++) {
+            // Pick a random tile using seeded RNG
+            int randomIndex = instructionRng.nextInt(allTiles.size());
+            curly.octo.common.map.MapTile tile = allTiles.get(randomIndex);
+
+            if (tile == null) continue;
+
+            // Check if this tile position is walkable
+            float candidateX = tile.x;
+            float candidateY = tile.y;
+            float candidateZ = tile.z;
+
+            // Check height constraint (same floor level)
+            float heightDiff = Math.abs(candidateY - currentHeight);
+            float distance = position.dst(candidateX, candidateY, candidateZ);
+
+            if (attempt < 5) {
+                // Log first few attempts for diagnostics
+                Log.info("NPCObject", "  Attempt " + attempt + ": tile (" +
+                        String.format("%.1f, %.1f, %.1f", candidateX, candidateY, candidateZ) +
+                        ") - height diff: " + String.format("%.1f", heightDiff) +
+                        ", distance: " + String.format("%.1f", distance));
+            }
+
+            if (heightDiff > maxHeightDiff) {
+                continue; // Different floor level, skip
+            }
+
+            // Check distance constraint (not too close, not too far)
+            if (distance < minDistance || distance > maxDistance) {
+                continue; // Too close or too far
+            }
+
+            // Check if walkable
+            if (gameMap.isPositionWalkable(candidateX, candidateY, candidateZ)) {
+                // Valid waypoint found!
+                currentWaypoint.set(candidateX, candidateY, candidateZ);
+                Log.info("NPCObject", "✓ NPC " + entityId + " SELECTED waypoint at (" +
+                        String.format("%.1f, %.1f, %.1f", candidateX, candidateY, candidateZ) +
+                        ") - distance: " + String.format("%.1f", distance) +
+                        ", height diff: " + String.format("%.1f", heightDiff) +
+                        " (attempt " + attempt + ")");
+                return;
+            }
+        }
+
+        // Fallback: if no suitable tile found, try just nearby walkable tiles (relax distance constraint)
+        Log.warn("NPCObject", "NPC " + entityId + " failed primary waypoint search, trying relaxed constraints...");
+
+        for (int attempt = 0; attempt < MAX_WAYPOINT_ATTEMPTS * 5; attempt++) {
+            int randomIndex = instructionRng.nextInt(allTiles.size());
+            curly.octo.common.map.MapTile tile = allTiles.get(randomIndex);
+
+            if (tile == null) continue;
+
+            float candidateX = tile.x;
+            float candidateY = tile.y;
+            float candidateZ = tile.z;
+
+            // Same height constraint still applies
+            float heightDiff = Math.abs(candidateY - currentHeight);
+            if (heightDiff > maxHeightDiff) continue;
+
+            // Relaxed distance: any distance up to 50 units
+            float distance = position.dst(candidateX, candidateY, candidateZ);
+            if (distance > 50.0f) continue;
+
+            if (gameMap.isPositionWalkable(candidateX, candidateY, candidateZ)) {
+                currentWaypoint.set(candidateX, candidateY, candidateZ);
+                Log.info("NPCObject", "✓ NPC " + entityId + " SELECTED fallback waypoint at (" +
+                        String.format("%.1f, %.1f, %.1f", candidateX, candidateY, candidateZ) +
+                        ") - distance: " + String.format("%.1f", distance));
+                return;
+            }
+        }
+
+        // Last resort: stay at current position
+        if (position != null) {
+            currentWaypoint.set(position);
+            Log.warn("NPCObject", "NPC " + entityId + " failed to find suitable waypoint - staying in place");
+        }
+    }
+
+    /**
+     * Generate waypoint within wander radius (old behavior).
+     */
+    private void generateRadiusWaypoint() {
+        // Try to generate a valid waypoint (max attempts for determinism)
+        for (int attempt = 0; attempt < MAX_WAYPOINT_ATTEMPTS; attempt++) {
+            // Generate random point within wander radius using seeded RNG
+            float angle = instructionRng.nextFloat() * (float) Math.PI * 2;
+            float distance = instructionRng.nextFloat() * wanderRadius;
+
+            float candidateX = wanderCenter.x + (float) Math.cos(angle) * distance;
+            float candidateY = wanderCenter.y;
+            float candidateZ = wanderCenter.z + (float) Math.sin(angle) * distance;
+
+            // Validate waypoint if we have a map reference
+            if (gameMap != null) {
+                if (gameMap.isPositionWalkable(candidateX, candidateY, candidateZ)) {
+                    // Valid waypoint found!
+                    currentWaypoint.set(candidateX, candidateY, candidateZ);
+                    return;
+                }
+                // Invalid waypoint - try again with next random values
+            } else {
+                // No map reference - accept waypoint without validation
+                currentWaypoint.set(candidateX, candidateY, candidateZ);
+                return;
+            }
+        }
+
+        // All attempts failed - stay at current position
+        if (position != null) {
+            currentWaypoint.set(position);
+            Log.warn("NPCObject", "NPC " + entityId + " failed to find valid waypoint after " +
+                    MAX_WAYPOINT_ATTEMPTS + " attempts - staying in place");
+        }
     }
 
     @Override
     public void update(float delta) {
         super.update(delta);
 
-        if (currentInstruction == null) return;
+        // Initialize movement velocity
+        Vector3 walkVelocity = new Vector3(0, 0, 0);
 
-        // Check if instruction has expired
-        long elapsed = System.currentTimeMillis() - instructionStartTime;
-        if (elapsed > currentInstruction.duration * 1000) {
-            currentInstruction = null;
-            return;
+        if (currentInstruction != null) {
+            // Check if instruction has expired
+            long elapsed = System.currentTimeMillis() - instructionStartTime;
+            if (elapsed > currentInstruction.duration * 1000) {
+                currentInstruction = null;
+            } else {
+                // Execute current instruction to calculate movement
+                switch (currentInstruction.type) {
+                    case IDLE:
+                        // No movement
+                        break;
+
+                    case WANDER:
+                        walkVelocity = calculateWanderVelocity(delta);
+                        break;
+
+                    case PATROL:
+                    case CHASE:
+                    case CUSTOM_PATH:
+                        // Not yet implemented
+                        break;
+                }
+            }
         }
 
-        // Execute current instruction
-        switch (currentInstruction.type) {
-            case IDLE:
-                // Do nothing
-                break;
-
-            case WANDER:
-                updateWander(delta);
-                break;
-
-            case PATROL:
-            case CHASE:
-            case CUSTOM_PATH:
-                // Not yet implemented
-                break;
-        }
-
-        // Apply external forces (push mechanics) with damping
+        // Add external forces (push mechanics) to velocity
         if (externalForce != null && externalForce.len() > 0.01f) {
-            position.add(externalForce.x * delta, externalForce.y * delta, externalForce.z * delta);
+            walkVelocity.add(externalForce);
             externalForce.scl(0.95f);  // Damping - forces decay over time
         }
 
-        // Update physics body position if initialized
-        if (physicsBody != null && position != null) {
-            com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4();
-            // Capsule offset: height/2 + radius = 2.5 + 1.0 = 3.5
-            transform.setToTranslation(position.x, position.y + 3.5f, position.z);
-            transform.rotate(Vector3.Y, yaw);
-            physicsBody.setWorldTransform(transform);
+        // Apply velocity using character controller (physics-based movement)
+        if (characterController != null) {
+            characterController.setWalkDirection(walkVelocity);
+
+            // Sync position from physics (character controller updates the ghost object)
+            if (position != null && ghostObject != null) {
+                Vector3 tempVector = new Vector3();
+                position.set(ghostObject.getWorldTransform().getTranslation(tempVector));
+
+                // Maintain upright orientation
+                com.badlogic.gdx.math.Matrix4 currentTransform = ghostObject.getWorldTransform();
+                com.badlogic.gdx.math.Matrix4 uprightTransform = new com.badlogic.gdx.math.Matrix4();
+                uprightTransform.setToTranslation(currentTransform.getTranslation(tempVector));
+                uprightTransform.rotate(Vector3.Y, yaw);
+                ghostObject.setWorldTransform(uprightTransform);
+            }
+        }
+
+        // Stuck detection and recovery
+        if (position != null && lastPosition != null && currentInstruction != null) {
+            float distanceMoved = position.dst(lastPosition);
+
+            if (distanceMoved < STUCK_DISTANCE) {
+                // NPC barely moved - might be stuck against wall
+                stuckTimer += delta;
+
+                if (stuckTimer >= STUCK_THRESHOLD) {
+                    // Stuck! Generate escape waypoint in opposite direction
+                    Log.warn("NPCObject", "NPC " + entityId + " stuck for " +
+                            String.format("%.1f", stuckTimer) + "s - generating escape waypoint");
+
+                    // Calculate direction away from current waypoint
+                    if (currentWaypoint != null) {
+                        Vector3 awayDirection = new Vector3(position).sub(currentWaypoint);
+                        awayDirection.y = 0; // Keep horizontal
+
+                        if (awayDirection.len2() > 0.01f) {
+                            awayDirection.nor();
+
+                            // Add some randomness to escape direction (deterministic)
+                            float randomAngle = (instructionRng != null ? instructionRng.nextFloat() : 0.5f) * 90f - 45f; // ±45°
+                            awayDirection.rotate(Vector3.Y, randomAngle);
+
+                            // Set escape waypoint a short distance away
+                            float escapeDistance = 3.0f;
+                            currentWaypoint.set(
+                                position.x + awayDirection.x * escapeDistance,
+                                position.y,
+                                position.z + awayDirection.z * escapeDistance
+                            );
+
+                            Log.info("NPCObject", "Escape waypoint set at distance " + escapeDistance);
+                        }
+                    }
+
+                    stuckTimer = 0f; // Reset stuck timer
+                }
+            } else {
+                // NPC is moving - reset stuck timer
+                stuckTimer = 0f;
+            }
+
+            // Store current position for next frame comparison
+            lastPosition.set(position);
         }
 
         // Update model instance position
@@ -294,33 +595,74 @@ public class NPCObject extends WorldObject {
     }
 
     /**
-     * Update wander behavior.
+     * Calculate wander velocity for physics-based movement.
+     * Navigates through waypoint queue provided by server.
+     *
+     * @param delta Time delta
+     * @return Velocity vector for character controller
      */
-    private void updateWander(float delta) {
-        if (position == null || currentWaypoint == null) return;
+    private Vector3 calculateWanderVelocity(float delta) {
+        if (position == null || targetWaypoint == null || waypointQueue.isEmpty()) {
+            // DIAGNOSTIC
+            if (waypointQueue.isEmpty()) {
+                Log.warn("NPCObject", "calculateWanderVelocity: waypointQueue is EMPTY! NPC will not move.");
+            }
+            return new Vector3(0, 0, 0);  // No path to follow
+        }
 
-        // Check if we've reached the current waypoint
-        float distanceToWaypoint = position.dst2(currentWaypoint);
+        // Check if reached current target waypoint (2D distance on XZ plane, ignore Y)
+        float dx = position.x - targetWaypoint.x;
+        float dz = position.z - targetWaypoint.z;
+        float distanceToWaypoint = (float) Math.sqrt(dx * dx + dz * dz);
+
+        // DIAGNOSTIC: Log distance every few frames
+        if (Math.random() < 0.01) {
+            Log.info("NPCObject", "NPC " + entityId + " distance to waypoint " + currentWaypointIndex +
+                     ": " + String.format("%.2f", distanceToWaypoint) + " units (threshold: 0.5)");
+            Log.info("NPCObject", "  NPC pos: " + String.format("(%.1f, %.1f, %.1f)", position.x, position.y, position.z));
+            Log.info("NPCObject", "  Target: " + String.format("(%.1f, %.1f, %.1f)", targetWaypoint.x, targetWaypoint.y, targetWaypoint.z));
+        }
+
         if (distanceToWaypoint < 0.5f) {
-            generateNewWaypoint();
+            // Advance to next waypoint in queue
+            currentWaypointIndex++;
+
+            if (currentWaypointIndex < waypointQueue.size()) {
+                // More waypoints to go
+                targetWaypoint.set(waypointQueue.get(currentWaypointIndex));
+
+                Log.info("NPCObject", "NPC " + entityId + " reached waypoint " +
+                         currentWaypointIndex + "/" + waypointQueue.size() +
+                         " - next target: " + String.format("(%.1f, %.1f, %.1f)",
+                             targetWaypoint.x, targetWaypoint.y, targetWaypoint.z));
+            } else {
+                // Reached end of path - STOP
+                Log.info("NPCObject", "NPC " + entityId + " COMPLETED full path (" +
+                         waypointQueue.size() + " waypoints)");
+                return new Vector3(0, 0, 0);  // Stop moving
+            }
         }
 
-        // Move toward waypoint
-        Vector3 direction = new Vector3(currentWaypoint).sub(position);
-        direction.y = 0; // Keep movement horizontal
-        direction.nor();
+        // Calculate direction toward current target waypoint
+        Vector3 direction = new Vector3(targetWaypoint).sub(position);
+        direction.y = 0;  // Keep movement horizontal (no flying)
 
-        // Update yaw to face movement direction
         if (direction.len2() > 0.01f) {
+            direction.nor();
+
+            // Update yaw to face movement direction
             yaw = (float) Math.toDegrees(Math.atan2(direction.x, direction.z));
+
+            // Return velocity (units per second) for character controller
+            return direction.scl(movementSpeed);
         }
 
-        // Move toward waypoint
-        position.add(direction.scl(movementSpeed * delta));
+        return new Vector3(0, 0, 0);
     }
 
     /**
      * Apply a sync correction from the elected client.
+     * Updates the physics ghost object position instead of directly modifying position field.
      */
     public void applySyncCorrection(Vector3 syncPosition, float syncYaw, long activeInstructionId) {
         if (position == null) {
@@ -336,17 +678,28 @@ public class NPCObject extends WorldObject {
         // Calculate error
         float error = position.dst(syncPosition);
 
-        if (error > 1.0f) {
-            // Large error: snap to correct position
-            position.set(syncPosition);
-            yaw = syncYaw;
-            Log.info("NPCObject", "NPC " + entityId + " snapped to sync position (error: " + error + ")");
-        } else if (error > 0.1f) {
-            // Medium error: smooth interpolation
-            position.lerp(syncPosition, 0.3f);
-            yaw = yaw * 0.7f + syncYaw * 0.3f; // Lerp angle
+        // Only apply sync corrections for large errors to avoid fighting physics simulation
+        if (error > 2.0f) {
+            // Large error: snap ghost object to correct position
+            if (ghostObject != null) {
+                // Update ghost object transform (capsule center is offset from ground position)
+                com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4();
+                transform.setToTranslation(
+                    syncPosition.x,
+                    syncPosition.y + 3.5f,  // Capsule offset: height/2 + radius
+                    syncPosition.z
+                );
+                transform.rotate(Vector3.Y, syncYaw);
+                ghostObject.setWorldTransform(transform);
+
+                // Update local position to match
+                position.set(syncPosition);
+                yaw = syncYaw;
+
+                Log.info("NPCObject", "NPC " + entityId + " snapped to sync position (error: " + error + ")");
+            }
         }
-        // Small error < 0.1: ignore (within tolerance)
+        // Smaller errors are ignored - let physics handle smooth movement
 
         lastSyncedPosition.set(syncPosition);
     }
@@ -387,11 +740,75 @@ public class NPCObject extends WorldObject {
         return currentInstructionId;
     }
 
+    /**
+     * Get the waypoint queue for debug visualization.
+     * @return List of waypoints, or null if none
+     */
+    public java.util.List<Vector3> getWaypointQueue() {
+        return waypointQueue;
+    }
+
+    /**
+     * Get current waypoint index in queue.
+     * @return Index (0-based)
+     */
+    public int getCurrentWaypointIndex() {
+        return currentWaypointIndex;
+    }
+
+    /**
+     * Get the current target waypoint being navigated to.
+     * @return Target waypoint vector
+     */
+    public Vector3 getTargetWaypoint() {
+        return targetWaypoint;
+    }
+
+    /**
+     * Get the current waypoint the NPC is moving toward.
+     * Used for debug visualization.
+     * @return Current waypoint position, or null if none
+     */
+    public Vector3 getCurrentWaypoint() {
+        return currentWaypoint;
+    }
+
+    /**
+     * Get the center of the wander zone.
+     * Used for debug visualization.
+     * @return Wander center position, or null if not wandering
+     */
+    public Vector3 getWanderCenter() {
+        return wanderCenter;
+    }
+
+    /**
+     * Get the wander radius.
+     * Used for debug visualization.
+     * @return Wander radius in units
+     */
+    public float getWanderRadius() {
+        return wanderRadius;
+    }
+
+    /**
+     * Get the current instruction being executed.
+     * Used for debug visualization and sync validation.
+     * @return Current instruction, or null if none
+     */
+    public NPCInstructionMessage getCurrentInstruction() {
+        return currentInstruction;
+    }
+
     @Override
     public void dispose() {
-        if (physicsBody != null) {
-            physicsBody.dispose();
-            physicsBody = null;
+        if (characterController != null) {
+            characterController.dispose();
+            characterController = null;
+        }
+        if (ghostObject != null) {
+            ghostObject.dispose();
+            ghostObject = null;
         }
         if (physicsShape != null) {
             physicsShape.dispose();

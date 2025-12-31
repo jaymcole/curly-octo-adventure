@@ -50,10 +50,10 @@ public class ServerWaitForClientsToBeReadyState extends BaseGameStateServer {
             }
         }
 
-        if (connectedCount > 0) {
-            Log.info("ServerWaitForClientsToBeReadyState",
-                     "Readiness check: " + readyCount + "/" + connectedCount + " clients ready, allReady=" + allClientsReady);
-        }
+//        if (connectedCount > 0) {
+//            Log.info("ServerWaitForClientsToBeReadyState",
+//                     "Readiness check: " + readyCount + "/" + connectedCount + " clients ready, allReady=" + allClientsReady);
+//        }
 
         if (allClientsReady) {
             Log.info("ServerWaitForClientsToBeReadyState",

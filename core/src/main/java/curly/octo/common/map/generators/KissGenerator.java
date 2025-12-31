@@ -58,7 +58,7 @@ public class KissGenerator extends MapGenerator{
             templates.addAll(KissTemplateReader.createTemplates(templatePath));
         }
 
-        Log.info("KissGenerator", "Loaded " + templates.size() + " templates");
+//        Log.info("KissGenerator", "Loaded " + templates.size() + " templates");
         catalog = new KissCatalog();
         for(KissTemplate template : templates) {
             catalog.addTemplate(template);
@@ -66,7 +66,7 @@ public class KissGenerator extends MapGenerator{
 
         ArrayList<KissTemplate> possibleSpawnRooms = catalog.getTemplateByTag(KissTags.SPAWN);
         spawnRoom = possibleSpawnRooms.get(random.nextInt(possibleSpawnRooms.size()));
-        Log.info("KissGenerator", "Spawn room: " + spawnRoom.name + " with " + spawnRoom.templatesEntrances.size() + " entrances");
+//        Log.info("KissGenerator", "Spawn room: " + spawnRoom.name + " with " + spawnRoom.templatesEntrances.size() + " entrances");
     }
 
     private ArrayList<String> loadTemplatesFromAssetsFile(String directory) {
@@ -110,20 +110,20 @@ public class KissGenerator extends MapGenerator{
 
         // Step 3: Iteratively place templates
         int maxRooms = 100; // Limit number of rooms
-        Log.info("KissGenerator", "Starting placement with " + availableEntrances.size() + " available entrances");
+//        Log.info("KissGenerator", "Starting placement with " + availableEntrances.size() + " available entrances");
 
         while (!availableEntrances.isEmpty() && placedTemplates.size() < maxRooms) {
             // Pick random entrance from queue
             int entranceIndex = random.nextInt(availableEntrances.size());
             EntranceOffset currentEntrance = availableEntrances.remove(entranceIndex);
 
-            Log.info("KissGenerator", "Attempting placement #" + placedTemplates.size() + ", entrances remaining: " + availableEntrances.size());
-            Log.info("KissGenerator", "Current entrance key: " + currentEntrance.entrance.getKey() + " matching key: " + currentEntrance.entrance.getMatchingKey());
+//            Log.info("KissGenerator", "Attempting placement #" + placedTemplates.size() + ", entrances remaining: " + availableEntrances.size());
+//            Log.info("KissGenerator", "Current entrance key: " + currentEntrance.entrance.getKey() + " matching key: " + currentEntrance.entrance.getMatchingKey());
 
             // Get compatible entrances from catalog
             ArrayList<KissEntrance> compatibleEntrances = catalog.getCompatibleEntrances(currentEntrance.entrance);
 
-            Log.info("KissGenerator", "Found " + compatibleEntrances.size() + " compatible entrances");
+//            Log.info("KissGenerator", "Found " + compatibleEntrances.size() + " compatible entrances");
 
             if (compatibleEntrances.isEmpty()) {
                 continue; // No compatible templates, skip this entrance
@@ -131,7 +131,7 @@ public class KissGenerator extends MapGenerator{
 
             // Pick random compatible entrance
             KissEntrance matchingEntrance = compatibleEntrances.get(random.nextInt(compatibleEntrances.size()));
-            Log.info("KissGenerator", "Selected matching entrance from template: " + matchingEntrance.associatedTemplate.name);
+//            Log.info("KissGenerator", "Selected matching entrance from template: " + matchingEntrance.associatedTemplate.name);
 
             // Calculate world offset for new template
             // The matching entrance should be adjacent to (not overlapping with) the current entrance
@@ -154,13 +154,13 @@ public class KissGenerator extends MapGenerator{
 
             // Check for overlap before placing
             if (wouldOverlap(matchingEntrance.associatedTemplate, newTemplateOffset, placedTemplates)) {
-                Log.info("KissGenerator", "Template would overlap, skipping placement");
+//                Log.info("KissGenerator", "Template would overlap, skipping placement");
                 continue; // Skip this entrance and try another
             }
 
             // Add new template to placed templates
             placedTemplates.add(new PlacedTemplate(matchingEntrance.associatedTemplate, newTemplateOffset));
-            Log.info("KissGenerator", "Placed template at offset: " + newTemplateOffset);
+//            Log.info("KissGenerator", "Placed template at offset: " + newTemplateOffset);
 
             // Extract new template's entrances and add to queue (except the one we just used)
             for (KissEntrance entrance : matchingEntrance.associatedTemplate.templatesEntrances) {
@@ -177,7 +177,7 @@ public class KissGenerator extends MapGenerator{
             }
         }
 
-        Log.info("KissGenerator", "Placement complete. Placed " + placedTemplates.size() + " templates total");
+//        Log.info("KissGenerator", "Placement complete. Placed " + placedTemplates.size() + " templates total");
 
         // Step 4: Stamp all placed templates onto the map
         for (PlacedTemplate placed : placedTemplates) {
@@ -303,8 +303,8 @@ public class KissGenerator extends MapGenerator{
 
                                 // If new template wants to place a wall, check if placed template has a wall there
                                 if (newTemplateHasWall && placedTemplateHasWallAt(x, y, z, placed)) {
-                                    Log.info("KissGenerator", "Tile-level conflict detected at (" + x + "," + y + "," + z +
-                                            ") - new template would place wall on existing wall from " + placed.template.name);
+//                                    Log.info("KissGenerator", "Tile-level conflict detected at (" + x + "," + y + "," + z +
+//                                            ") - new template would place wall on existing wall from " + placed.template.name);
                                     return true; // Conflict: new wall would overwrite existing geometry
                                 }
                             }
@@ -313,7 +313,7 @@ public class KissGenerator extends MapGenerator{
                 }
 
                 // Overlap is allowed - it's either all open space or doorway connection
-                Log.info("KissGenerator", "Small overlap allowed - validated as doorway connection");
+//                Log.info("KissGenerator", "Small overlap allowed - validated as doorway connection");
             }
         }
 

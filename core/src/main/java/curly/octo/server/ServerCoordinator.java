@@ -78,8 +78,16 @@ public class ServerCoordinator {
         // Add NPC agents if map is available
         if (mapManager != null) {
             serverAgents.add(new curly.octo.server.serverAgents.NPCSpawnerAgent(gameObjectManager, mapManager, gameServer));
-            serverAgents.add(new curly.octo.server.serverAgents.NPCBehaviorAgent(gameObjectManager));
-            Log.info("ServerCoordinator", "NPC agents initialized");
+
+            // Create NPCBehaviorAgent with map reference for waypoint generation
+            curly.octo.server.serverAgents.NPCBehaviorAgent npcBehaviorAgent =
+                new curly.octo.server.serverAgents.NPCBehaviorAgent(gameObjectManager, mapManager);
+            serverAgents.add(npcBehaviorAgent);
+
+            // Wire up behavior agent to GameServer for completion-based instruction generation
+            gameServer.setNPCBehaviorAgent(npcBehaviorAgent);
+
+            Log.info("ServerCoordinator", "NPC agents initialized with waypoint generation and completion tracking");
         }
     }
 

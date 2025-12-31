@@ -314,6 +314,170 @@ public class DebugRenderer implements Disposable {
         return currentMeshPartId;
     }
 
+    /**
+     * Renders NPC path visualizations including current waypoints and wander zones.
+     * Shows:
+     * - Green line from NPC to current waypoint
+     * - Yellow sphere at waypoint position
+     * - Orange circle showing wander radius
+     *
+     * @param camera The camera for projection matrix
+     * @param npcs List of NPC objects to visualize
+     */
+    public void renderNPCPaths(Camera camera, java.util.ArrayList<curly.octo.common.NPCObject> npcs) {
+        if (npcs == null || npcs.isEmpty()) {
+            return;
+        }
+
+        // DIAGNOSTIC (only log occasionally to avoid spam)
+        if (Math.random() < 0.01) {  // ~1% of frames
+            com.esotericsoftware.minlog.Log.info("DebugRenderer", "renderNPCPaths: rendering " + npcs.size() + " NPCs");
+        }
+
+        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
+        shapeRenderer.setProjectionMatrix(camera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+
+        // Color scheme for NPC visualization
+        Color pathColor = new Color(0.2f, 1.0f, 0.2f, 1.0f);        // Bright green - upcoming waypoints
+        Color completedColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);  // Gray - completed waypoints
+        Color waypointColor = new Color(1.0f, 1.0f, 0.0f, 1.0f);   // Yellow - waypoint markers
+
+        for (curly.octo.common.NPCObject npc : npcs) {
+            if (npc == null || npc.getPosition() == null) {
+                continue;
+            }
+
+            Vector3 npcPos = npc.getPosition();
+            java.util.List<Vector3> waypointQueue = npc.getWaypointQueue();
+            int currentIndex = npc.getCurrentWaypointIndex();
+
+            // DIAGNOSTIC
+            if (waypointQueue == null || waypointQueue.isEmpty()) {
+                if (Math.random() < 0.01) {  // Occasional log
+                    com.esotericsoftware.minlog.Log.warn("DebugRenderer", "NPC " + npc.entityId +
+                            " has empty waypoint queue!");
+                }
+            }
+
+            // Draw waypoint queue as connected path
+            if (waypointQueue != null && !waypointQueue.isEmpty()) {
+                Vector3 prev = npcPos;
+
+                for (int i = 0; i < waypointQueue.size(); i++) {
+                    Vector3 wp = waypointQueue.get(i);
+
+                    // Choose color based on whether waypoint is passed or upcoming
+                    if (i < currentIndex) {
+                        shapeRenderer.setColor(completedColor);  // Already passed
+                    } else {
+                        shapeRenderer.setColor(pathColor);       // Upcoming
+                    }
+
+                    // Draw line segment
+                    shapeRenderer.line(prev, wp);
+
+                    // Draw waypoint sphere for upcoming waypoints
+                    if (i >= currentIndex) {
+                        shapeRenderer.setColor(waypointColor);
+                        drawSphereWireframe(wp, 10f, 8);
+                    }
+
+                    prev = wp;
+                }
+            }
+        }
+
+        shapeRenderer.end();
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+    }
+
+    /**
+     * Draw a sphere wireframe at a position (3 orthogonal circles).
+     * @param center Center position of sphere
+     * @param radius Radius of sphere
+     * @param segments Number of segments per circle
+     */
+    private void drawSphereWireframe(Vector3 center, float radius, int segments) {
+        // Draw circle in XZ plane (horizontal)
+        drawCircleXZ(center, radius, segments);
+
+        // Draw circle in XY plane (vertical, facing Z)
+        drawCircleXY(center, radius, segments);
+
+        // Draw circle in YZ plane (vertical, facing X)
+        drawCircleYZ(center, radius, segments);
+    }
+
+    /**
+     * Draw circle in XZ plane (horizontal ground plane).
+     */
+    private void drawCircleXZ(Vector3 center, float radius, int segments) {
+        float angleStep = 360f / segments;
+        Vector3 prev = new Vector3();
+        Vector3 current = new Vector3();
+
+        for (int i = 0; i <= segments; i++) {
+            float angle = (float)Math.toRadians(i * angleStep);
+            current.set(
+                center.x + radius * (float)Math.cos(angle),
+                center.y,
+                center.z + radius * (float)Math.sin(angle)
+            );
+
+            if (i > 0) {
+                shapeRenderer.line(prev, current);
+            }
+            prev.set(current);
+        }
+    }
+
+    /**
+     * Draw circle in XY plane (vertical, facing Z axis).
+     */
+    private void drawCircleXY(Vector3 center, float radius, int segments) {
+        float angleStep = 360f / segments;
+        Vector3 prev = new Vector3();
+        Vector3 current = new Vector3();
+
+        for (int i = 0; i <= segments; i++) {
+            float angle = (float)Math.toRadians(i * angleStep);
+            current.set(
+                center.x + radius * (float)Math.cos(angle),
+                center.y + radius * (float)Math.sin(angle),
+                center.z
+            );
+
+            if (i > 0) {
+                shapeRenderer.line(prev, current);
+            }
+            prev.set(current);
+        }
+    }
+
+    /**
+     * Draw circle in YZ plane (vertical, facing X axis).
+     */
+    private void drawCircleYZ(Vector3 center, float radius, int segments) {
+        float angleStep = 360f / segments;
+        Vector3 prev = new Vector3();
+        Vector3 current = new Vector3();
+
+        for (int i = 0; i <= segments; i++) {
+            float angle = (float)Math.toRadians(i * angleStep);
+            current.set(
+                center.x,
+                center.y + radius * (float)Math.cos(angle),
+                center.z + radius * (float)Math.sin(angle)
+            );
+
+            if (i > 0) {
+                shapeRenderer.line(prev, current);
+            }
+            prev.set(current);
+        }
+    }
+
     @Override
     public void dispose() {
         if (disposed) {

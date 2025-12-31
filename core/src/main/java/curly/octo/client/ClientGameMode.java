@@ -515,7 +515,9 @@ public class ClientGameMode implements GameMode {
                 Log.info("ClientGameMode", "=== RECEIVED NPCInstructionMessage ===");
                 Log.info("ClientGameMode", "NPC: " + instructionMessage.npcId +
                         ", Type: " + instructionMessage.type +
-                        ", Duration: " + instructionMessage.duration);
+                        ", Duration: " + instructionMessage.duration +
+                        ", InstructionID: " + instructionMessage.instructionId +
+                        ", Params: " + instructionMessage.params);
 
                 // Find the NPC in the game object manager
                 GameObjectManager gom = gameWorld.getGameObjectManager();
@@ -523,6 +525,9 @@ public class ClientGameMode implements GameMode {
 
                 if (obj instanceof curly.octo.common.NPCObject) {
                     curly.octo.common.NPCObject npc = (curly.octo.common.NPCObject) obj;
+                    Log.info("ClientGameMode", "NPC current position before instruction: (" +
+                            String.format("%.1f, %.1f, %.1f",
+                                npc.getPosition().x, npc.getPosition().y, npc.getPosition().z) + ")");
                     npc.executeInstruction(instructionMessage);
                     Log.info("ClientGameMode", "Applied instruction to NPC " + instructionMessage.npcId);
                 } else {
@@ -1128,6 +1133,11 @@ public class ClientGameMode implements GameMode {
 
         float distance = currentPos.dst(authorityPos);
 
+        // Physics-based NPCs: Use applySyncCorrection() instead of direct position setting
+        // This works with the character controller instead of fighting against it
+        npc.applySyncCorrection(authorityPos, sync.yaw, -1L);
+
+        /* OLD APPROACH - Commented out because it fights with physics-based movement
         // Adaptive lerp correction based on drift magnitude
         if (distance > 0.5f) {
             // Large drift - snap immediately to prevent desync
@@ -1144,5 +1154,6 @@ public class ClientGameMode implements GameMode {
 
         // Apply yaw correction
         npc.setYaw(sync.yaw);
+        */
     }
 }

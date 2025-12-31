@@ -177,6 +177,41 @@ public class GameMap {
         return new ArrayList<>(map.values());
     }
 
+    /**
+     * Check if a world position is walkable for NPCs.
+     * A position is walkable if:
+     * 1. The tile at that position is EMPTY (not a wall)
+     * 2. The tile below has solid ground (not over a hole)
+     *
+     * @param worldX World X coordinate
+     * @param worldY World Y coordinate
+     * @param worldZ World Z coordinate
+     * @return true if position is safe to walk to, false otherwise
+     */
+    public boolean isPositionWalkable(float worldX, float worldY, float worldZ) {
+        // Check the tile at this position
+        MapTile currentTile = getTileFromWorldCoordinates(worldX, worldY, worldZ);
+
+        // Position must be in empty/air space (not inside a wall)
+        if (currentTile != null && currentTile.geometryType != MapTileGeometryType.EMPTY) {
+            return false; // Inside a solid block (wall)
+        }
+
+        // Check if there's ground below (not over a hole)
+        MapTile groundTile = getTileFromWorldCoordinates(
+            worldX,
+            worldY - Constants.MAP_TILE_SIZE,
+            worldZ
+        );
+
+        // Must have solid ground below (not EMPTY and not null)
+        if (groundTile == null || groundTile.geometryType == MapTileGeometryType.EMPTY) {
+            return false; // No ground = hole/void
+        }
+
+        return true; // Position is walkable!
+    }
+
     public long constructKeyFromWorldCoordinates(float worldX, float worldY, float worldZ) {
         int xIndex = (int)(worldX / Constants.MAP_TILE_SIZE);
         int yIndex = (int)(worldY / Constants.MAP_TILE_SIZE);

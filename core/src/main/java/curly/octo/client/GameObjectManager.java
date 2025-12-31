@@ -122,6 +122,8 @@ public class GameObjectManager implements Disposable {
                 curly.octo.common.NPCObject npcObject = (curly.octo.common.NPCObject) gameObject;
                 Log.info("GameObjectManager", "Adding NPC: " + npcObject.entityId + " at position: " + npcObject.getPosition());
 
+                // Note: GameMap reference no longer needed - waypoints are server-generated now
+
                 // Initialize graphics with placeholder model
                 if (!npcObject.isGraphicsInitialized()) {
                     npcObject.initializeGraphics(modelAssetManager);
