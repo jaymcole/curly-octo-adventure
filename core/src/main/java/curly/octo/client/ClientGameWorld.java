@@ -301,28 +301,24 @@ public class ClientGameWorld {
             if (getMapManager() != null) {
                 if (getMapManager().isPlayerOnlyDebugEnabled()) {
                     // Render only player capsules (performance-friendly)
-                    if (mapRenderer != null && mapRenderer.getDebugRenderer() != null) {
-                        mapRenderer.getDebugRenderer().renderPlayerCapsules(
-                            camera,
-                            getGameObjectManager().activePlayers,
-                            getGameObjectManager().localPlayer,
-                            1.0f,  // radius
-                            5.0f   // height
-                        );
+                    mapRenderer.getDebugRenderer().renderPlayerCapsules(
+                        camera,
+                        getGameObjectManager().activePlayers,
+                        getGameObjectManager().localPlayer,
+                        1.0f,  // radius
+                        5.0f   // height
+                    );
 
-                        // Render NPC paths (waypoints, wander zones)
-                        java.util.ArrayList<curly.octo.common.NPCObject> npcs = new java.util.ArrayList<>();
-                        for (curly.octo.common.GameObject obj : getGameObjectManager().getAllObjects()) {
-                            if (obj instanceof curly.octo.common.NPCObject) {
-                                npcs.add((curly.octo.common.NPCObject) obj);
-                            }
-                        }
-                        if (!npcs.isEmpty()) {
-                            mapRenderer.getDebugRenderer().renderNPCPaths(camera, npcs);
+                    // Render NPC paths (waypoints, wander zones)
+                    java.util.ArrayList<curly.octo.common.NPCObject> npcs = new java.util.ArrayList<>();
+                    for (curly.octo.common.GameObject obj : getGameObjectManager().getAllObjects()) {
+                        if (obj instanceof curly.octo.common.NPCObject) {
+                            npcs.add((curly.octo.common.NPCObject) obj);
                         }
                     }
-                } else {
-                    // Render full physics debug (includes terrain mesh)
+                    if (!npcs.isEmpty()) {
+                        mapRenderer.getDebugRenderer().renderNPCPaths(camera, npcs);
+                    }
                     getMapManager().renderPhysicsDebug(camera);
                 }
             }

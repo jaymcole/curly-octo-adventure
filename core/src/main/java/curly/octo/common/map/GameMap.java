@@ -55,7 +55,7 @@ public class GameMap {
 
     // Debug rendering
     private transient boolean debugRenderingEnabled = true;
-    private transient boolean characterOnlyDebugEnabled = false; // Toggle for character-only debug (players + NPCs, no terrain)
+    private transient boolean characterOnlyDebugEnabled = true; // Toggle for character-only debug (players + NPCs, no terrain)
 
     // Triangle mesh physics optimization
     private transient btTriangleMesh triangleMesh;

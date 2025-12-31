@@ -267,8 +267,11 @@ public class NPCObject extends WorldObject {
                             Vector3 waypoint = new Vector3(worldX, worldY, worldZ);
                             waypointQueue.add(waypoint);
 
-                            Log.debug("NPCObject", "  Tile [" + tileX + "," + tileY + "," + tileZ + "] → World " +
-                                     String.format("(%.1f, %.1f, %.1f)", worldX, worldY, worldZ));
+                            // DIAGNOSTIC: Log every 10th waypoint
+                            if (i % 30 == 0) {
+                                Log.info("NPCObject", "  Tile [" + tileX + "," + tileY + "," + tileZ + "] → World " +
+                                         String.format("(%.1f, %.1f, %.1f)", worldX, worldY, worldZ));
+                            }
                         }
                     }
 

@@ -328,12 +328,6 @@ public class DebugRenderer implements Disposable {
         if (npcs == null || npcs.isEmpty()) {
             return;
         }
-
-        // DIAGNOSTIC (only log occasionally to avoid spam)
-        if (Math.random() < 0.01) {  // ~1% of frames
-            com.esotericsoftware.minlog.Log.info("DebugRenderer", "renderNPCPaths: rendering " + npcs.size() + " NPCs");
-        }
-
         Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
@@ -352,17 +346,21 @@ public class DebugRenderer implements Disposable {
             java.util.List<Vector3> waypointQueue = npc.getWaypointQueue();
             int currentIndex = npc.getCurrentWaypointIndex();
 
-            // DIAGNOSTIC
-            if (waypointQueue == null || waypointQueue.isEmpty()) {
-                if (Math.random() < 0.01) {  // Occasional log
-                    com.esotericsoftware.minlog.Log.warn("DebugRenderer", "NPC " + npc.entityId +
-                            " has empty waypoint queue!");
-                }
-            }
+            // DIAGNOSTIC: Always log NPC state
+            com.esotericsoftware.minlog.Log.info("DebugRenderer", "  NPC " + npc.entityId +
+                    " at " + String.format("(%.1f, %.1f, %.1f)", npcPos.x, npcPos.y, npcPos.z) +
+                    " - waypoints: " + (waypointQueue != null ? waypointQueue.size() : 0) +
+                    " - currentIdx: " + currentIndex);
 
             // Draw waypoint queue as connected path
             if (waypointQueue != null && !waypointQueue.isEmpty()) {
                 Vector3 prev = npcPos;
+
+                // DIAGNOSTIC: Log first waypoint being drawn
+                Vector3 firstWp = waypointQueue.get(0);
+                com.esotericsoftware.minlog.Log.info("DebugRenderer", "    Drawing path from NPC pos " +
+                        String.format("(%.1f, %.1f, %.1f)", npcPos.x, npcPos.y, npcPos.z) +
+                        " to first waypoint " + String.format("(%.1f, %.1f, %.1f)", firstWp.x, firstWp.y, firstWp.z));
 
                 for (int i = 0; i < waypointQueue.size(); i++) {
                     Vector3 wp = waypointQueue.get(i);
@@ -377,14 +375,18 @@ public class DebugRenderer implements Disposable {
                     // Draw line segment
                     shapeRenderer.line(prev, wp);
 
-                    // Draw waypoint sphere for upcoming waypoints
+                    // Draw waypoint sphere for upcoming waypoints (FIXED: was 10f, way too big!)
                     if (i >= currentIndex) {
                         shapeRenderer.setColor(waypointColor);
-                        drawSphereWireframe(wp, 10f, 8);
+                        drawSphereWireframe(wp, 0.5f, 8);  // 0.5 units radius
                     }
 
                     prev = wp;
                 }
+
+                com.esotericsoftware.minlog.Log.info("DebugRenderer", "    ✓ Drew " + waypointQueue.size() + " waypoint segments");
+            } else {
+                com.esotericsoftware.minlog.Log.warn("DebugRenderer", "    ✗ NPC has EMPTY waypoint queue!");
             }
         }
 
