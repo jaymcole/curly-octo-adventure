@@ -49,6 +49,7 @@ public class ClientGameWorld {
         this.players = new ArrayList<>();
         this.environment = new Environment();
         this.gameObjectManager = new GameObjectManager();
+        this.gameObjectManager.setGameWorld(this);  // Set reference for physics initialization
 
         // Inlined from GameWorld.setupEnvironment()
         environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.0f, .0f, .0f, 1f));
@@ -655,9 +656,9 @@ public class ClientGameWorld {
 
     public void togglePlayerPhysicsDebug() {
         if (mapManager != null) {
-            boolean newState = !mapManager.isPlayerOnlyDebugEnabled();
-            mapManager.setPlayerOnlyDebugEnabled(newState);
-            Log.info("ClientGameWorld", "Player-only physics debug toggled: " + newState);
+            boolean newState = !mapManager.isDebugRenderingEnabled();
+            mapManager.setDebugRenderingEnabled(newState);
+            Log.info("ClientGameWorld", "Character physics debug (players + NPCs) toggled: " + newState);
         }
     }
 
@@ -680,7 +681,7 @@ public class ClientGameWorld {
     }
 
     public boolean isPlayerPhysicsDebugEnabled() {
-        return mapManager != null && mapManager.isPlayerOnlyDebugEnabled();
+        return mapManager != null && mapManager.isDebugRenderingEnabled();
     }
 
     public String getPhysicsStrategyInfo() {

@@ -106,9 +106,9 @@ public class DualLogger extends Log.Logger {
                 logsDir.mkdirs();
             }
 
-            // Open new log file in append mode
+            // Open new log file in overwrite mode (deletes existing file)
             File logFile = new File(logsDir, logFileName);
-            PrintWriter writer = new PrintWriter(new FileWriter(logFile, true));
+            PrintWriter writer = new PrintWriter(new FileWriter(logFile, false));
 
             // Write header to new log file
             writer.println("=".repeat(80));

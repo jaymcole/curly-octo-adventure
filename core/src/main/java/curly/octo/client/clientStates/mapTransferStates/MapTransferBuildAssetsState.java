@@ -84,18 +84,26 @@ public class MapTransferBuildAssetsState extends BaseGameStateClient {
                 clientWorld.getGameObjectManager().activePlayers.clear();
                 Log.info("MapTransferBuildAssetsState", "Cleared existing players before receiving new transfer payload");
 
-                Log.info("MapTransferBuildAssetsState", "Adding " + receivedGameObjects.size() +
-                        " game objects to GameObjectManager...");
-                // Add all received game objects to the client's GameObjectManager
-                for (GameObject obj : receivedGameObjects) {
-                    clientWorld.getGameObjectManager().add(obj);
-                    Log.info("MapTransferBuildAssetsState", "Added " + obj.getClass().getSimpleName() +
-                            " with ID: " + obj.entityId);
+                // Add game objects from transfer
+                if (receivedGameObjects == null) {
+                    Log.error("MapTransferBuildAssetsState", "receivedGameObjects is NULL!");
+                } else {
+                    Log.info("MapTransferBuildAssetsState", "Adding " + receivedGameObjects.size() +
+                            " game objects to GameObjectManager...");
+                    // Add all received game objects to the client's GameObjectManager
+                    for (GameObject obj : receivedGameObjects) {
+                        Log.info("MapTransferBuildAssetsState", "About to add " + obj.getClass().getSimpleName() +
+                                " with ID: " + obj.entityId);
+                        clientWorld.getGameObjectManager().add(obj);
+                        Log.info("MapTransferBuildAssetsState", "Successfully added " + obj.getClass().getSimpleName() +
+                                " with ID: " + obj.entityId);
+                    }
                 }
 
                 // Don't create local player here - it's already in the transfer payload
                 // Will be assigned when server sends PlayerAssignmentUpdate
-                Log.info("MapTransferBuildAssetsState", "Received " + receivedGameObjects.size() +
+                Log.info("MapTransferBuildAssetsState", "Received " +
+                        (receivedGameObjects != null ? receivedGameObjects.size() : 0) +
                         " game objects from transfer (players will be assigned by server)");
 
                 Log.info("MapTransferBuildAssetsState", "Asset building complete!");

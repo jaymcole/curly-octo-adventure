@@ -37,6 +37,7 @@ public class GameMap {
     // Collision groups
     public static final int GROUND_GROUP = 1 << 0;
     public static final int PLAYER_GROUP = 1 << 1;
+    public static final int NPC_GROUP = 1 << 2;
     private transient Random random;
 
     private transient boolean physicsInitialized;
@@ -54,7 +55,7 @@ public class GameMap {
 
     // Debug rendering
     private transient boolean debugRenderingEnabled = true;
-    private transient boolean playerOnlyDebugEnabled = false; // Toggle for player-only debug rendering
+    private transient boolean characterOnlyDebugEnabled = false; // Toggle for character-only debug (players + NPCs, no terrain)
 
     // Triangle mesh physics optimization
     private transient btTriangleMesh triangleMesh;
@@ -279,7 +280,7 @@ public class GameMap {
             terrainBody = new btRigidBody(info);
             terrainBody.setCollisionFlags(terrainBody.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_STATIC_OBJECT);
 
-            dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, PLAYER_GROUP);
+            dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, PLAYER_GROUP | NPC_GROUP);
             info.dispose();
 
             Log.info("GameMap", "Generated triangle mesh with " + totalTriangleCount + " triangles using " + builder.getStrategyDescription());
@@ -365,21 +366,21 @@ public class GameMap {
     }
 
     /**
-     * Enable or disable player-only physics debug rendering.
-     * When enabled, only player capsules are rendered (not terrain mesh).
-     * @param enabled Whether to show only player physics wireframes
+     * Enable or disable character-only physics debug rendering.
+     * When enabled, only player and NPC capsules are rendered (not terrain mesh).
+     * @param enabled Whether to show only character physics wireframes
      */
     public void setPlayerOnlyDebugEnabled(boolean enabled) {
-        this.playerOnlyDebugEnabled = enabled;
-        Log.info("GameMap", "Player-only physics debug " + (enabled ? "enabled" : "disabled"));
+        this.characterOnlyDebugEnabled = enabled;
+        Log.info("GameMap", "Character-only physics debug (players + NPCs) " + (enabled ? "enabled" : "disabled"));
     }
 
     /**
-     * Check if player-only physics debug rendering is enabled.
-     * @return True if player-only debug rendering is enabled
+     * Check if character-only physics debug rendering is enabled.
+     * @return True if character-only debug rendering is enabled
      */
     public boolean isPlayerOnlyDebugEnabled() {
-        return playerOnlyDebugEnabled;
+        return characterOnlyDebugEnabled;
     }
 
     /**
@@ -399,7 +400,28 @@ public class GameMap {
             Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
             debugDrawer.begin(camera);
+
+            // Only render player and NPC physics bodies (not terrain)
+            // Temporarily remove terrain body to hide it from debug drawing
+            boolean terrainWasInWorld = false;
+            if (terrainBody != null) {
+                dynamicsWorld.removeRigidBody(terrainBody);
+                terrainWasInWorld = true;
+            }
+
+            // Draw all remaining bodies (players + NPCs only)
             dynamicsWorld.debugDrawWorld();
+
+            // Re-add terrain body for physics simulation
+            if (terrainWasInWorld && terrainBody != null) {
+                dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, PLAYER_GROUP | NPC_GROUP);
+            }
+
+            /* Commented out: World collider rendering (too many bodies, causes lag)
+            // Draw all physics bodies (terrain + characters)
+            dynamicsWorld.debugDrawWorld();
+            */
+
             debugDrawer.end();
 
             // Restore depth testing state
@@ -447,8 +469,8 @@ public class GameMap {
         playerController.setMaxJumpHeight(4f);
         playerController.setUseGhostSweepTest(false);
 
-        // Add player to physics world - collides with ground AND other players
-        dynamicsWorld.addCollisionObject(playerGhostObject, PLAYER_GROUP, GROUND_GROUP | PLAYER_GROUP);
+        // Add player to physics world - collides with ground, other players, and NPCs
+        dynamicsWorld.addCollisionObject(playerGhostObject, PLAYER_GROUP, GROUND_GROUP | PLAYER_GROUP | NPC_GROUP);
         dynamicsWorld.addAction(playerController);
         playerGhostObject.setUserPointer(0L);
 

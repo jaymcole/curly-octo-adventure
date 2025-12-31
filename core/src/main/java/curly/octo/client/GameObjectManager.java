@@ -31,6 +31,8 @@ public class GameObjectManager implements Disposable {
     private final ModelAssetManager modelAssetManager = new ModelAssetManager();
     private final Array<ModelInstance> renderQueue = new Array<>();
 
+    private ClientGameWorld gameWorld;  // Reference to game world for physics initialization
+
     public void update(float delta) {
         for(GameObject objects : gameObjects) {
             if (!gameObjectsToBeRemoved.contains(objects)) {
@@ -119,12 +121,33 @@ public class GameObjectManager implements Disposable {
             if (gameObject instanceof curly.octo.common.NPCObject) {
                 curly.octo.common.NPCObject npcObject = (curly.octo.common.NPCObject) gameObject;
                 Log.info("GameObjectManager", "Adding NPC: " + npcObject.entityId + " at position: " + npcObject.getPosition());
+
                 // Initialize graphics with placeholder model
                 if (!npcObject.isGraphicsInitialized()) {
                     npcObject.initializeGraphics(modelAssetManager);
                     Log.info("GameObjectManager", "NPC graphics initialized for: " + npcObject.entityId);
                 } else {
                     Log.info("GameObjectManager", "NPC graphics already initialized for: " + npcObject.entityId);
+                }
+
+                // Initialize physics for collision detection
+                Log.info("GameObjectManager", "NPC physics check - isPhysicsInitialized: " + npcObject.isPhysicsInitialized() +
+                    ", gameWorld: " + (gameWorld != null ? "exists" : "null"));
+
+                if (!npcObject.isPhysicsInitialized()) {
+                    if (gameWorld == null) {
+                        Log.error("GameObjectManager", "Cannot initialize NPC physics - gameWorld is null!");
+                    } else if (gameWorld.getMapManager() == null) {
+                        Log.warn("GameObjectManager", "Skipping NPC physics init - mapManager is null for: " + npcObject.entityId);
+                    } else if (!gameWorld.getMapManager().isPhysicsInitialized()) {
+                        Log.warn("GameObjectManager", "Skipping NPC physics init - map physics not initialized for: " + npcObject.entityId);
+                    } else {
+                        Log.info("GameObjectManager", "Initializing NPC physics for: " + npcObject.entityId);
+                        npcObject.initializePhysics(gameWorld.getMapManager().dynamicsWorld);
+                        Log.info("GameObjectManager", "NPC physics initialized successfully for: " + npcObject.entityId);
+                    }
+                } else {
+                    Log.info("GameObjectManager", "NPC physics already initialized for: " + npcObject.entityId);
                 }
             }
 
@@ -178,6 +201,10 @@ public class GameObjectManager implements Disposable {
         gameLightsToBeRemoved.clear();
 
         Log.info("GameObjectManager", "All lights cleared and disposed");
+    }
+
+    public void setGameWorld(ClientGameWorld gameWorld) {
+        this.gameWorld = gameWorld;
     }
 
     @Override

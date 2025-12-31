@@ -524,8 +524,8 @@ public class PlayerObject extends WorldObject {
         // Set initial transform
         remotePhysicsBody.setWorldTransform(transform);
 
-        // Add to physics world with player collision group
-        map. dynamicsWorld.addRigidBody(remotePhysicsBody, GameMap.PLAYER_GROUP, GameMap.GROUND_GROUP | GameMap.PLAYER_GROUP);
+        // Add to physics world with player collision group - collides with ground, other players, and NPCs
+        map. dynamicsWorld.addRigidBody(remotePhysicsBody, GameMap.PLAYER_GROUP, GameMap.GROUND_GROUP | GameMap.PLAYER_GROUP | GameMap.NPC_GROUP);
 
         Log.info("PlayerObject", "Initialized remote physics body for player " + entityId +
                  " at position " + position + " (radius: " + radius + ", height: " + height + ")");

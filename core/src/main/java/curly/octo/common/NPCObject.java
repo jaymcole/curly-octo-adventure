@@ -8,7 +8,7 @@ import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
-import com.badlogic.gdx.physics.bullet.collision.btBoxShape;
+import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
 import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.network.messages.NPCInstructionMessage;
@@ -44,8 +44,9 @@ public class NPCObject extends WorldObject {
 
     // Physics
     private transient btRigidBody physicsBody;
-    private transient btBoxShape physicsShape;
+    private transient btCapsuleShape physicsShape;
     private transient boolean physicsInitialized = false;
+    private Vector3 externalForce = new Vector3(0, 0, 0);  // For push mechanics
 
     // Rendering
     private transient ModelAssetManager.ModelBounds modelBounds;
@@ -132,8 +133,10 @@ public class NPCObject extends WorldObject {
         if (physicsInitialized || position == null) return;
 
         try {
-            // Create box collision shape
-            physicsShape = new btBoxShape(new Vector3(NPC_WIDTH / 2, NPC_HEIGHT / 2, NPC_DEPTH / 2));
+            // Create capsule collision shape (radius, height) - same size as player
+            float capsuleRadius = 1.0f;
+            float capsuleHeight = 5.0f;
+            physicsShape = new btCapsuleShape(capsuleRadius, capsuleHeight);
 
             // Create rigid body with zero mass (kinematic)
             btRigidBody.btRigidBodyConstructionInfo constructionInfo =
@@ -146,21 +149,43 @@ public class NPCObject extends WorldObject {
             );
             physicsBody.setActivationState(com.badlogic.gdx.physics.bullet.collision.Collision.DISABLE_DEACTIVATION);
 
-            // Set initial position
+            // Set initial position (capsule center is at height/2 + radius above ground)
             com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4();
-            transform.setToTranslation(position);
+            transform.setToTranslation(
+                position.x,
+                position.y + capsuleHeight / 2f + capsuleRadius,
+                position.z
+            );
+            transform.rotate(Vector3.Y, yaw);
             physicsBody.setWorldTransform(transform);
 
-            // Add to dynamics world
-            dynamicsWorld.addRigidBody(physicsBody);
+            // Add to dynamics world with collision groups
+            dynamicsWorld.addRigidBody(physicsBody,
+                curly.octo.common.map.GameMap.NPC_GROUP,
+                curly.octo.common.map.GameMap.GROUND_GROUP |
+                curly.octo.common.map.GameMap.PLAYER_GROUP |
+                curly.octo.common.map.GameMap.NPC_GROUP
+            );
 
             constructionInfo.dispose();
 
             physicsInitialized = true;
-            Log.info("NPCObject", "Physics initialized for NPC " + entityId);
+            Log.info("NPCObject", "Physics initialized for NPC " + entityId + " with capsule collision (r=" +
+                capsuleRadius + ", h=" + capsuleHeight + ")");
         } catch (Exception e) {
             Log.error("NPCObject", "Failed to initialize physics for NPC " + entityId + ": " + e.getMessage());
         }
+    }
+
+    /**
+     * Apply external force to NPC (e.g., from player collision push).
+     * @param force Force vector to apply
+     */
+    public void applyPushForce(Vector3 force) {
+        if (externalForce == null) {
+            externalForce = new Vector3();
+        }
+        externalForce.add(force);
     }
 
     /**
@@ -246,10 +271,17 @@ public class NPCObject extends WorldObject {
                 break;
         }
 
+        // Apply external forces (push mechanics) with damping
+        if (externalForce != null && externalForce.len() > 0.01f) {
+            position.add(externalForce.x * delta, externalForce.y * delta, externalForce.z * delta);
+            externalForce.scl(0.95f);  // Damping - forces decay over time
+        }
+
         // Update physics body position if initialized
         if (physicsBody != null && position != null) {
             com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4();
-            transform.setToTranslation(position);
+            // Capsule offset: height/2 + radius = 2.5 + 1.0 = 3.5
+            transform.setToTranslation(position.x, position.y + 3.5f, position.z);
             transform.rotate(Vector3.Y, yaw);
             physicsBody.setWorldTransform(transform);
         }

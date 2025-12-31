@@ -362,11 +362,11 @@ public class Main extends ApplicationAdapter implements MainMenuScreen.MainMenuL
 
     @Override
     public void onTogglePlayerPhysicsDebug() {
-        // Debug controls operate on the client's world (where rendering happens)
+        // F3: Toggle character physics debug rendering (players + NPCs only, no terrain)
         if (clientGameMode != null && clientGameMode.getGameWorld() != null) {
             ClientGameWorld clientGameWorld = clientGameMode.getGameWorld();
             clientGameWorld.togglePlayerPhysicsDebug();
-            Log.info("Main", "Player physics debug toggled: " + clientGameWorld.isPlayerPhysicsDebugEnabled());
+            Log.info("Main", "Character physics debug (players + NPCs) toggled: " + clientGameWorld.isPlayerPhysicsDebugEnabled());
             updatePhysicsDebugUI(clientGameWorld);
         }
     }
