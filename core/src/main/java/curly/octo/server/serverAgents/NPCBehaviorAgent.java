@@ -8,6 +8,7 @@ import curly.octo.common.network.NetworkManager;
 import curly.octo.common.network.messages.NPCInstructionMessage;
 import curly.octo.server.ServerGameObjectManager;
 
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -71,7 +72,8 @@ public class NPCBehaviorAgent extends BaseAgent {
         }
 
         // Generate waypoint list as tile indices (10-20 waypoints along straight path)
-        java.util.List<int[]> waypointTileIndices = generateWaypointTileIndices(npc.entityId, startPos);
+        List<int[]> waypointTileIndices = generateWaypointTileIndices(npc.entityId, startPos);
+        waypointTileIndices = reduceWaypoints(waypointTileIndices);
 
         if (waypointTileIndices.isEmpty()) {
             Log.warn("NPCBehaviorAgent", "Failed to generate waypoints for NPC " + npc.entityId);
@@ -114,6 +116,62 @@ public class NPCBehaviorAgent extends BaseAgent {
                  " waypoint tiles to NPC " + npc.entityId + " (speed: 0.3)");
     }
 
+
+    /**
+     * Takes in a list of waypoint and removes redundant points.
+     * Waypoints are removed if they lay on the same line between neighboring waypoints.
+     * @param waypoints
+     * @return a new reduced list of tile indices where each point indicates a change in direction.
+     */
+    private List<int[]> reduceWaypoints(List<int[]> waypoints) {
+        // Handle edge cases
+        if (waypoints == null || waypoints.size() <= 2) {
+            return waypoints;
+        }
+
+        java.util.ArrayList<int[]> reduced = new java.util.ArrayList<>();
+        reduced.add(waypoints.get(0)); // Always keep first waypoint
+
+        // Check each waypoint to see if it represents a direction change
+        for (int i = 1; i < waypoints.size() - 1; i++) {
+            int[] prev = waypoints.get(i - 1);
+            int[] curr = waypoints.get(i);
+            int[] next = waypoints.get(i + 1);
+
+            // If current point is NOT collinear with prev and next, it's a direction change - keep it
+            if (!areCollinear(prev, curr, next)) {
+                reduced.add(curr);
+            }
+        }
+
+        reduced.add(waypoints.get(waypoints.size() - 1)); // Always keep last waypoint
+        return reduced;
+    }
+
+    /**
+     * Check if three points are collinear (lie on the same line).
+     * Uses cross product: if AB × BC = 0, then points are collinear.
+     */
+    private boolean areCollinear(int[] a, int[] b, int[] c) {
+        // Vector from A to B
+        int abX = b[0] - a[0];
+        int abY = b[1] - a[1];
+        int abZ = b[2] - a[2];
+
+        // Vector from B to C
+        int bcX = c[0] - b[0];
+        int bcY = c[1] - b[1];
+        int bcZ = c[2] - b[2];
+
+        // Cross product AB × BC
+        int crossX = abY * bcZ - abZ * bcY;
+        int crossY = abZ * bcX - abX * bcZ;
+        int crossZ = abX * bcY - abY * bcX;
+
+        // Points are collinear if cross product is zero vector
+        return crossX == 0 && crossY == 0 && crossZ == 0;
+    }
+
     /**
      * Generate a list of waypoint tile indices using grid-based pathfinding.
      * Creates waypoints for each tile step to prevent diagonal movement.
@@ -123,7 +181,7 @@ public class NPCBehaviorAgent extends BaseAgent {
      * @param startPos Current NPC world position
      * @return List of tile index triplets [x,y,z] (empty if generation fails)
      */
-    private java.util.List<int[]> generateWaypointTileIndices(String npcId, Vector3 startPos) {
+    private List<int[]> generateWaypointTileIndices(String npcId, Vector3 startPos) {
         java.util.List<int[]> waypointTiles = new java.util.ArrayList<>();
 
         if (mapManager == null) {

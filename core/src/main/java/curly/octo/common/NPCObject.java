@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
+import com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.network.messages.NPCInstructionMessage;
 
@@ -158,7 +159,7 @@ public class NPCObject extends WorldObject {
      * Initialize physics using character controller for proper physics-based movement.
      * NPCs use the same character controller as players for consistent movement behavior.
      */
-    public void initializePhysics(com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld dynamicsWorld) {
+    public void initializePhysics(btDiscreteDynamicsWorld dynamicsWorld) {
         if (physicsInitialized || position == null) return;
 
         try {
@@ -309,181 +310,6 @@ public class NPCObject extends WorldObject {
         }
 
         Log.info("NPCObject", "NPC " + entityId + " executing instruction: " + instruction.type);
-    }
-
-    /**
-     * Generate a new random waypoint for wandering.
-     * Validates waypoints to ensure they're not in walls or over holes.
-     * Uses deterministic retry logic to maintain sync across clients.
-     *
-     * Two modes:
-     * - Map-wide (wanderRadius == 0): Pick random floor tile from entire map
-     * - Radius-based (wanderRadius > 0): Pick random point within radius of center
-     */
-    private void generateNewWaypoint() {
-        if (currentInstruction == null || instructionRng == null) return;
-
-        // Check if we're in map-wide wandering mode
-        if (wanderRadius == 0f && gameMap != null) {
-            // Map-wide mode: pick a random walkable tile from entire map
-            generateMapWideWaypoint();
-        } else {
-            // Radius-based mode: pick random point within wander radius
-            generateRadiusWaypoint();
-        }
-    }
-
-    /**
-     * Generate waypoint by picking a random walkable tile from the entire map.
-     * Uses intermediate waypoints - picks tiles within a safe distance on the same floor level.
-     */
-    private void generateMapWideWaypoint() {
-        if (gameMap == null || position == null) {
-            Log.warn("NPCObject", "Cannot generate map-wide waypoint - no map reference or position");
-            return;
-        }
-
-        // Get all tiles from the map
-        java.util.ArrayList<curly.octo.common.map.MapTile> allTiles = gameMap.getAllTiles();
-
-        if (allTiles.isEmpty()) {
-            Log.warn("NPCObject", "No tiles available for waypoint generation");
-            return;
-        }
-
-        // Strategy: Pick tiles that are:
-        // 1. Within a reasonable distance (10-30 units for intermediate waypoints)
-        // 2. At the same height level (±2 units to allow for slopes)
-        // 3. Walkable (not walls or over holes)
-
-        float currentHeight = position.y;
-        float minDistance = 10.0f;  // Minimum distance to make it interesting
-        float maxDistance = 30.0f;  // Maximum distance for safe navigation
-        float maxHeightDiff = 2.0f; // Stay on same floor (allow small height changes)
-
-        // Try to find a suitable tile
-        Log.info("NPCObject", "NPC " + entityId + " generating map-wide waypoint (current pos: " +
-                String.format("%.1f, %.1f, %.1f", position.x, position.y, position.z) +
-                ", available tiles: " + allTiles.size() + ")");
-
-        for (int attempt = 0; attempt < MAX_WAYPOINT_ATTEMPTS * 10; attempt++) {
-            // Pick a random tile using seeded RNG
-            int randomIndex = instructionRng.nextInt(allTiles.size());
-            curly.octo.common.map.MapTile tile = allTiles.get(randomIndex);
-
-            if (tile == null) continue;
-
-            // Check if this tile position is walkable
-            float candidateX = tile.x;
-            float candidateY = tile.y;
-            float candidateZ = tile.z;
-
-            // Check height constraint (same floor level)
-            float heightDiff = Math.abs(candidateY - currentHeight);
-            float distance = position.dst(candidateX, candidateY, candidateZ);
-
-            if (attempt < 5) {
-                // Log first few attempts for diagnostics
-                Log.info("NPCObject", "  Attempt " + attempt + ": tile (" +
-                        String.format("%.1f, %.1f, %.1f", candidateX, candidateY, candidateZ) +
-                        ") - height diff: " + String.format("%.1f", heightDiff) +
-                        ", distance: " + String.format("%.1f", distance));
-            }
-
-            if (heightDiff > maxHeightDiff) {
-                continue; // Different floor level, skip
-            }
-
-            // Check distance constraint (not too close, not too far)
-            if (distance < minDistance || distance > maxDistance) {
-                continue; // Too close or too far
-            }
-
-            // Check if walkable
-            if (gameMap.isPositionWalkable(candidateX, candidateY, candidateZ)) {
-                // Valid waypoint found!
-                currentWaypoint.set(candidateX, candidateY, candidateZ);
-                Log.info("NPCObject", "✓ NPC " + entityId + " SELECTED waypoint at (" +
-                        String.format("%.1f, %.1f, %.1f", candidateX, candidateY, candidateZ) +
-                        ") - distance: " + String.format("%.1f", distance) +
-                        ", height diff: " + String.format("%.1f", heightDiff) +
-                        " (attempt " + attempt + ")");
-                return;
-            }
-        }
-
-        // Fallback: if no suitable tile found, try just nearby walkable tiles (relax distance constraint)
-        Log.warn("NPCObject", "NPC " + entityId + " failed primary waypoint search, trying relaxed constraints...");
-
-        for (int attempt = 0; attempt < MAX_WAYPOINT_ATTEMPTS * 5; attempt++) {
-            int randomIndex = instructionRng.nextInt(allTiles.size());
-            curly.octo.common.map.MapTile tile = allTiles.get(randomIndex);
-
-            if (tile == null) continue;
-
-            float candidateX = tile.x;
-            float candidateY = tile.y;
-            float candidateZ = tile.z;
-
-            // Same height constraint still applies
-            float heightDiff = Math.abs(candidateY - currentHeight);
-            if (heightDiff > maxHeightDiff) continue;
-
-            // Relaxed distance: any distance up to 50 units
-            float distance = position.dst(candidateX, candidateY, candidateZ);
-            if (distance > 50.0f) continue;
-
-            if (gameMap.isPositionWalkable(candidateX, candidateY, candidateZ)) {
-                currentWaypoint.set(candidateX, candidateY, candidateZ);
-                Log.info("NPCObject", "✓ NPC " + entityId + " SELECTED fallback waypoint at (" +
-                        String.format("%.1f, %.1f, %.1f", candidateX, candidateY, candidateZ) +
-                        ") - distance: " + String.format("%.1f", distance));
-                return;
-            }
-        }
-
-        // Last resort: stay at current position
-        if (position != null) {
-            currentWaypoint.set(position);
-            Log.warn("NPCObject", "NPC " + entityId + " failed to find suitable waypoint - staying in place");
-        }
-    }
-
-    /**
-     * Generate waypoint within wander radius (old behavior).
-     */
-    private void generateRadiusWaypoint() {
-        // Try to generate a valid waypoint (max attempts for determinism)
-        for (int attempt = 0; attempt < MAX_WAYPOINT_ATTEMPTS; attempt++) {
-            // Generate random point within wander radius using seeded RNG
-            float angle = instructionRng.nextFloat() * (float) Math.PI * 2;
-            float distance = instructionRng.nextFloat() * wanderRadius;
-
-            float candidateX = wanderCenter.x + (float) Math.cos(angle) * distance;
-            float candidateY = wanderCenter.y;
-            float candidateZ = wanderCenter.z + (float) Math.sin(angle) * distance;
-
-            // Validate waypoint if we have a map reference
-            if (gameMap != null) {
-                if (gameMap.isPositionWalkable(candidateX, candidateY, candidateZ)) {
-                    // Valid waypoint found!
-                    currentWaypoint.set(candidateX, candidateY, candidateZ);
-                    return;
-                }
-                // Invalid waypoint - try again with next random values
-            } else {
-                // No map reference - accept waypoint without validation
-                currentWaypoint.set(candidateX, candidateY, candidateZ);
-                return;
-            }
-        }
-
-        // All attempts failed - stay at current position
-        if (position != null) {
-            currentWaypoint.set(position);
-            Log.warn("NPCObject", "NPC " + entityId + " failed to find valid waypoint after " +
-                    MAX_WAYPOINT_ATTEMPTS + " attempts - staying in place");
-        }
     }
 
     @Override
