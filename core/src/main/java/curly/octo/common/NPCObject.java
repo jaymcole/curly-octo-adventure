@@ -54,6 +54,7 @@ public class NPCObject extends WorldObject {
     private transient com.badlogic.gdx.physics.bullet.collision.btPairCachingGhostObject ghostObject;
     private transient com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController characterController;
     private transient btCapsuleShape physicsShape;
+    private transient com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld dynamicsWorld;
     private transient boolean physicsInitialized = false;
     private Vector3 externalForce = new Vector3(0, 0, 0);  // For push mechanics
 
@@ -162,6 +163,9 @@ public class NPCObject extends WorldObject {
     public void initializePhysics(btDiscreteDynamicsWorld dynamicsWorld) {
         if (physicsInitialized || position == null) return;
 
+        // Store dynamics world reference for raycasting
+        this.dynamicsWorld = dynamicsWorld;
+
         try {
             // Create capsule collision shape (radius, height) - same size as player
             float capsuleRadius = 1.0f;
@@ -260,10 +264,10 @@ public class NPCObject extends WorldObject {
                             int tileY = waypointTileIndices[i + 1];
                             int tileZ = waypointTileIndices[i + 2];
 
-                            // Convert tile indices to world coordinates
-                            float worldX = tileX * curly.octo.common.Constants.MAP_TILE_SIZE;
-                            float worldY = tileY * curly.octo.common.Constants.MAP_TILE_SIZE;
-                            float worldZ = tileZ * curly.octo.common.Constants.MAP_TILE_SIZE;
+                            // Convert tile indices to world coordinates (centered in tile)
+                            float worldX = tileX * curly.octo.common.Constants.MAP_TILE_SIZE + curly.octo.common.Constants.MAP_TILE_SIZE / 2f;
+                            float worldY = tileY * curly.octo.common.Constants.MAP_TILE_SIZE + curly.octo.common.Constants.MAP_TILE_SIZE / 2f;
+                            float worldZ = tileZ * curly.octo.common.Constants.MAP_TILE_SIZE + curly.octo.common.Constants.MAP_TILE_SIZE / 2f;
 
                             Vector3 waypoint = new Vector3(worldX, worldY, worldZ);
                             waypointQueue.add(waypoint);
@@ -369,52 +373,7 @@ public class NPCObject extends WorldObject {
         }
 
         // Stuck detection and recovery
-        if (position != null && lastPosition != null && currentInstruction != null) {
-            float distanceMoved = position.dst(lastPosition);
-
-            if (distanceMoved < STUCK_DISTANCE) {
-                // NPC barely moved - might be stuck against wall
-                stuckTimer += delta;
-
-                if (stuckTimer >= STUCK_THRESHOLD) {
-                    // Stuck! Generate escape waypoint in opposite direction
-                    Log.warn("NPCObject", "NPC " + entityId + " stuck for " +
-                            String.format("%.1f", stuckTimer) + "s - generating escape waypoint");
-
-                    // Calculate direction away from current waypoint
-                    if (currentWaypoint != null) {
-                        Vector3 awayDirection = new Vector3(position).sub(currentWaypoint);
-                        awayDirection.y = 0; // Keep horizontal
-
-                        if (awayDirection.len2() > 0.01f) {
-                            awayDirection.nor();
-
-                            // Add some randomness to escape direction (deterministic)
-                            float randomAngle = (instructionRng != null ? instructionRng.nextFloat() : 0.5f) * 90f - 45f; // ±45°
-                            awayDirection.rotate(Vector3.Y, randomAngle);
-
-                            // Set escape waypoint a short distance away
-                            float escapeDistance = 3.0f;
-                            currentWaypoint.set(
-                                position.x + awayDirection.x * escapeDistance,
-                                position.y,
-                                position.z + awayDirection.z * escapeDistance
-                            );
-
-                            Log.info("NPCObject", "Escape waypoint set at distance " + escapeDistance);
-                        }
-                    }
-
-                    stuckTimer = 0f; // Reset stuck timer
-                }
-            } else {
-                // NPC is moving - reset stuck timer
-                stuckTimer = 0f;
-            }
-
-            // Store current position for next frame comparison
-            lastPosition.set(position);
-        }
+        updateStuckDetection(delta);
 
         // Update model instance position
         if (getModelInstance() != null && position != null) {
@@ -482,8 +441,10 @@ public class NPCObject extends WorldObject {
             // Update yaw to face movement direction
             yaw = (float) Math.toDegrees(Math.atan2(direction.x, direction.z));
 
-            // Return velocity (units per second) for character controller
-            return direction.scl(movementSpeed);
+            // Calculate desired velocity and apply wall sliding
+            Vector3 finalVelocity = direction.scl(movementSpeed);
+            finalVelocity = applyWallSliding(finalVelocity);
+            return finalVelocity;
         }
 
         return new Vector3(0, 0, 0);
@@ -531,6 +492,110 @@ public class NPCObject extends WorldObject {
         // Smaller errors are ignored - let physics handle smooth movement
 
         lastSyncedPosition.set(syncPosition);
+    }
+
+    /**
+     * Update stuck detection and trigger recovery if needed.
+     */
+    private void updateStuckDetection(float delta) {
+        if (position == null || lastPosition == null || waypointQueue.isEmpty()) {
+            return;
+        }
+
+        float distanceMoved = position.dst(lastPosition);
+
+        // Are we trying to move but not making progress?
+        boolean tryingToMove = (currentInstruction != null &&
+                               currentInstruction.type == NPCInstructionMessage.InstructionType.WANDER &&
+                               currentWaypointIndex < waypointQueue.size());
+
+        if (tryingToMove && distanceMoved < STUCK_DISTANCE) {
+            stuckTimer += delta;
+
+            if (stuckTimer >= 1.5f) {  // Reduced from 3.0 to 1.5 seconds
+                Log.warn("NPCObject", "NPC " + entityId + " stuck - attempting recovery");
+                handleStuckRecovery();
+                stuckTimer = 0f;
+            }
+        } else {
+            stuckTimer = 0f;
+        }
+
+        // Store current position for next frame comparison
+        if (lastPosition != null && position != null) {
+            lastPosition.set(position);
+        }
+    }
+
+    /**
+     * Handle stuck recovery by trying different strategies.
+     */
+    private void handleStuckRecovery() {
+        // Strategy 1: Skip to next waypoint if available
+        if (currentWaypointIndex + 1 < waypointQueue.size()) {
+            Log.info("NPCObject", "Skipping problematic waypoint " + currentWaypointIndex);
+            currentWaypointIndex++;
+            targetWaypoint.set(waypointQueue.get(currentWaypointIndex));
+            return;
+        }
+
+        // Strategy 2: Go back to previous waypoint and try again
+        if (currentWaypointIndex > 0) {
+            Log.info("NPCObject", "Backing up to previous waypoint");
+            currentWaypointIndex--;
+            targetWaypoint.set(waypointQueue.get(currentWaypointIndex));
+            return;
+        }
+
+        // Strategy 3: Clear path - server will generate new path when it detects completion
+        Log.info("NPCObject", "Clearing failed path - awaiting new instruction");
+        waypointQueue.clear();
+        currentWaypointIndex = 0;
+    }
+
+    /**
+     * Apply wall sliding behavior to prevent getting stuck on obstacles.
+     * Uses raycasting to detect walls ahead and slides along them.
+     *
+     * @param desiredVelocity The velocity the NPC wants to move at
+     * @return The adjusted velocity that slides along walls
+     */
+    private Vector3 applyWallSliding(Vector3 desiredVelocity) {
+        if (characterController == null || dynamicsWorld == null || desiredVelocity.len2() < 0.01f) {
+            return desiredVelocity;
+        }
+
+        // Raycast ahead in movement direction (at mid-capsule height)
+        Vector3 rayStart = new Vector3(position);
+        rayStart.y += 3.0f;  // Mid-height of capsule
+
+        Vector3 rayDirection = new Vector3(desiredVelocity).nor();
+        Vector3 rayEnd = new Vector3(rayStart).add(rayDirection.scl(1.5f));  // Look 1.5 units ahead
+
+        com.badlogic.gdx.physics.bullet.collision.ClosestRayResultCallback rayCallback =
+            new com.badlogic.gdx.physics.bullet.collision.ClosestRayResultCallback(rayStart, rayEnd);
+
+        dynamicsWorld.rayTest(rayStart, rayEnd, rayCallback);
+
+        if (rayCallback.hasHit()) {
+            // Wall detected ahead - calculate slide direction
+            Vector3 hitNormal = new Vector3();
+            rayCallback.getHitNormalWorld(hitNormal);
+
+            // Project velocity onto plane perpendicular to wall normal
+            Vector3 slideVelocity = new Vector3(desiredVelocity);
+            float dotProduct = slideVelocity.dot(hitNormal);
+
+            if (dotProduct < 0) {  // Moving toward wall
+                // Remove velocity component toward wall, keeping parallel component
+                slideVelocity.sub(new Vector3(hitNormal).scl(dotProduct));
+                rayCallback.dispose();
+                return slideVelocity;
+            }
+        }
+
+        rayCallback.dispose();
+        return desiredVelocity;
     }
 
     /**

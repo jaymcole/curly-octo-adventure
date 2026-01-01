@@ -173,6 +173,60 @@ public class NPCBehaviorAgent extends BaseAgent {
     }
 
     /**
+     * Check if an NPC with given radius can navigate from one tile to another.
+     * Validates that adjacent tiles don't have walls that would block the NPC's capsule.
+     *
+     * @param fromX Source tile X index
+     * @param fromY Source tile Y index
+     * @param fromZ Source tile Z index
+     * @param toX Destination tile X index
+     * @param toY Destination tile Y index
+     * @param toZ Destination tile Z index
+     * @param npcRadius Radius of NPC capsule collision shape
+     * @return true if path segment is safe for NPC to traverse
+     */
+    private boolean isPathSegmentSafe(int fromX, int fromY, int fromZ,
+                                      int toX, int toY, int toZ,
+                                      float npcRadius) {
+        // Determine movement direction
+        int dx = Integer.compare(toX, fromX);
+        int dz = Integer.compare(toZ, fromZ);
+
+        // Check perpendicular tiles for walls that would block NPC capsule
+        // If moving in X direction, check Z neighbors
+        // If moving in Z direction, check X neighbors
+
+        if (dx != 0) {
+            // Moving along X - check tiles above/below in Z
+            for (int offsetZ : new int[]{-1, 1}) {
+                curly.octo.common.map.MapTile adjacent = mapManager.getTile(toX, toY, toZ + offsetZ);
+                if (adjacent != null && adjacent.geometryType != curly.octo.common.map.enums.MapTileGeometryType.EMPTY) {
+                    // Wall exists - check if within NPC radius
+                    float wallDistance = Math.abs(offsetZ) * curly.octo.common.Constants.MAP_TILE_SIZE;
+                    if (wallDistance < npcRadius + 0.2f) {  // 0.2 safety margin
+                        return false;  // Too narrow for NPC
+                    }
+                }
+            }
+        }
+
+        if (dz != 0) {
+            // Moving along Z - check tiles left/right in X
+            for (int offsetX : new int[]{-1, 1}) {
+                curly.octo.common.map.MapTile adjacent = mapManager.getTile(toX + offsetX, toY, toZ);
+                if (adjacent != null && adjacent.geometryType != curly.octo.common.map.enums.MapTileGeometryType.EMPTY) {
+                    float wallDistance = Math.abs(offsetX) * curly.octo.common.Constants.MAP_TILE_SIZE;
+                    if (wallDistance < npcRadius + 0.2f) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;  // Path is clear
+    }
+
+    /**
      * Generate a list of waypoint tile indices using grid-based pathfinding.
      * Creates waypoints for each tile step to prevent diagonal movement.
      * Chooses a far destination on the other side of the map.
@@ -274,13 +328,27 @@ public class NPCBehaviorAgent extends BaseAgent {
             float worldY = currentY * curly.octo.common.Constants.MAP_TILE_SIZE;
             float worldZ = currentZ * curly.octo.common.Constants.MAP_TILE_SIZE;
 
-            // Validate waypoint is walkable
-            if (mapManager.isPositionWalkable(worldX, worldY, worldZ)) {
+            // Validate waypoint is walkable and path segment is safe for NPC capsule
+            boolean isWalkable = mapManager.isPositionWalkable(worldX, worldY, worldZ);
+            boolean isSegmentSafe = waypointTiles.isEmpty() || isPathSegmentSafe(
+                waypointTiles.get(waypointTiles.size()-1)[0],
+                waypointTiles.get(waypointTiles.size()-1)[1],
+                waypointTiles.get(waypointTiles.size()-1)[2],
+                currentX, currentY, currentZ,
+                1.0f  // TODO: Pass actual NPC radius when supporting different sizes
+            );
+
+            if (isWalkable && isSegmentSafe) {
                 waypointTiles.add(new int[]{currentX, currentY, currentZ});
             } else {
-                Log.warn("NPCBehaviorAgent", "Encountered non-walkable tile at [" +
-                          currentX + "," + currentY + "," + currentZ + "] - stopping path early");
-                break;  // Stop if we hit a wall
+                if (!isWalkable) {
+                    Log.warn("NPCBehaviorAgent", "Encountered non-walkable tile at [" +
+                              currentX + "," + currentY + "," + currentZ + "] - stopping path early");
+                } else {
+                    Log.warn("NPCBehaviorAgent", "Path too narrow for NPC at [" +
+                              currentX + "," + currentY + "," + currentZ + "] - stopping path early");
+                }
+                break;  // Stop if we hit a wall or narrow corridor
             }
         }
 
