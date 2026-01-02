@@ -61,6 +61,9 @@ public class ServerWaitForClientsToBeReadyState extends BaseGameStateServer {
             ServerStateManager.setServerState(ServerPlayingState.class);
             NetworkManager.sendToAllClients(new MapTransferCompleteMessage());
             Log.info("ServerWaitForClientsToBeReadyState", "MapTransferCompleteMessage sent to all clients");
+
+            // NOW send initial NPC instructions (clients have NPC objects at this point)
+            serverCoordinator.sendInitialNPCInstructions();
         }
     }
 

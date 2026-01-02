@@ -9,7 +9,9 @@ import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
+import com.badlogic.gdx.physics.bullet.collision.btPairCachingGhostObject;
 import com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld;
+import com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.network.messages.NPCInstructionMessage;
 
@@ -51,10 +53,10 @@ public class NPCObject extends WorldObject {
     private transient float interpolationAlpha;
 
     // Physics - using character controller like players for proper physics-based movement
-    private transient com.badlogic.gdx.physics.bullet.collision.btPairCachingGhostObject ghostObject;
-    private transient com.badlogic.gdx.physics.bullet.dynamics.btKinematicCharacterController characterController;
+    private transient btPairCachingGhostObject ghostObject;
+    private transient btKinematicCharacterController characterController;
     private transient btCapsuleShape physicsShape;
-    private transient com.badlogic.gdx.physics.bullet.dynamics.btDiscreteDynamicsWorld dynamicsWorld;
+    private transient btDiscreteDynamicsWorld dynamicsWorld;
     private transient boolean physicsInitialized = false;
     private Vector3 externalForce = new Vector3(0, 0, 0);  // For push mechanics
 
@@ -427,6 +429,13 @@ public class NPCObject extends WorldObject {
                 // Reached end of path - STOP
                 Log.info("NPCObject", "NPC " + entityId + " COMPLETED full path (" +
                          waypointQueue.size() + " waypoints)");
+
+                // If this client is the authority, report completion immediately
+                if (NPCAuthorityManager.isMyNPC(entityId)) {
+                    Log.info("NPCObject", "NPC path complete - triggering authority callback");
+                    NPCAuthorityManager.invokePathCompleteCallback(entityId);
+                }
+
                 return new Vector3(0, 0, 0);  // Stop moving
             }
         }

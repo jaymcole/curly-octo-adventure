@@ -66,6 +66,7 @@ public class NetworkMessageRegistry {
         registerMessage(kryo, NPCElectionMessage.class);
         registerMessage(kryo, NPCElectionMessage.ElectionReason.class);
         registerMessage(kryo, NPCSyncMessage.class);
+        registerMessage(kryo, NPCPathCompleteMessage.class);
 
         // Legacy player messages (not NetworkMessage types yet)
         registerMessage(kryo, PlayerUpdate.class);

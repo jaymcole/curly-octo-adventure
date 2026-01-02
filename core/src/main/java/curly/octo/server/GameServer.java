@@ -77,6 +77,7 @@ public class GameServer {
         NetworkManager.onReceive(ClientIdentificationMessage.class, this::handleClientIdentification);
         // NPC sync relay (per-NPC authority system)
         NetworkManager.onReceive(curly.octo.common.network.messages.NPCSyncMessage.class, this::handleNPCSync);
+        NetworkManager.onReceive(curly.octo.common.network.messages.NPCPathCompleteMessage.class, this::handleNPCPathComplete);
 
         server.addListener(networkListener);
 
@@ -182,7 +183,7 @@ public class GameServer {
      * The elected client sends sync corrections to the server, which relays them to observer clients.
      * Also stores NPC position for completion detection.
      */
-    public void handleNPCSync(Connection connection, curly.octo.common.network.messages.NPCSyncMessage syncMessage) {
+    public void handleNPCSync(Connection connection, NPCSyncMessage syncMessage) {
         // 1. STORE NPC POSITION ON SERVER (for completion detection and squishy collision)
         com.badlogic.gdx.math.Vector3 pos = new com.badlogic.gdx.math.Vector3(
             syncMessage.position[0],
@@ -191,6 +192,12 @@ public class GameServer {
         );
         npcPositions.put(syncMessage.npcId, pos);
         npcLastUpdateTime.put(syncMessage.npcId, System.currentTimeMillis());
+
+        // Update server-side NPCObject position for path generation
+        curly.octo.common.GameObject obj = gameObjectManager.getObjectById(syncMessage.npcId);
+        if (obj instanceof curly.octo.common.NPCObject) {
+            ((curly.octo.common.NPCObject) obj).setPosition(pos);
+        }
 
         Log.debug("GameServer", "Updated NPC " + syncMessage.npcId +
                   " position: " + String.format("(%.1f, %.1f, %.1f)", pos.x, pos.y, pos.z));
@@ -201,78 +208,52 @@ public class GameServer {
                 conn.sendUDP(syncMessage);
             }
         }
-
-        // 3. CHECK IF NPC COMPLETED PATH (trigger new instruction if needed)
-        checkNPCCompletion(syncMessage.npcId, pos);
     }
 
     /**
-     * Check if NPC has completed its current path and trigger new instruction if so.
-     * Called after each position sync update.
+     * Handle NPC path completion message from elected client.
+     * Immediately triggers new instruction generation.
      *
-     * @param npcId NPC entity ID
-     * @param currentPos Current position from sync message
+     * @param connection Source connection (elected client)
+     * @param msg Completion notification with final position
      */
-    private void checkNPCCompletion(String npcId, com.badlogic.gdx.math.Vector3 currentPos) {
-        if (npcBehaviorAgent == null) {
-            return;  // No behavior agent configured
+    public void handleNPCPathComplete(Connection connection, curly.octo.common.network.messages.NPCPathCompleteMessage msg) {
+        Log.info("GameServer", "Received path completion for NPC " + msg.npcId +
+                 " (instruction " + msg.instructionId + ")");
+
+        // Extract final position from message
+        com.badlogic.gdx.math.Vector3 finalPos = new com.badlogic.gdx.math.Vector3(
+            msg.finalPosition[0],
+            msg.finalPosition[1],
+            msg.finalPosition[2]
+        );
+
+        // Update stored NPC position
+        npcPositions.put(msg.npcId, finalPos);
+        npcLastUpdateTime.put(msg.npcId, System.currentTimeMillis());
+
+        // Update server-side NPCObject position
+        curly.octo.common.GameObject obj = gameObjectManager.getObjectById(msg.npcId);
+        if (obj instanceof curly.octo.common.NPCObject) {
+            ((curly.octo.common.NPCObject) obj).setPosition(finalPos);
         }
 
-        // Get NPC's current instruction from behavior agent
-        curly.octo.common.network.messages.NPCInstructionMessage instruction =
-            npcBehaviorAgent.getCurrentInstruction(npcId);
+        // Validate instruction ID to prevent stale completions
+        if (npcBehaviorAgent != null) {
+            curly.octo.common.network.messages.NPCInstructionMessage currentInstruction =
+                npcBehaviorAgent.getCurrentInstruction(msg.npcId);
 
-        if (instruction == null) {
-            return;  // No active instruction
-        }
-
-        // Check new tile-based waypoint system first
-        if (instruction.waypointTileIndices != null && instruction.waypointTileIndices.length >= 3) {
-            // Extract final waypoint from tile indices (last 3 ints)
-            int lastIndex = instruction.waypointTileIndices.length - 3;
-            int finalTileX = instruction.waypointTileIndices[lastIndex];
-            int finalTileY = instruction.waypointTileIndices[lastIndex + 1];
-            int finalTileZ = instruction.waypointTileIndices[lastIndex + 2];
-
-            // Convert tile indices to world coordinates
-            float finalWorldX = finalTileX * curly.octo.common.Constants.MAP_TILE_SIZE;
-            float finalWorldY = finalTileY * curly.octo.common.Constants.MAP_TILE_SIZE;
-            float finalWorldZ = finalTileZ * curly.octo.common.Constants.MAP_TILE_SIZE;
-
-            com.badlogic.gdx.math.Vector3 finalWaypoint = new com.badlogic.gdx.math.Vector3(
-                finalWorldX, finalWorldY, finalWorldZ
-            );
-
-            // Check 2D distance (XZ plane, ignore Y height difference)
-            float dx = currentPos.x - finalWaypoint.x;
-            float dz = currentPos.z - finalWaypoint.z;
-            float distance2D = (float) Math.sqrt(dx * dx + dz * dz);
-
-            float COMPLETION_THRESHOLD = 2.0f;  // 2 units tolerance (1 tile)
-
-            if (distance2D < COMPLETION_THRESHOLD) {
-                // NPC COMPLETED PATH - generate new instruction immediately
-                Log.info("GameServer", "✓ NPC " + npcId + " completed path to tile [" +
-                         finalTileX + "," + finalTileY + "," + finalTileZ + "] " +
-                         "(2D distance: " + String.format("%.2f", distance2D) + ") - generating NEW path");
-
-                npcBehaviorAgent.generateImmediateInstruction(npcId, currentPos);
-            }
-        } else if (instruction.waypointData != null && instruction.waypointData.length >= 3) {
-            // Fallback: old float-based waypoint system (deprecated)
-            int lastIndex = instruction.waypointData.length - 3;
-            com.badlogic.gdx.math.Vector3 finalWaypoint = new com.badlogic.gdx.math.Vector3(
-                instruction.waypointData[lastIndex],
-                instruction.waypointData[lastIndex + 1],
-                instruction.waypointData[lastIndex + 2]
-            );
-
-            float distance = currentPos.dst(finalWaypoint);
-            float COMPLETION_THRESHOLD = 1.0f;
-
-            if (distance < COMPLETION_THRESHOLD) {
-                Log.info("GameServer", "NPC " + npcId + " completed path (old system) - generating new instruction");
-                npcBehaviorAgent.generateImmediateInstruction(npcId, currentPos);
+            if (currentInstruction != null &&
+                currentInstruction.instructionId == msg.instructionId) {
+                // Valid completion - generate new instruction immediately
+                Log.info("GameServer", "✓ Valid completion for NPC " + msg.npcId +
+                         " - generating new path");
+                npcBehaviorAgent.generateImmediateInstruction(msg.npcId, finalPos);
+            } else {
+                Log.warn("GameServer", "Ignoring stale completion for NPC " + msg.npcId +
+                         " (expected instruction " +
+                         (currentInstruction != null ? currentInstruction.instructionId : "null") +
+                         ", got " + msg.instructionId + ")");
             }
         }
     }

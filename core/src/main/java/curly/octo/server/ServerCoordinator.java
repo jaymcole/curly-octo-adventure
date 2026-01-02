@@ -101,6 +101,36 @@ public class ServerCoordinator {
     }
 
     /**
+     * Send initial instructions to all NPCs after map transfer is complete.
+     * Called by ServerWaitForClientsToBeReadyState when all clients are ready.
+     */
+    public void sendInitialNPCInstructions() {
+        Log.info("ServerCoordinator", "Sending initial instructions to all NPCs (clients ready)");
+        int npcCount = 0;
+
+        for (curly.octo.common.WorldObject obj : gameObjectManager.getNPCs()) {
+            if (obj instanceof curly.octo.common.NPCObject) {
+                curly.octo.common.NPCObject npc = (curly.octo.common.NPCObject) obj;
+
+                // Find the NPC behavior agent
+                for (curly.octo.server.serverAgents.BaseAgent agent : serverAgents) {
+                    if (agent instanceof curly.octo.server.serverAgents.NPCBehaviorAgent) {
+                        curly.octo.server.serverAgents.NPCBehaviorAgent behaviorAgent =
+                            (curly.octo.server.serverAgents.NPCBehaviorAgent) agent;
+
+                        Log.info("ServerCoordinator", "Generating initial instruction for NPC: " + npc.entityId);
+                        behaviorAgent.generateInitialInstruction(npc);
+                        npcCount++;
+                        break;
+                    }
+                }
+            }
+        }
+
+        Log.info("ServerCoordinator", "Sent initial instructions to " + npcCount + " NPCs");
+    }
+
+    /**
      * Get all client profiles.
      * @return HashMap of client profiles keyed by client key
      */

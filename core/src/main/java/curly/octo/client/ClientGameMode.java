@@ -1,26 +1,16 @@
 package curly.octo.client;
 
-import curly.octo.common.Constants;
+import curly.octo.common.*;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.g3d.Environment;
 import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.common.GameMode;
 import curly.octo.client.clientStates.StateManager;
 import curly.octo.common.network.NetworkManager;
 import curly.octo.common.map.hints.SpawnPointHint;
-import curly.octo.common.network.messages.PlayerUpdate;
-import curly.octo.common.network.messages.PlayerAssignmentUpdate;
-import curly.octo.common.network.messages.PlayerObjectRosterUpdate;
-import curly.octo.common.network.messages.PlayerDisconnectUpdate;
-import curly.octo.common.network.messages.PlayerImpulseMessage;
-import curly.octo.common.network.messages.NPCElectionMessage;
-import curly.octo.common.network.messages.NPCInstructionMessage;
-import curly.octo.common.PlayerObject;
-import curly.octo.common.InputController;
-import curly.octo.common.MinimalPlayerController;
+import curly.octo.common.network.messages.*;
 import curly.octo.common.map.MapTile;
 import curly.octo.common.map.hints.MapHint;
 
@@ -79,10 +69,6 @@ public class ClientGameMode implements GameMode {
 
     // Buffer monitoring
     private long lastBufferCheckTime = System.currentTimeMillis();
-
-    // NPC sync election state (per-NPC tracking)
-    private final java.util.Map<String, String> npcAuthorityMap = new java.util.HashMap<>(); // npcId -> clientId
-    private final java.util.Set<String> myManagedNPCs = new java.util.HashSet<>(); // NPCs I'm authority for
 
     // NPC sync broadcasting (for elected client)
     private float npcSyncTimer = 0f;
@@ -491,21 +477,31 @@ public class ClientGameMode implements GameMode {
                 String npcId = electionMessage.npcId;
                 String electedClientId = electionMessage.electedClientId;
 
-                // Track who owns this NPC
-                npcAuthorityMap.put(npcId, electedClientId);
-
                 // Check if this client was elected for this NPC
                 String myClientId = curly.octo.Main.clientUniqueId != null ?
                                     curly.octo.Main.clientUniqueId.uniqueId : "NULL";
 
                 boolean iAmAuthority = myClientId.equals(electedClientId);
 
+                Log.info("ClientGameMode", "My client ID: " + myClientId +
+                         ", Elected: " + electedClientId +
+                         ", I am authority: " + iAmAuthority);
+
                 if (iAmAuthority) {
-                    myManagedNPCs.add(npcId);
-                    Log.info("ClientGameMode", "*** I AM NOW AUTHORITY FOR NPC " + npcId + " ***");
+                    curly.octo.common.NPCAuthorityManager.addAuthority(npcId);
                 } else {
-                    myManagedNPCs.remove(npcId); // In case of reassignment
+                    curly.octo.common.NPCAuthorityManager.removeAuthority(npcId); // In case of reassignment
                     Log.info("ClientGameMode", "NPC " + npcId + " is managed by: " + electedClientId);
+                }
+
+                // Update NPC's authority flag and completion callback (if NPC exists)
+                curly.octo.common.GameObject obj = gameWorld.getGameObjectManager().getObjectById(npcId);
+                if (obj instanceof curly.octo.common.NPCObject) {
+                    curly.octo.common.NPCObject npc = (curly.octo.common.NPCObject) obj;
+                    Log.info("ClientGameMode", "NPC found in game object manager - configuring authority");
+                    configureNPCAuthority(npc);
+                } else {
+                    Log.warn("ClientGameMode", "NPC " + npcId + " not found in game object manager yet - will configure when instruction arrives");
                 }
             });
         });
@@ -528,6 +524,10 @@ public class ClientGameMode implements GameMode {
                     Log.info("ClientGameMode", "NPC current position before instruction: (" +
                             String.format("%.1f, %.1f, %.1f",
                                 npc.getPosition().x, npc.getPosition().y, npc.getPosition().z) + ")");
+
+                    // Configure authority if election already happened but NPC wasn't configured yet
+                    configureNPCAuthority(npc);
+
                     npc.executeInstruction(instructionMessage);
                     Log.info("ClientGameMode", "Applied instruction to NPC " + instructionMessage.npcId);
                 } else {
@@ -775,6 +775,10 @@ public class ClientGameMode implements GameMode {
         Log.info("ClientGameMode", "Clearing network handlers (static storage)");
         NetworkManager.clearHandlers();
         networkListenersSetup = false; // Reset flag so next instance can register
+
+        // Clear NPC authority state
+        Log.info("ClientGameMode", "Clearing NPC authority data");
+        curly.octo.common.NPCAuthorityManager.clear();
 
         // Stop network thread
         long networkStart = System.currentTimeMillis();
@@ -1037,7 +1041,7 @@ public class ClientGameMode implements GameMode {
      * Only syncs NPCs that have moved to reduce network traffic.
      */
     private void broadcastNPCSync() {
-        if (myManagedNPCs.isEmpty()) {
+        if (!curly.octo.common.NPCAuthorityManager.hasAnyManagedNPCs()) {
             return; // No NPCs to sync
         }
 
@@ -1045,11 +1049,12 @@ public class ClientGameMode implements GameMode {
         int skippedStationary = 0;
 
         // Send individual sync message for each managed NPC
-        for (String npcId : myManagedNPCs) {
+        // Note: Path completion is now handled immediately via NPCObject callback
+        for (String npcId : curly.octo.common.NPCAuthorityManager.getManagedNPCs()) {
             // Find the NPC object
-            curly.octo.common.NPCObject npc = null;
-            for (curly.octo.common.GameObject obj : gameWorld.getGameObjectManager().getAllObjects()) {
-                if (obj instanceof curly.octo.common.NPCObject &&
+            NPCObject npc = null;
+            for (GameObject obj : gameWorld.getGameObjectManager().getAllObjects()) {
+                if (obj instanceof NPCObject &&
                     obj.entityId.equals(npcId)) {
                     npc = (curly.octo.common.NPCObject) obj;
                     break;
@@ -1077,8 +1082,8 @@ public class ClientGameMode implements GameMode {
             }
 
             // Create individual sync message for this NPC
-            curly.octo.common.network.messages.NPCSyncMessage sync =
-                new curly.octo.common.network.messages.NPCSyncMessage(
+            NPCSyncMessage sync =
+                new NPCSyncMessage(
                     npcId,
                     pos.x, pos.y, pos.z,
                     npc.getYaw()
@@ -1098,13 +1103,74 @@ public class ClientGameMode implements GameMode {
     }
 
     /**
+     * Configure NPC authority flag and path completion callback.
+     * Called when election happens or when NPC receives instruction.
+     * Idempotent - safe to call multiple times.
+     *
+     * @param npc The NPC to configure
+     */
+    private void configureNPCAuthority(curly.octo.common.NPCObject npc) {
+        boolean iAmAuthority = curly.octo.common.NPCAuthorityManager.isMyNPC(npc.entityId);
+
+        if (iAmAuthority) {
+            // Set callback to send completion message immediately when path completes
+            curly.octo.common.NPCAuthorityManager.setPathCompleteCallback(
+                npc.entityId,
+                () -> sendNPCPathCompletion(npc)
+            );
+            Log.info("ClientGameMode", "Configured authority for NPC " + npc.entityId + " (immediate path completion enabled)");
+        } else {
+            curly.octo.common.NPCAuthorityManager.setPathCompleteCallback(npc.entityId, null);
+            Log.debug("ClientGameMode", "Configured NPC " + npc.entityId + " as observer (no completion callback)");
+        }
+    }
+
+    /**
+     * Send NPC path completion message immediately when path finishes.
+     * Called by NPCObject callback when the authority client detects completion.
+     *
+     * @param npc The NPC that completed its path
+     */
+    private void sendNPCPathCompletion(curly.octo.common.NPCObject npc) {
+        Vector3 pos = npc.getPosition();
+        if (pos == null) {
+            Log.warn("NPCCompletion", "Cannot send completion - NPC position is null");
+            return;
+        }
+
+        NPCInstructionMessage currentInstruction = npc.getCurrentInstruction();
+        if (currentInstruction == null) {
+            Log.warn("NPCCompletion", "Cannot send completion - no current instruction");
+            return;
+        }
+
+        // Create and send completion message
+        curly.octo.common.network.messages.NPCPathCompleteMessage completionMsg =
+            new curly.octo.common.network.messages.NPCPathCompleteMessage(
+                npc.entityId,
+                pos.x, pos.y, pos.z,
+                npc.getYaw(),
+                currentInstruction.instructionId
+            );
+
+        NetworkManager.sendToServer(completionMsg);
+
+        Log.info("NPCCompletion", "Sent IMMEDIATE path completion for NPC " + npc.entityId +
+                 " (instruction " + currentInstruction.instructionId + ") at position " +
+                 String.format("(%.1f, %.1f, %.1f)", pos.x, pos.y, pos.z));
+
+        // Update last synced position to prevent duplicate syncs
+        lastSyncedNPCPositions.put(npc.entityId, new Vector3(pos));
+    }
+
+    /**
      * Apply NPC sync correction from the authority for a specific NPC.
      * Observer clients use this to fix simulation drift.
      * Uses per-NPC election: only apply corrections if we're NOT the authority.
      */
     private void applySyncCorrections(curly.octo.common.network.messages.NPCSyncMessage sync) {
         // Skip if this NPC is managed by this client (don't correct ourselves)
-        if (myManagedNPCs.contains(sync.npcId)) {
+        if (curly.octo.common.NPCAuthorityManager.isMyNPC(sync.npcId)) {
             return;
         }
 

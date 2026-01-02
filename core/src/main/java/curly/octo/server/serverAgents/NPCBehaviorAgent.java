@@ -8,8 +8,14 @@ import curly.octo.common.network.NetworkManager;
 import curly.octo.common.network.messages.NPCInstructionMessage;
 import curly.octo.server.ServerGameObjectManager;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Server-side agent that generates and broadcasts NPC behavior instructions.
@@ -21,7 +27,7 @@ public class NPCBehaviorAgent extends BaseAgent {
     private float instructionTimer = 0f;
     private static final float INSTRUCTION_INTERVAL = 5.0f; // Fallback timer (was: primary timer)
     private final curly.octo.common.map.GameMap mapManager;
-    private final java.util.HashMap<String, NPCInstructionMessage> activeInstructions = new java.util.HashMap<>();
+    private final HashMap<String, NPCInstructionMessage> activeInstructions = new HashMap<>();
 
     public NPCBehaviorAgent(ServerGameObjectManager objectManager, curly.octo.common.map.GameMap mapManager) {
         super(objectManager);
@@ -31,15 +37,8 @@ public class NPCBehaviorAgent extends BaseAgent {
 
     @Override
     public void update(float deltaTime) {
-        instructionTimer += deltaTime;
-
-        // Fallback timer only (in case completion detection fails)
-        // Primary instruction generation is now completion-based (triggered from GameServer)
-        if (instructionTimer >= INSTRUCTION_INTERVAL * 3) {  // 30 seconds fallback
-            instructionTimer = 0f;
-            Log.warn("NPCBehaviorAgent", "Fallback timer triggered - regenerating all NPC instructions");
-            generateInstructions();
-        }
+        // No periodic updates needed - instruction generation is event-driven
+        // Triggered by NPCPathCompleteMessage from clients or initial spawn
     }
 
     /**
@@ -63,6 +62,8 @@ public class NPCBehaviorAgent extends BaseAgent {
      * @param currentPos Current position (from server tracking), or null to use NPC's position
      */
     private void generateInstructionForNPC(NPCObject npc, Vector3 currentPos) {
+        Log.info("NPCBehaviorAgent", "generateInstructionForNPC called for NPC: " + npc.entityId + " with currentPos: " + currentPos);
+
         // Use provided position or fall back to NPC's stored position
         Vector3 startPos = currentPos != null ? currentPos : npc.getPosition();
 
@@ -70,6 +71,8 @@ public class NPCBehaviorAgent extends BaseAgent {
             Log.error("NPCBehaviorAgent", "Cannot generate instruction - NPC " + npc.entityId + " has no position");
             return;
         }
+
+        Log.info("NPCBehaviorAgent", "Start position for NPC " + npc.entityId + ": " + startPos);
 
         // Generate waypoint list as tile indices (10-20 waypoints along straight path)
         List<int[]> waypointTileIndices = generateWaypointTileIndices(npc.entityId, startPos);
@@ -226,6 +229,32 @@ public class NPCBehaviorAgent extends BaseAgent {
         return true;  // Path is clear
     }
 
+    private boolean isTileWalkable(int x, int y, int z) {
+        float wx = x * curly.octo.common.Constants.MAP_TILE_SIZE;
+        float wy = y * curly.octo.common.Constants.MAP_TILE_SIZE;
+        float wz = z * curly.octo.common.Constants.MAP_TILE_SIZE;
+        return mapManager.isPositionWalkable(wx, wy, wz);
+    }
+
+    private int[] findNearestWalkableTile(int startX, int startY, int startZ) {
+        // Check start tile first
+        if (isTileWalkable(startX, startY, startZ)) return new int[]{startX, startY, startZ};
+
+        // Check neighbors (Radius 1)
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    if (dx==0 && dy==0 && dz==0) continue;
+                    if (isTileWalkable(startX + dx, startY + dy, startZ + dz)) {
+                        return new int[]{startX + dx, startY + dy, startZ + dz};
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+
     /**
      * Generate a list of waypoint tile indices using grid-based pathfinding.
      * Creates waypoints for each tile step to prevent diagonal movement.
@@ -236,7 +265,8 @@ public class NPCBehaviorAgent extends BaseAgent {
      * @return List of tile index triplets [x,y,z] (empty if generation fails)
      */
     private List<int[]> generateWaypointTileIndices(String npcId, Vector3 startPos) {
-        java.util.List<int[]> waypointTiles = new java.util.ArrayList<>();
+        Log.info("NPCBehaviorAgent", "generateWaypointTileIndices called for NPC: " + npcId + " at startPos: " + startPos);
+        List<int[]> waypointTiles = new ArrayList<>();
 
         if (mapManager == null) {
             Log.error("NPCBehaviorAgent", "Cannot generate waypoints - no map reference");
@@ -244,22 +274,53 @@ public class NPCBehaviorAgent extends BaseAgent {
         }
 
         // Convert start position to tile indices
-        int startTileX = (int)(startPos.x / curly.octo.common.Constants.MAP_TILE_SIZE);
-        int startTileY = (int)(startPos.y / curly.octo.common.Constants.MAP_TILE_SIZE);
-        int startTileZ = (int)(startPos.z / curly.octo.common.Constants.MAP_TILE_SIZE);
+        // Use Math.round to find the nearest tile center, rather than floor which biases negative numbers
+        int startTileX = Math.round(startPos.x / curly.octo.common.Constants.MAP_TILE_SIZE);
+        int startTileY = Math.round(startPos.y / curly.octo.common.Constants.MAP_TILE_SIZE);
+        int startTileZ = Math.round(startPos.z / curly.octo.common.Constants.MAP_TILE_SIZE);
 
-        // Get all floor tiles at same height as NPC (±2 tile indices for flexibility)
-        java.util.ArrayList<curly.octo.common.map.MapTile> candidateTiles = new java.util.ArrayList<>();
+        Log.info("NPCBehaviorAgent", "Start tile indices for NPC " + npcId + ": [" + startTileX + ", " + startTileY + ", " + startTileZ + "]");
+
+        // Validate and snap start position if the exact tile is not walkable
+        // This handles cases where the NPC is standing on the edge of a tile or slightly floating
+        int[] snappedStart = findNearestWalkableTile(startTileX, startTileY, startTileZ);
+        if (snappedStart != null) {
+             if (snappedStart[0] != startTileX || snappedStart[1] != startTileY || snappedStart[2] != startTileZ) {
+                 Log.info("NPCBehaviorAgent", "Snapped start position from [" + startTileX + "," + startTileY + "," + startTileZ + "] to [" + snappedStart[0] + "," + snappedStart[1] + "," + snappedStart[2] + "]");
+                 startTileX = snappedStart[0];
+                 startTileY = snappedStart[1];
+                 startTileZ = snappedStart[2];
+             }
+        } else {
+             Log.warn("NPCBehaviorAgent", "Could not find any walkable tile near start position [" + startTileX + "," + startTileY + "," + startTileZ + "]");
+             return waypointTiles;
+        }
+
+        // Get all WALKABLE positions at same Y level (empty space with floor below)
+        ArrayList<curly.octo.common.map.MapTile> candidateTiles = new ArrayList<>();
 
         for (curly.octo.common.map.MapTile tile : mapManager.getAllTiles()) {
-            int tileY = (int)(tile.y / curly.octo.common.Constants.MAP_TILE_SIZE);
-            int heightDiff = Math.abs(tileY - startTileY);
+            int tileY = Math.round(tile.y / curly.octo.common.Constants.MAP_TILE_SIZE);
 
-            if (heightDiff <= 2 &&
-                tile.geometryType != curly.octo.common.map.enums.MapTileGeometryType.EMPTY) {
-                candidateTiles.add(tile);
+            // NPC stands in empty space, so select EMPTY tiles at the NPC's Y level
+            // that have solid ground directly below them
+            if (tileY == startTileY &&
+                tile.geometryType == curly.octo.common.map.enums.MapTileGeometryType.EMPTY) {
+
+                // Check if there's solid ground below this empty space
+                float groundCheckY = tile.y - curly.octo.common.Constants.MAP_TILE_SIZE;
+                curly.octo.common.map.MapTile groundTile = mapManager.getTileFromWorldCoordinates(
+                    tile.x, groundCheckY, tile.z
+                );
+
+                if (groundTile != null &&
+                    groundTile.geometryType != curly.octo.common.map.enums.MapTileGeometryType.EMPTY) {
+                    candidateTiles.add(tile);
+                }
             }
         }
+
+        Log.info("NPCBehaviorAgent", "Found " + candidateTiles.size() + " candidate tiles for NPC " + npcId);
 
         if (candidateTiles.isEmpty()) {
             Log.warn("NPCBehaviorAgent", "No candidate tiles found for NPC " + npcId +
@@ -268,14 +329,16 @@ public class NPCBehaviorAgent extends BaseAgent {
         }
 
         // Find a far destination: sort candidates by Manhattan distance and pick from the farthest 25%
+        int finalStartTileX = startTileX;
+        int finalStartTileZ = startTileZ;
         candidateTiles.sort((a, b) -> {
-            int aTileX = (int)(a.x / curly.octo.common.Constants.MAP_TILE_SIZE);
-            int aTileZ = (int)(a.z / curly.octo.common.Constants.MAP_TILE_SIZE);
-            int bTileX = (int)(b.x / curly.octo.common.Constants.MAP_TILE_SIZE);
-            int bTileZ = (int)(b.z / curly.octo.common.Constants.MAP_TILE_SIZE);
+            int aTileX = Math.round(a.x / curly.octo.common.Constants.MAP_TILE_SIZE);
+            int aTileZ = Math.round(a.z / curly.octo.common.Constants.MAP_TILE_SIZE); // Corrected: use a.z
+            int bTileX = Math.round(b.x / curly.octo.common.Constants.MAP_TILE_SIZE);
+            int bTileZ = Math.round(b.z / curly.octo.common.Constants.MAP_TILE_SIZE); // Corrected: use b.z
 
-            int distA = Math.abs(aTileX - startTileX) + Math.abs(aTileZ - startTileZ);
-            int distB = Math.abs(bTileX - startTileX) + Math.abs(bTileZ - startTileZ);
+            int distA = Math.abs(aTileX - finalStartTileX) + Math.abs(aTileZ - finalStartTileZ);
+            int distB = Math.abs(bTileX - finalStartTileX) + Math.abs(bTileZ - finalStartTileZ);
 
             return Integer.compare(distB, distA);  // Sort descending (farthest first)
         });
@@ -284,9 +347,9 @@ public class NPCBehaviorAgent extends BaseAgent {
         int farTilePoolSize = Math.max(1, candidateTiles.size() / 4);
         curly.octo.common.map.MapTile destTile = candidateTiles.get(random.nextInt(farTilePoolSize));
 
-        int destTileX = (int)(destTile.x / curly.octo.common.Constants.MAP_TILE_SIZE);
-        int destTileY = (int)(destTile.y / curly.octo.common.Constants.MAP_TILE_SIZE);
-        int destTileZ = (int)(destTile.z / curly.octo.common.Constants.MAP_TILE_SIZE);
+        int destTileX = Math.round(destTile.x / curly.octo.common.Constants.MAP_TILE_SIZE);
+        int destTileY = Math.round(destTile.y / curly.octo.common.Constants.MAP_TILE_SIZE);
+        int destTileZ = Math.round(destTile.z / curly.octo.common.Constants.MAP_TILE_SIZE);
 
         int manhattanDistance = Math.abs(destTileX - startTileX) + Math.abs(destTileZ - startTileZ);
         Log.info("NPCBehaviorAgent", "🎯 NEW PATH for " + npcId + ": tile [" +
@@ -294,66 +357,80 @@ public class NPCBehaviorAgent extends BaseAgent {
                  destTileX + "," + destTileY + "," + destTileZ + "] (distance: " +
                  manhattanDistance + " tiles)");
 
-        // Generate grid-based path (Manhattan-style, no diagonals)
-        // Move along X axis, then Z axis (or randomly alternate for variety)
-        int currentX = startTileX;
-        int currentY = startTileY;
-        int currentZ = startTileZ;
+        // A* Pathfinding
+        PriorityQueue<PathNode> openSet = new PriorityQueue<>();
+        Set<Long> closedSet = new HashSet<>();
 
-        // Randomly decide whether to move X-first or Z-first for path variety
-        boolean xFirst = random.nextBoolean();
+        PathNode startNode = new PathNode(startTileX, startTileY, startTileZ, 0, manhattanDistance, null);
+        openSet.add(startNode);
 
-        while (currentX != destTileX || currentZ != destTileZ) {
-            // Alternate between X and Z movement based on strategy
-            boolean moveX = false;
+        PathNode targetNode = null;
+        int maxIterations = 5000; // Safety limit
+        int iterations = 0;
 
-            if (xFirst) {
-                // X-first strategy: move X until aligned, then move Z
-                moveX = (currentX != destTileX);
-            } else {
-                // Z-first strategy: move Z until aligned, then move X
-                moveX = (currentZ == destTileZ) && (currentX != destTileX);
+        while (!openSet.isEmpty() && iterations < maxIterations) {
+            iterations++;
+            PathNode current = openSet.poll();
+
+            long key = mapManager.constructKeyFromIndexCoordinates(current.x, current.y, current.z);
+            if (closedSet.contains(key)) continue;
+            closedSet.add(key);
+
+            if (current.x == destTileX && current.z == destTileZ) {
+                targetNode = current;
+                break;
             }
 
-            if (moveX) {
-                // Move one step along X axis
-                currentX += (destTileX > currentX) ? 1 : -1;
-            } else {
-                // Move one step along Z axis
-                currentZ += (destTileZ > currentZ) ? 1 : -1;
-            }
+            // Neighbors: +X, -X, +Z, -Z
+            int[][] directions = {{1,0}, {-1,0}, {0,1}, {0,-1}};
 
-            // Convert to world position for walkability check
-            float worldX = currentX * curly.octo.common.Constants.MAP_TILE_SIZE;
-            float worldY = currentY * curly.octo.common.Constants.MAP_TILE_SIZE;
-            float worldZ = currentZ * curly.octo.common.Constants.MAP_TILE_SIZE;
+            for (int[] dir : directions) {
+                int nx = current.x + dir[0];
+                int nz = current.z + dir[1];
+                int ny = current.y; // Constant Y - 2D navigation only
 
-            // Validate waypoint is walkable and path segment is safe for NPC capsule
-            boolean isWalkable = mapManager.isPositionWalkable(worldX, worldY, worldZ);
-            boolean isSegmentSafe = waypointTiles.isEmpty() || isPathSegmentSafe(
-                waypointTiles.get(waypointTiles.size()-1)[0],
-                waypointTiles.get(waypointTiles.size()-1)[1],
-                waypointTiles.get(waypointTiles.size()-1)[2],
-                currentX, currentY, currentZ,
-                1.0f  // TODO: Pass actual NPC radius when supporting different sizes
-            );
+                long nKey = mapManager.constructKeyFromIndexCoordinates(nx, ny, nz);
+                if (closedSet.contains(nKey)) continue;
 
-            if (isWalkable && isSegmentSafe) {
-                waypointTiles.add(new int[]{currentX, currentY, currentZ});
-            } else {
-                if (!isWalkable) {
-                    Log.warn("NPCBehaviorAgent", "Encountered non-walkable tile at [" +
-                              currentX + "," + currentY + "," + currentZ + "] - stopping path early");
-                } else {
-                    Log.warn("NPCBehaviorAgent", "Path too narrow for NPC at [" +
-                              currentX + "," + currentY + "," + currentZ + "] - stopping path early");
+                // Check walkability
+                if (!isTileWalkable(nx, ny, nz)) {
+                    if (iterations == 1) {
+                         Log.warn("NPCBehaviorAgent", "A* start node neighbor [" + nx + "," + ny + "," + nz + "] is NOT walkable");
+                    }
+                    continue;
                 }
-                break;  // Stop if we hit a wall or narrow corridor
+
+                // Check segment safety
+                if (!isPathSegmentSafe(current.x, current.y, current.z, nx, ny, nz, 1.0f)) {
+                    if (iterations == 1) {
+                         Log.warn("NPCBehaviorAgent", "A* start node neighbor [" + nx + "," + ny + "," + nz + "] is NOT safe (narrow/blocked)");
+                    }
+                    continue;
+                }
+
+                int newGCost = current.gCost + 1;
+                int newHCost = Math.abs(nx - destTileX) + Math.abs(nz - destTileZ);
+
+                openSet.add(new PathNode(nx, ny, nz, newGCost, newHCost, current));
             }
         }
 
-        Log.info("NPCBehaviorAgent", "Generated " + waypointTiles.size() + " grid waypoints for NPC " + npcId +
-                 " (expected ~" + manhattanDistance + " for Manhattan path)");
+        if (targetNode != null) {
+            // Reconstruct path
+            PathNode node = targetNode;
+            while (node.parent != null) {
+                waypointTiles.add(new int[]{node.x, node.y, node.z});
+                node = node.parent;
+            }
+            Collections.reverse(waypointTiles);
+            Log.info("NPCBehaviorAgent", "Generated " + waypointTiles.size() + " A* waypoints for NPC " + npcId);
+        } else {
+            Log.warn("NPCBehaviorAgent", "A* failed to find path to [" + destTileX + "," + destTileY + "," + destTileZ + "] after " + iterations + " iterations");
+
+            // Debug: Check start node validity
+            boolean startWalkable = isTileWalkable(startTileX, startTileY, startTileZ);
+            Log.warn("NPCBehaviorAgent", "DEBUG: Start node [" + startTileX + "," + startTileY + "," + startTileZ + "] walkable? " + startWalkable);
+        }
 
         return waypointTiles;
     }
@@ -390,6 +467,33 @@ public class NPCBehaviorAgent extends BaseAgent {
      * @param npc The NPC object
      */
     public void generateInitialInstruction(NPCObject npc) {
+        Log.info("NPCBehaviorAgent", "generateInitialInstruction called for NPC: " + npc.entityId + " at position: " + npc.getPosition());
         generateInstructionForNPC(npc, npc.getPosition());
+    }
+
+    /**
+     * Node for A* pathfinding
+     */
+    private static class PathNode implements Comparable<PathNode> {
+        int x, y, z;
+        int gCost;
+        int hCost;
+        PathNode parent;
+
+        public PathNode(int x, int y, int z, int gCost, int hCost, PathNode parent) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.gCost = gCost;
+            this.hCost = hCost;
+            this.parent = parent;
+        }
+
+        public int fCost() { return gCost + hCost; }
+
+        @Override
+        public int compareTo(PathNode o) {
+            return Integer.compare(this.fCost(), o.fCost());
+        }
     }
 }

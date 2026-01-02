@@ -155,9 +155,9 @@ public class GameMap {
     }
 
     public MapTile getTileFromWorldCoordinates(float worldX, float worldY, float worldZ) {
-        int xIndex = (int)(worldX / Constants.MAP_TILE_SIZE);
-        int yIndex = (int)(worldY / Constants.MAP_TILE_SIZE);
-        int zIndex = (int)(worldZ / Constants.MAP_TILE_SIZE);
+        int xIndex = (int)Math.floor(worldX / Constants.MAP_TILE_SIZE);
+        int yIndex = (int)Math.floor(worldY / Constants.MAP_TILE_SIZE);
+        int zIndex = (int)Math.floor(worldZ / Constants.MAP_TILE_SIZE);
         return getTile(xIndex, yIndex, zIndex);
     }
 
@@ -213,9 +213,9 @@ public class GameMap {
     }
 
     public long constructKeyFromWorldCoordinates(float worldX, float worldY, float worldZ) {
-        int xIndex = (int)(worldX / Constants.MAP_TILE_SIZE);
-        int yIndex = (int)(worldY / Constants.MAP_TILE_SIZE);
-        int zIndex = (int)(worldZ / Constants.MAP_TILE_SIZE);
+        int xIndex = (int)Math.floor(worldX / Constants.MAP_TILE_SIZE);
+        int yIndex = (int)Math.floor(worldY / Constants.MAP_TILE_SIZE);
+        int zIndex = (int)Math.floor(worldZ / Constants.MAP_TILE_SIZE);
         return constructKeyFromIndexCoordinates(xIndex, yIndex, zIndex);
     }
 
