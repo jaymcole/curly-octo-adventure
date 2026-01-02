@@ -274,10 +274,10 @@ public class NPCBehaviorAgent extends BaseAgent {
         }
 
         // Convert start position to tile indices
-        // Use Math.round to find the nearest tile center, rather than floor which biases negative numbers
-        int startTileX = Math.round(startPos.x / curly.octo.common.Constants.MAP_TILE_SIZE);
-        int startTileY = Math.round(startPos.y / curly.octo.common.Constants.MAP_TILE_SIZE);
-        int startTileZ = Math.round(startPos.z / curly.octo.common.Constants.MAP_TILE_SIZE);
+        // Use Math.floor to correctly map world coordinates to grid indices (0.0 to 1.99 -> 0)
+        int startTileX = (int)Math.floor(startPos.x / curly.octo.common.Constants.MAP_TILE_SIZE);
+        int startTileY = (int)Math.floor(startPos.y / curly.octo.common.Constants.MAP_TILE_SIZE);
+        int startTileZ = (int)Math.floor(startPos.z / curly.octo.common.Constants.MAP_TILE_SIZE);
 
         Log.info("NPCBehaviorAgent", "Start tile indices for NPC " + npcId + ": [" + startTileX + ", " + startTileY + ", " + startTileZ + "]");
 
@@ -300,7 +300,7 @@ public class NPCBehaviorAgent extends BaseAgent {
         ArrayList<curly.octo.common.map.MapTile> candidateTiles = new ArrayList<>();
 
         for (curly.octo.common.map.MapTile tile : mapManager.getAllTiles()) {
-            int tileY = Math.round(tile.y / curly.octo.common.Constants.MAP_TILE_SIZE);
+            int tileY = (int)Math.floor(tile.y / curly.octo.common.Constants.MAP_TILE_SIZE);
 
             // NPC stands in empty space, so select EMPTY tiles at the NPC's Y level
             // that have solid ground directly below them
@@ -332,10 +332,10 @@ public class NPCBehaviorAgent extends BaseAgent {
         int finalStartTileX = startTileX;
         int finalStartTileZ = startTileZ;
         candidateTiles.sort((a, b) -> {
-            int aTileX = Math.round(a.x / curly.octo.common.Constants.MAP_TILE_SIZE);
-            int aTileZ = Math.round(a.z / curly.octo.common.Constants.MAP_TILE_SIZE); // Corrected: use a.z
-            int bTileX = Math.round(b.x / curly.octo.common.Constants.MAP_TILE_SIZE);
-            int bTileZ = Math.round(b.z / curly.octo.common.Constants.MAP_TILE_SIZE); // Corrected: use b.z
+            int aTileX = (int)Math.floor(a.x / curly.octo.common.Constants.MAP_TILE_SIZE);
+            int aTileZ = (int)Math.floor(a.z / curly.octo.common.Constants.MAP_TILE_SIZE);
+            int bTileX = (int)Math.floor(b.x / curly.octo.common.Constants.MAP_TILE_SIZE);
+            int bTileZ = (int)Math.floor(b.z / curly.octo.common.Constants.MAP_TILE_SIZE);
 
             int distA = Math.abs(aTileX - finalStartTileX) + Math.abs(aTileZ - finalStartTileZ);
             int distB = Math.abs(bTileX - finalStartTileX) + Math.abs(bTileZ - finalStartTileZ);
@@ -347,9 +347,9 @@ public class NPCBehaviorAgent extends BaseAgent {
         int farTilePoolSize = Math.max(1, candidateTiles.size() / 4);
         curly.octo.common.map.MapTile destTile = candidateTiles.get(random.nextInt(farTilePoolSize));
 
-        int destTileX = Math.round(destTile.x / curly.octo.common.Constants.MAP_TILE_SIZE);
-        int destTileY = Math.round(destTile.y / curly.octo.common.Constants.MAP_TILE_SIZE);
-        int destTileZ = Math.round(destTile.z / curly.octo.common.Constants.MAP_TILE_SIZE);
+        int destTileX = (int)Math.floor(destTile.x / curly.octo.common.Constants.MAP_TILE_SIZE);
+        int destTileY = (int)Math.floor(destTile.y / curly.octo.common.Constants.MAP_TILE_SIZE);
+        int destTileZ = (int)Math.floor(destTile.z / curly.octo.common.Constants.MAP_TILE_SIZE);
 
         int manhattanDistance = Math.abs(destTileX - startTileX) + Math.abs(destTileZ - startTileZ);
         Log.info("NPCBehaviorAgent", "🎯 NEW PATH for " + npcId + ": tile [" +
