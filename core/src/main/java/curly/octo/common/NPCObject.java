@@ -706,10 +706,16 @@ public class NPCObject extends WorldObject {
     @Override
     public void dispose() {
         if (characterController != null) {
+            if (dynamicsWorld != null) {
+                dynamicsWorld.removeAction(characterController);
+            }
             characterController.dispose();
             characterController = null;
         }
         if (ghostObject != null) {
+            if (dynamicsWorld != null) {
+                dynamicsWorld.removeCollisionObject(ghostObject);
+            }
             ghostObject.dispose();
             ghostObject = null;
         }
@@ -719,5 +725,6 @@ public class NPCObject extends WorldObject {
         }
         physicsInitialized = false;
         graphicsInitialized = false;
+        dynamicsWorld = null; // Clear reference
     }
 }

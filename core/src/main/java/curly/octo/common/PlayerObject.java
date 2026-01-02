@@ -497,6 +497,8 @@ public class PlayerObject extends WorldObject {
      * @param height The capsule height
      */
     public void initializeRemotePhysics(GameMap map, float radius, float height) {
+        this.gameMap = map; // Store map reference for proper disposal
+
         // Clean up any existing remote physics body
         disposeRemotePhysics(map);
 
@@ -525,7 +527,7 @@ public class PlayerObject extends WorldObject {
         remotePhysicsBody.setWorldTransform(transform);
 
         // Add to physics world with player collision group - collides with ground, other players, and NPCs
-        map. dynamicsWorld.addRigidBody(remotePhysicsBody, GameMap.PLAYER_GROUP, GameMap.GROUND_GROUP | GameMap.PLAYER_GROUP | GameMap.NPC_GROUP);
+        map.dynamicsWorld.addRigidBody(remotePhysicsBody, GameMap.PLAYER_GROUP, GameMap.GROUND_GROUP | GameMap.PLAYER_GROUP | GameMap.NPC_GROUP);
 
         Log.info("PlayerObject", "Initialized remote physics body for player " + entityId +
                  " at position " + position + " (radius: " + radius + ", height: " + height + ")");

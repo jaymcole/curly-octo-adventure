@@ -384,11 +384,16 @@ public class ClientGameWorld {
                 Log.info("ClientGameWorld", "Safely removing physics for " + players.size() + " player objects");
                 for (PlayerObject player : players) {
                     try {
+                        // Clean up remote physics (important for remote players)
+                        player.disposeRemotePhysics(mapManager);
+
                         // Remove from physics world first, then reset
                         if (mapManager != null) {
                             player.setCharacterController(null);
-                            player.setGameMap(null);
+                            // player.setGameMap(null); // disposeRemotePhysics uses gameMap, so maybe set null after?
                         }
+                        player.setGameMap(null);
+
                         player.resetPhysicsState(); // Reset physics but preserve player
                         Log.info("ClientGameWorld", "Safely removed physics for player " + player.entityId);
                     } catch (Exception e) {
@@ -720,6 +725,17 @@ public class ClientGameWorld {
             mapRenderer = null;
         }
 
+        // Dispose game objects (players, NPCs) BEFORE disposing map manager
+        // This ensures physics bodies are removed from the world before the world is destroyed
+        if (gameObjectManager != null) {
+            try {
+                gameObjectManager.dispose();
+                Log.info("ClientGameWorld", "Game object manager disposed");
+            } catch (Exception e) {
+                Log.error("ClientGameWorld", "Error disposing game object manager: " + e.getMessage());
+            }
+        }
+
         if (mapManager != null) {
             try {
                 mapManager.dispose();
@@ -731,8 +747,10 @@ public class ClientGameWorld {
         }
 
         players.clear();
-        gameObjectManager.activePlayers.clear();
-        gameObjectManager.localPlayer = null;
+        if (gameObjectManager != null) {
+            gameObjectManager.activePlayers.clear();
+            gameObjectManager.localPlayer = null;
+        }
 
         disposed = true;
         Log.info("ClientGameWorld", "Game world disposed");
