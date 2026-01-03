@@ -3,7 +3,6 @@ package curly.octo.common.character;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.math.Vector3;
-import curly.octo.common.Constants;
 
 public class PlayerBrain implements ICharacterBrain {
 
@@ -77,11 +76,11 @@ public class PlayerBrain implements ICharacterBrain {
             tempDirection.sub(right);
         }
 
-        character.setWalkDirection(tempDirection.nor().scl(Constants.PLAYER_MOVEMENT_SPEED));
+        character.setWalkDirection(tempDirection.nor());
 
         boolean spaceIsPressed = Gdx.input.isKeyPressed(Input.Keys.SPACE);
         if (spaceIsPressed && !spaceWasPressed && character.canJump()) {
-            character.jump(new Vector3(0, Constants.PLAYER_JUMP_FORCE, 0));
+            character.jump();
         }
         spaceWasPressed = spaceIsPressed;
     }

@@ -21,6 +21,8 @@ public abstract class GameCharacter extends WorldObject {
 
     protected float yaw = 0f;
     protected float pitch = 0f;
+    protected float movementSpeed = 10.0f;
+    protected float jumpForce = 10.0f;
 
     protected transient ICharacterBrain brain;
     protected Vector3 velocity = new Vector3();
@@ -99,7 +101,7 @@ public abstract class GameCharacter extends WorldObject {
             characterController.setGravity(new Vector3(0, Constants.PHYSICS_GRAVITY, 0));
             characterController.setUp(new Vector3(0, 1, 0));
             characterController.setMaxSlope((float)Math.toRadians(Constants.PHYSICS_MAX_SLOPE_DEGREES));
-            characterController.setJumpSpeed(Constants.PLAYER_JUMP_FORCE);
+            characterController.setJumpSpeed(jumpForce);
             characterController.setUseGhostSweepTest(false);
 
             dynamicsWorld.addCollisionObject(ghostObject,
@@ -131,7 +133,7 @@ public abstract class GameCharacter extends WorldObject {
         }
 
         if (characterController != null) {
-            Vector3 finalVelocity = new Vector3(velocity).add(externalForce);
+            Vector3 finalVelocity = new Vector3(velocity).scl(movementSpeed).add(externalForce);
             characterController.setWalkDirection(finalVelocity.scl(delta));
             externalForce.scl(0.95f);
 
@@ -160,9 +162,9 @@ public abstract class GameCharacter extends WorldObject {
         this.velocity.set(walkDirection);
     }
 
-    public void jump(Vector3 jumpForce) {
+    public void jump() {
         if (characterController != null && characterController.canJump()) {
-            characterController.jump(jumpForce);
+            characterController.jump();
         }
     }
 

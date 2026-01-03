@@ -17,7 +17,6 @@ public class NPCBrain implements ICharacterBrain {
     private List<Vector3> waypointQueue = new ArrayList<>();
     private int currentWaypointIndex;
     private Vector3 targetWaypoint = new Vector3();
-    private float movementSpeed = 0.3f;
 
     @Override
     public void setCharacter(GameCharacter character) {
@@ -66,7 +65,6 @@ public class NPCBrain implements ICharacterBrain {
             }
             if (!waypointQueue.isEmpty()) {
                 targetWaypoint.set(waypointQueue.get(0));
-                movementSpeed = instruction.params.getOrDefault("speed", 0.1f);
                 Log.info("NPCBrain", "[DEBUG_NPC] Parsed " + waypointQueue.size() + " waypoints. First target: " + targetWaypoint);
             } else {
                 Log.warn("NPCBrain", "[DEBUG_NPC] Waypoint parsing resulted in an empty queue.");
@@ -106,7 +104,7 @@ public class NPCBrain implements ICharacterBrain {
 
         Vector3 dir = new Vector3(targetWaypoint).sub(pos).nor();
         character.setYaw((float) Math.toDegrees(Math.atan2(dir.x, dir.z)));
-        character.setWalkDirection(dir.scl(movementSpeed));
+        character.setWalkDirection(dir);
 
         if(System.currentTimeMillis() % 1000 < 50) { // Log every second
             Log.info("NPCBrain", "[DEBUG_NPC] " + character.entityId + " moving towards " + targetWaypoint + ". Distance: " + dist);
