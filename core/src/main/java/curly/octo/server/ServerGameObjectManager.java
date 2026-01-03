@@ -4,6 +4,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.GameObject;
 import curly.octo.common.WorldObject;
+import curly.octo.common.character.NPCBrain;
 import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.lights.BaseLight;
 
@@ -118,7 +119,10 @@ public class ServerGameObjectManager {
         addToIdMap(gameObject);
 
         // Track players separately for quick access
-        if (gameObject instanceof WalkingCharacter) {
+        if (gameObject instanceof WalkingCharacter && ((WalkingCharacter) gameObject).getBrain() instanceof NPCBrain) {
+            // This is an NPC, not a player, so don't add to activePlayers
+            Log.info("ServerGameObjectManager", "Added NPC: " + gameObject.entityId);
+        } else if (gameObject instanceof WalkingCharacter) {
             activePlayers.add((WalkingCharacter) gameObject);
             Log.info("ServerGameObjectManager", "Added player: " + gameObject.entityId);
         }
@@ -151,7 +155,7 @@ public class ServerGameObjectManager {
      */
     public WalkingCharacter getPlayerById(String id) {
         GameObject obj = getObjectById(id);
-        if (obj instanceof WalkingCharacter) {
+        if (obj instanceof WalkingCharacter && !(((WalkingCharacter) obj).getBrain() instanceof NPCBrain)) {
             return (WalkingCharacter) obj;
         }
         return null;
@@ -289,11 +293,11 @@ public class ServerGameObjectManager {
      *
      * @return List of NPC objects
      */
-    public List<WorldObject> getNPCs() {
-        List<WorldObject> npcs = new ArrayList<>();
+    public List<WalkingCharacter> getNPCs() {
+        List<WalkingCharacter> npcs = new ArrayList<>();
         for (GameObject obj : gameObjects) {
-            if (obj instanceof WorldObject && !(obj instanceof WalkingCharacter)) {
-                npcs.add((WorldObject) obj);
+            if (obj instanceof WalkingCharacter && ((WalkingCharacter) obj).getBrain() instanceof NPCBrain) {
+                npcs.add((WalkingCharacter) obj);
             }
         }
         return npcs;
@@ -360,7 +364,7 @@ public class ServerGameObjectManager {
 
         // Dispose all non-player objects
         for (GameObject obj : new ArrayList<>(gameObjects)) {
-            if (!(obj instanceof WalkingCharacter)) {
+            if (!(obj instanceof WalkingCharacter && !(((WalkingCharacter) obj).getBrain() instanceof NPCBrain))) { // Keep players
                 if (obj instanceof WorldObject) {
                     ((WorldObject) obj).dispose();
                 }

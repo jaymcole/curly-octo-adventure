@@ -347,10 +347,10 @@ public class DebugRenderer implements Disposable {
             int currentIndex = npc.getCurrentWaypointIndex();
 
             // DIAGNOSTIC: Always log NPC state
-            com.esotericsoftware.minlog.Log.info("DebugRenderer", "  NPC " + npc.entityId +
-                    " at " + String.format("(%.1f, %.1f, %.1f)", npcPos.x, npcPos.y, npcPos.z) +
-                    " - waypoints: " + (waypointQueue != null ? waypointQueue.size() : 0) +
-                    " - currentIdx: " + currentIndex);
+//            com.esotericsoftware.minlog.Log.info("DebugRenderer", "  NPC " + npc.entityId +
+//                    " at " + String.format("(%.1f, %.1f, %.1f)", npcPos.x, npcPos.y, npcPos.z) +
+//                    " - waypoints: " + (waypointQueue != null ? waypointQueue.size() : 0) +
+//                    " - currentIdx: " + currentIndex);
 
             // Draw waypoint queue as connected path
             if (waypointQueue != null && !waypointQueue.isEmpty()) {
@@ -358,9 +358,9 @@ public class DebugRenderer implements Disposable {
 
                 // DIAGNOSTIC: Log first waypoint being drawn
                 Vector3 firstWp = waypointQueue.get(0);
-                com.esotericsoftware.minlog.Log.info("DebugRenderer", "    Drawing path from NPC pos " +
-                        String.format("(%.1f, %.1f, %.1f)", npcPos.x, npcPos.y, npcPos.z) +
-                        " to first waypoint " + String.format("(%.1f, %.1f, %.1f)", firstWp.x, firstWp.y, firstWp.z));
+//                com.esotericsoftware.minlog.Log.info("DebugRenderer", "    Drawing path from NPC pos " +
+//                        String.format("(%.1f, %.1f, %.1f)", npcPos.x, npcPos.y, npcPos.z) +
+//                        " to first waypoint " + String.format("(%.1f, %.1f, %.1f)", firstWp.x, firstWp.y, firstWp.z));
 
                 for (int i = 0; i < waypointQueue.size(); i++) {
                     Vector3 wp = waypointQueue.get(i);
@@ -384,9 +384,9 @@ public class DebugRenderer implements Disposable {
                     prev = wp;
                 }
 
-                com.esotericsoftware.minlog.Log.info("DebugRenderer", "    ✓ Drew " + waypointQueue.size() + " waypoint segments");
+//                com.esotericsoftware.minlog.Log.info("DebugRenderer", "    ✓ Drew " + waypointQueue.size() + " waypoint segments");
             } else {
-                com.esotericsoftware.minlog.Log.warn("DebugRenderer", "    ✗ NPC has EMPTY waypoint queue!");
+//                com.esotericsoftware.minlog.Log.warn("DebugRenderer", "    ✗ NPC has EMPTY waypoint queue!");
             }
         }
 

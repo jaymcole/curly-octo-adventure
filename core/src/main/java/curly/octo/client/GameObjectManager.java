@@ -10,6 +10,7 @@ import curly.octo.common.ModelAssetManager;
 import curly.octo.common.PhysicsProperties;
 import curly.octo.common.WorldObject;
 import curly.octo.common.character.GameCharacter;
+import curly.octo.common.character.NPCBrain;
 import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.lights.BaseLight;
 
@@ -103,6 +104,15 @@ public class GameObjectManager implements Disposable {
 
         if (gameObject instanceof WalkingCharacter) {
             WalkingCharacter character = (WalkingCharacter) gameObject;
+
+            // Re-initialize transient brain on the client after deserialization
+            if (character.getBrain() == null) {
+                if (character.entityId != null && character.entityId.startsWith("npc_")) {
+                    Log.info("GameObjectManager", "[DEBUG_NPC] Re-initializing NPCBrain for deserialized character " + character.entityId);
+                    character.setBrain(new NPCBrain());
+                }
+            }
+
             if (character.getModelAssetPath() != null) {
                 Model model = modelAssetManager.loadModel(character.getModelAssetPath());
                 if (model != null) {
@@ -111,7 +121,10 @@ public class GameObjectManager implements Disposable {
             }
 
             if (gameWorld != null && gameWorld.getMapManager() != null && gameWorld.getMapManager().isPhysicsInitialized()) {
+                Log.info("GameObjectManager", "Auto-initializing physics for character: " + character.entityId + " at position: " + character.getPosition());
                 character.initializePhysics(gameWorld.getMapManager().dynamicsWorld, character.getCharacterHeight(), character.getCharacterWidth());
+            } else {
+                Log.info("GameObjectManager", "Skipping auto-physics init for " + character.entityId + " - gameWorld: " + (gameWorld != null) + ", mapManager: " + (gameWorld != null ? gameWorld.getMapManager() != null : "N/A") + ", physicsInitialized: " + (gameWorld != null && gameWorld.getMapManager() != null ? gameWorld.getMapManager().isPhysicsInitialized() : "N/A"));
             }
         } else if (gameObject instanceof WorldObject) {
             WorldObject worldObject = (WorldObject) gameObject;
@@ -168,7 +181,7 @@ public class GameObjectManager implements Disposable {
         gameLights.clear();
         gameLightsToBeRemoved.clear();
 
-        Log.info("GameObjectManager", "All lights cleared and disposed");
+        Log.info("GameObjectManager", "All lights cleared");
     }
 
     public void setGameWorld(ClientGameWorld gameWorld) {

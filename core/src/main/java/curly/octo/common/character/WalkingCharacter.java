@@ -3,6 +3,7 @@ package curly.octo.common.character;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.physics.bullet.collision.btCapsuleShape;
 import com.badlogic.gdx.physics.bullet.dynamics.btRigidBody;
+import com.esotericsoftware.minlog.Log;
 import curly.octo.common.Constants;
 import curly.octo.common.map.GameMap;
 import curly.octo.common.map.MapTile;
@@ -170,7 +171,10 @@ public class WalkingCharacter extends GameCharacter {
     // Methods from NPCObject, guarded by brain type check
     public void executeInstruction(NPCInstructionMessage instruction) {
         if (brain instanceof NPCBrain) {
+            Log.info("WalkingCharacter", "[DEBUG_NPC] Passing instruction to NPCBrain for " + entityId);
             ((NPCBrain) brain).setInstruction(instruction);
+        } else {
+            Log.warn("WalkingCharacter", "[DEBUG_NPC] executeInstruction called on a non-NPC character: " + entityId);
         }
     }
 

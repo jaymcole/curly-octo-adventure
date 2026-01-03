@@ -31,6 +31,7 @@ public class NPCBrain implements ICharacterBrain {
         if (currentInstruction != null) {
             long elapsed = System.currentTimeMillis() - instructionStartTime;
             if (elapsed > currentInstruction.duration * 1000) {
+                Log.info("NPCBrain", "[DEBUG_NPC] Instruction expired for " + character.entityId);
                 currentInstruction = null;
                 character.setWalkDirection(new Vector3(0, 0, 0));
             } else {
@@ -40,6 +41,7 @@ public class NPCBrain implements ICharacterBrain {
     }
 
     public void setInstruction(NPCInstructionMessage instruction) {
+        Log.info("NPCBrain", "[DEBUG_NPC] Received new instruction for " + character.entityId + ": " + instruction.type);
         this.currentInstruction = instruction;
         this.instructionStartTime = System.currentTimeMillis();
 
@@ -65,7 +67,12 @@ public class NPCBrain implements ICharacterBrain {
             if (!waypointQueue.isEmpty()) {
                 targetWaypoint.set(waypointQueue.get(0));
                 movementSpeed = instruction.params.getOrDefault("speed", 0.1f);
+                Log.info("NPCBrain", "[DEBUG_NPC] Parsed " + waypointQueue.size() + " waypoints. First target: " + targetWaypoint);
+            } else {
+                Log.warn("NPCBrain", "[DEBUG_NPC] Waypoint parsing resulted in an empty queue.");
             }
+        } else {
+            Log.warn("NPCBrain", "[DEBUG_NPC] Received WANDER instruction with null waypoint indices.");
         }
     }
 
@@ -76,27 +83,33 @@ public class NPCBrain implements ICharacterBrain {
     }
 
     private void updateWander(float delta) {
-        if (waypointQueue.isEmpty()) return;
+        if (waypointQueue.isEmpty()) {
+            character.setWalkDirection(new Vector3(0, 0, 0));
+            return;
+        }
 
         Vector3 pos = character.getPosition();
-        float dist = Vector3.dst(pos.x, 0, pos.z, targetWaypoint.x, 0, targetWaypoint.z);
+        float dist = Vector3.dst(pos.x, pos.y, pos.z, targetWaypoint.x, targetWaypoint.y, targetWaypoint.z);
 
         if (dist < 0.5f) {
             currentWaypointIndex++;
             if (currentWaypointIndex < waypointQueue.size()) {
                 targetWaypoint.set(waypointQueue.get(currentWaypointIndex));
+                Log.info("NPCBrain", "[DEBUG_NPC] " + character.entityId + " reached waypoint. New target: " + targetWaypoint);
             } else {
+                Log.info("NPCBrain", "[DEBUG_NPC] " + character.entityId + " completed path.");
                 character.setWalkDirection(new Vector3(0, 0, 0));
+                waypointQueue.clear(); // Clear the queue once path is complete
                 return;
             }
         }
 
-        Vector3 dir = new Vector3(targetWaypoint).sub(pos);
-        dir.y = 0;
-        if (dir.len2() > 0.01f) {
-            dir.nor();
-            character.setYaw((float) Math.toDegrees(Math.atan2(dir.x, dir.z)));
-            character.setWalkDirection(dir.scl(movementSpeed));
+        Vector3 dir = new Vector3(targetWaypoint).sub(pos).nor();
+        character.setYaw((float) Math.toDegrees(Math.atan2(dir.x, dir.z)));
+        character.setWalkDirection(dir.scl(movementSpeed));
+
+        if(System.currentTimeMillis() % 1000 < 50) { // Log every second
+            Log.info("NPCBrain", "[DEBUG_NPC] " + character.entityId + " moving towards " + targetWaypoint + ". Distance: " + dist);
         }
     }
 

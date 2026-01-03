@@ -188,51 +188,36 @@ public class ClientGameWorld {
 
     public void setupLocalPlayer() {
         if (getGameObjectManager().localPlayer == null) {
-            Log.info("ClientGameWorld", "Creating local player object");
+            Log.info("ClientGameWorld", "[SPAWN_DEBUG] Creating local player object (WalkingCharacter)");
             getGameObjectManager().localPlayer = new WalkingCharacter(UUID.randomUUID().toString(), curly.octo.common.Constants.PLAYER_HEIGHT, 1.0f);
-
-            // Graphics initialization happens asynchronously on OpenGL thread
-            Log.info("ClientGameWorld", "Graphics initialization scheduled for local player");
 
             getGameObjectManager().add(getGameObjectManager().localPlayer);
             getPlayers().add(getGameObjectManager().localPlayer);
-            Log.info("ClientGameWorld", "Local player object created with ID: " + getGameObjectManager().localPlayer.entityId + " and added to players list");
+            Log.info("ClientGameWorld", "[SPAWN_DEBUG] Local player object created and added to managers.");
         }
 
         if (getMapManager() != null) {
-            // Check if player physics is already set up
-            if (getMapManager().getPlayerController() == null) {
-                // Add player to physics world only if not already added
-                float playerRadius = 1.0f;
-                float playerHeight = 5.0f;
-                float playerMass = 10.0f;
-                Vector3 playerStart = new Vector3(15, 25, 15);
+            Log.info("ClientGameWorld", "[SPAWN_DEBUG] MapManager exists. Proceeding with physics setup.");
+            if (!getGameObjectManager().localPlayer.isPhysicsInitialized()) {
+                Vector3 playerStart = new Vector3(15, 25, 15); // Fallback spawn
                 ArrayList<MapHint> spawnHints = getMapManager().getAllHintsOfType(SpawnPointHint.class);
                 if (!spawnHints.isEmpty()) {
                     MapTile spawnTile = getMapManager().getTile(spawnHints.get(0).tileLookupKey);
                     if (spawnTile != null) {
-                        // Spawn directly on the tile - physics will handle proper ground positioning
                         playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
+                        Log.info("ClientGameWorld", "[SPAWN_DEBUG] Found spawn hint. Player start position: " + playerStart);
                     }
+                } else {
+                    Log.warn("ClientGameWorld", "[SPAWN_DEBUG] No spawn hints found. Using fallback position: " + playerStart);
                 }
 
-                getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
+                getGameObjectManager().localPlayer.setInitialPosition(playerStart);
+                getGameObjectManager().localPlayer.initializePhysics(getMapManager().dynamicsWorld, getGameObjectManager().localPlayer.getCharacterHeight(), getGameObjectManager().localPlayer.getCharacterWidth());
             }
 
-            // Link the WalkingCharacter to the physics character controller
             getGameObjectManager().localPlayer.setGameMap(getMapManager());
-            getGameObjectManager().localPlayer.setCharacterController(getMapManager().getPlayerController());
-
-            // Set spawn position
-            Vector3 playerStart = new Vector3(15, 25, 15);
-            ArrayList<MapHint> spawnHints = getMapManager().getAllHintsOfType(SpawnPointHint.class);
-            if (!spawnHints.isEmpty()) {
-                MapTile spawnTile = getMapManager().getTile(spawnHints.get(0).tileLookupKey);
-                if (spawnTile != null) {
-                    playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
-                }
-            }
-            getGameObjectManager().localPlayer.setPosition(new Vector3(playerStart.x, playerStart.y, playerStart.z));
+        } else {
+            Log.error("ClientGameWorld", "[SPAWN_DEBUG] MapManager is NULL. Physics setup will be deferred.");
         }
     }
 
@@ -247,8 +232,9 @@ public class ClientGameWorld {
             getMapManager().stepPhysics(deltaTime);
 
             // Only sync physics position if NOT in fly mode
-            if (!getGameObjectManager().localPlayer.isFlyModeEnabled()) {
-                Vector3 bulletPlayerPos = getMapManager().getPlayerPosition();
+            if (!getGameObjectManager().localPlayer.isFlyModeEnabled() && getGameObjectManager().localPlayer.getGhostObject() != null) {
+                Vector3 bulletPlayerPos = getGameObjectManager().localPlayer.getGhostObject()
+                        .getWorldTransform().getTranslation(new Vector3());
                 getGameObjectManager().localPlayer.setPosition(bulletPlayerPos);
             }
         }
@@ -369,7 +355,7 @@ public class ClientGameWorld {
                 Log.info("ClientGameWorld", "Safely removing local player from physics world");
                 try {
                     // Remove player from physics world first, then reset state
-                    if (mapManager != null && mapManager.getPlayerController() != null) {
+                    if (mapManager != null && gameObjectManager.localPlayer.getCharacterController() != null) {
                         gameObjectManager.localPlayer.setCharacterController(null);
                         gameObjectManager.localPlayer.setGameMap(null);
                     }
@@ -488,8 +474,8 @@ public class ClientGameWorld {
                     try {
                         // Get current physics position for logging
                         Vector3 currentPhysicsPos = new Vector3(0, 0, 0);
-                        if (mapManager.getPlayerController() != null) {
-                            currentPhysicsPos = mapManager.getPlayerPosition();
+                        if (localPlayer.getCharacterController() != null) {
+                            currentPhysicsPos = localPlayer.getGhostObject().getWorldTransform().getTranslation(new Vector3());
                         }
                         Log.info("ClientGameWorld", "Current physics position: " + currentPhysicsPos + ", target spawn: " + spawnPosition);
 
@@ -497,16 +483,7 @@ public class ClientGameWorld {
                         // addPlayer() automatically removes old player physics first
                         Log.info("ClientGameWorld", "Recreating physics body to ensure clean state");
 
-                        float playerRadius = 1.0f;
-                        float playerHeight = 5.0f;
-                        float playerMass = 10.0f;
-
-                        // This will clean up old physics and create new at spawn position
-                        mapManager.addPlayer(spawnPosition.x, spawnPosition.y, spawnPosition.z,
-                                           playerRadius, playerHeight, playerMass);
-
-                        // Relink character controller
-                        localPlayer.setCharacterController(mapManager.getPlayerController());
+                        localPlayer.initializePhysics(mapManager.dynamicsWorld, localPlayer.getCharacterHeight(), localPlayer.getCharacterWidth());
 
                         Log.info("ClientGameWorld", "Recreated physics body at spawn position");
 
@@ -552,17 +529,13 @@ public class ClientGameWorld {
                 WalkingCharacter localPlayer = gameObjectManager.localPlayer;
 
                 // CRITICAL: Recreate the physics body in the new physics world
-                if (mapManager.getPlayerController() == null) {
-                    float playerRadius = 1.0f;
-                    float playerHeight = 5.0f;
-                    float playerMass = 10.0f;
-
+                if (localPlayer.getCharacterController() == null) {
                     // Use a safe spawn position instead of current position (which might be falling)
                     Vector3 safeSpawnPos = getSafeSpawnPosition();
                     Log.info("ClientGameWorld", "Recreating player physics body at safe spawn position: " + safeSpawnPos);
 
                     // Create new physics body in the new physics world
-                    mapManager.addPlayer(safeSpawnPos.x, safeSpawnPos.y, safeSpawnPos.z, playerRadius, playerHeight, playerMass);
+                    localPlayer.initializePhysics(mapManager.dynamicsWorld, localPlayer.getCharacterHeight(), localPlayer.getCharacterWidth());
 
                     // CRITICAL: Reset player state to prevent falling/invalid physics state
                     localPlayer.resetPhysicsState();
@@ -575,7 +548,6 @@ public class ClientGameWorld {
 
                 // Link the WalkingCharacter to the physics character controller
                 localPlayer.setGameMap(mapManager);
-                localPlayer.setCharacterController(mapManager.getPlayerController());
 
                 // Additional safety: Step physics once to ensure proper initialization
                 if (mapManager != null) {

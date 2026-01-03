@@ -47,11 +47,6 @@ public class GameMap {
     private transient btSequentialImpulseConstraintSolver solver;
     public transient btDiscreteDynamicsWorld dynamicsWorld;
     private transient DebugDrawer debugDrawer;
-    private transient final List<btRigidBody> staticBodies = new ArrayList<>();
-    private transient final List<btCollisionShape> staticShapes = new ArrayList<>();
-    private transient btPairCachingGhostObject playerGhostObject;
-    private transient btKinematicCharacterController playerController;
-    private transient btRigidBody playerRigidBody;
 
     // Debug rendering
     private transient boolean debugRenderingEnabled = true;
@@ -315,7 +310,7 @@ public class GameMap {
             terrainBody = new btRigidBody(info);
             terrainBody.setCollisionFlags(terrainBody.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_STATIC_OBJECT);
 
-            dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, PLAYER_GROUP | NPC_GROUP);
+            dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, (short)(PLAYER_GROUP | NPC_GROUP));
             info.dispose();
 
             Log.info("GameMap", "Generated triangle mesh with " + totalTriangleCount + " triangles using " + builder.getStrategyDescription());
@@ -449,7 +444,7 @@ public class GameMap {
 
             // Re-add terrain body for physics simulation
             if (terrainWasInWorld && terrainBody != null) {
-                dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, PLAYER_GROUP | NPC_GROUP);
+                dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, (short)(PLAYER_GROUP | NPC_GROUP));
             }
 
             /* Commented out: World collider rendering (too many bodies, causes lag)
@@ -466,56 +461,6 @@ public class GameMap {
         }
     }
 
-
-    public void addPlayer(float x, float y, float z, float radius, float height, float mass) {
-        if (!physicsInitialized) initializePhysics();
-
-        // Remove old player if exists
-        if (playerController != null) {
-            dynamicsWorld.removeAction(playerController);
-            playerController.dispose();
-            playerController = null;
-        }
-        if (playerGhostObject != null) {
-            dynamicsWorld.removeCollisionObject(playerGhostObject);
-            playerGhostObject.dispose();
-            playerGhostObject = null;
-        }
-        if (playerRigidBody != null) {
-            dynamicsWorld.removeRigidBody(playerRigidBody);
-            playerRigidBody.dispose();
-            playerRigidBody = null;
-        }
-
-        btCapsuleShape capsule = new btCapsuleShape(radius, height);
-        // Position capsule so its bottom sits on the ground, not its center
-        // Note: btCapsuleShape height is cylinder only, total = height + 2*radius
-        Matrix4 transform = new Matrix4().setToTranslation(x, y + height/2f + radius, z);
-        transform.rotate(Vector3.X, 90f); // Rotate capsule to stand vertically
-
-        playerGhostObject = new btPairCachingGhostObject();
-        playerGhostObject.setWorldTransform(transform);
-        playerGhostObject.setCollisionShape(capsule);
-        playerGhostObject.setCollisionFlags(playerGhostObject.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_CHARACTER_OBJECT);
-
-        playerController = new btKinematicCharacterController(playerGhostObject, capsule, 1.0f);
-        playerController.setGravity(new Vector3(0, Constants.PHYSICS_GRAVITY, 0));
-        playerController.setMaxSlope((float)Math.toRadians(Constants.PHYSICS_MAX_SLOPE_DEGREES));
-        playerController.setJumpSpeed(15f);
-        playerController.setMaxJumpHeight(4f);
-        playerController.setUseGhostSweepTest(false);
-
-        // Add player to physics world - collides with ground, other players, and NPCs
-        dynamicsWorld.addCollisionObject(playerGhostObject, PLAYER_GROUP, GROUND_GROUP | PLAYER_GROUP | NPC_GROUP);
-        dynamicsWorld.addAction(playerController);
-        playerGhostObject.setUserPointer(0L);
-
-    }
-
-    public btKinematicCharacterController getPlayerController() {
-        return playerController;
-    }
-
     public void stepPhysics(float deltaTime) {
         if (dynamicsWorld != null) {
             // Use dynamic timestep with reasonable constraints
@@ -523,15 +468,6 @@ public class GameMap {
             // fixedTimeStep = 1f/120f for smoother physics at high FPS
             dynamicsWorld.stepSimulation(deltaTime, Constants.PHYSICS_MAX_SUBSTEPS, Constants.PHYSICS_FIXED_TIME_STEP);
         }
-    }
-
-    public Vector3 getPlayerPosition() {
-        if (playerGhostObject != null) {
-            Matrix4 transform = new Matrix4();
-            playerGhostObject.getWorldTransform(transform);
-            return transform.getTranslation(new Vector3());
-        }
-        return new Vector3();
     }
 
     public String getMapId() {
@@ -552,21 +488,6 @@ public class GameMap {
             debugDrawer.dispose();
             debugDrawer = null;
         }
-        if (playerController != null) {
-            dynamicsWorld.removeAction(playerController);
-            playerController.dispose();
-            playerController = null;
-        }
-        if (playerGhostObject != null) {
-            dynamicsWorld.removeCollisionObject(playerGhostObject);
-            playerGhostObject.dispose();
-            playerGhostObject = null;
-        }
-        if (playerRigidBody != null) {
-            dynamicsWorld.removeRigidBody(playerRigidBody);
-            playerRigidBody.dispose();
-            playerRigidBody = null;
-        }
         // Dispose triangle mesh physics
         if (terrainBody != null) {
             dynamicsWorld.removeRigidBody(terrainBody);
@@ -582,15 +503,6 @@ public class GameMap {
             triangleMesh = null;
         }
 
-        for (btRigidBody body : staticBodies) {
-            dynamicsWorld.removeRigidBody(body);
-            body.dispose();
-        }
-        staticBodies.clear();
-        for (btCollisionShape shape : staticShapes) {
-            shape.dispose();
-        }
-        staticShapes.clear();
         if (dynamicsWorld != null) {
             dynamicsWorld.dispose();
         }

@@ -64,12 +64,21 @@ public class NPCSpawnerAgent extends BaseAgent {
                 MapTile spawnTile = gameMap.getTile(hint.tileLookupKey);
 
                 if (spawnTile != null) {
+                    // DEBUG: Log raw spawn tile info
+                    Log.info("NPCSpawnerAgent", "DEBUG NPC SPAWN: Raw spawn tile position: (" +
+                        spawnTile.x + ", " + spawnTile.y + ", " + spawnTile.z + ")");
+                    Log.info("NPCSpawnerAgent", "DEBUG NPC SPAWN: Tile fill type: " + spawnTile.fillType +
+                        ", geometry: " + spawnTile.geometryType);
+
                     // Use raw tile coordinates (same as player spawns)
                     Vector3 spawnPosition = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
 
                     // Add small random offset
                     spawnPosition.x += (random.nextFloat() - 0.5f) * 0.5f;
                     spawnPosition.z += (random.nextFloat() - 0.5f) * 0.5f;
+
+                    Log.info("NPCSpawnerAgent", "DEBUG NPC SPAWN: Final NPC spawn position (with random offset): " + spawnPosition);
+                    Log.info("NPCSpawnerAgent", "DEBUG NPC SPAWN: NPC dimensions - height: 1.8, width: 0.6");
 
                     spawnNPC(spawnPosition);
                     npcCount++;
