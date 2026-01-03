@@ -15,7 +15,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.Constants;
-import curly.octo.common.PlayerObject;
+import curly.octo.common.character.WalkingCharacter;
 
 import java.util.ArrayList;
 
@@ -283,8 +283,8 @@ public class DebugRenderer implements Disposable {
      * @param radius The capsule radius (typically 1.0f)
      * @param height The capsule height (typically 5.0f)
      */
-    public void renderPlayerCapsules(Camera camera, ArrayList<PlayerObject> remotePlayers,
-                                      PlayerObject localPlayer, float radius, float height) {
+    public void renderPlayerCapsules(Camera camera, ArrayList<WalkingCharacter> remotePlayers,
+                                      WalkingCharacter localPlayer, float radius, float height) {
         // Note: btCapsuleShape height is cylinder only, total height = height + 2*radius
         // Position capsule center accounting for the hemispheres
 
@@ -297,7 +297,7 @@ public class DebugRenderer implements Disposable {
         }
 
         // Render remote players in bright yellow
-        for (PlayerObject player : remotePlayers) {
+        for (WalkingCharacter player : remotePlayers) {
             if (player != null && player.getPosition() != null) {
                 Vector3 pos = player.getPosition();
                 Vector3 capsuleCenter = new Vector3(pos.x, pos.y + height/2f + radius, pos.z);
@@ -324,7 +324,7 @@ public class DebugRenderer implements Disposable {
      * @param camera The camera for projection matrix
      * @param npcs List of NPC objects to visualize
      */
-    public void renderNPCPaths(Camera camera, java.util.ArrayList<curly.octo.common.NPCObject> npcs) {
+    public void renderNPCPaths(Camera camera, java.util.ArrayList<WalkingCharacter> npcs) {
         if (npcs == null || npcs.isEmpty()) {
             return;
         }
@@ -337,7 +337,7 @@ public class DebugRenderer implements Disposable {
         Color completedColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);  // Gray - completed waypoints
         Color waypointColor = new Color(1.0f, 1.0f, 0.0f, 1.0f);   // Yellow - waypoint markers
 
-        for (curly.octo.common.NPCObject npc : npcs) {
+        for (WalkingCharacter npc : npcs) {
             if (npc == null || npc.getPosition() == null) {
                 continue;
             }

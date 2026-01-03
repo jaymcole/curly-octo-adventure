@@ -3,6 +3,7 @@ package curly.octo.common;
 import com.badlogic.gdx.graphics.PerspectiveCamera;
 import curly.octo.common.character.GameCharacter;
 import curly.octo.common.character.PlayerBrain;
+import curly.octo.common.character.WalkingCharacter;
 
 public class MinimalPlayerController implements InputController {
 
@@ -15,7 +16,7 @@ public class MinimalPlayerController implements InputController {
 
     @Override
     public void handleInput(float delta, Possessable target, PerspectiveCamera camera) {
-        if (target instanceof GameCharacter) {
+        if (target instanceof WalkingCharacter) {
             playerBrain.update(delta);
         }
     }
@@ -28,8 +29,8 @@ public class MinimalPlayerController implements InputController {
         this.currentTarget = target;
         if (this.currentTarget != null) {
             this.currentTarget.onPossessionStart();
-            if (target instanceof GameCharacter) {
-                playerBrain.setCharacter((GameCharacter) target);
+            if (target instanceof WalkingCharacter) {
+                playerBrain.setCharacter((WalkingCharacter) target);
             }
         }
     }

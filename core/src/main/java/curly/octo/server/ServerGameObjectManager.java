@@ -3,8 +3,8 @@ package curly.octo.server;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.GameObject;
-import curly.octo.common.PlayerObject;
 import curly.octo.common.WorldObject;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.lights.BaseLight;
 
 import java.util.ArrayList;
@@ -19,7 +19,7 @@ import java.util.List;
  */
 public class ServerGameObjectManager {
     // Player management
-    public ArrayList<PlayerObject> activePlayers = new ArrayList<>();
+    public ArrayList<WalkingCharacter> activePlayers = new ArrayList<>();
 
     // ID-based lookup for all game objects
     private final HashMap<String, GameObject> idToGameObjectMap = new HashMap<>();
@@ -70,7 +70,7 @@ public class ServerGameObjectManager {
             idToGameObjectMap.remove(object.entityId);
 
             // Remove from active players if it's a player
-            if (object instanceof PlayerObject) {
+            if (object instanceof WalkingCharacter) {
                 activePlayers.remove(object);
             }
         }
@@ -118,11 +118,9 @@ public class ServerGameObjectManager {
         addToIdMap(gameObject);
 
         // Track players separately for quick access
-        if (gameObject instanceof PlayerObject) {
-            activePlayers.add((PlayerObject) gameObject);
+        if (gameObject instanceof WalkingCharacter) {
+            activePlayers.add((WalkingCharacter) gameObject);
             Log.info("ServerGameObjectManager", "Added player: " + gameObject.entityId);
-        } else if (gameObject instanceof curly.octo.common.NPCObject) {
-            Log.info("ServerGameObjectManager", "Added NPC: " + gameObject.entityId);
         }
     }
 
@@ -149,12 +147,12 @@ public class ServerGameObjectManager {
     /**
      * Gets a player by their unique ID.
      * @param id The player entity ID
-     * @return The PlayerObject, or null if not found or not a player
+     * @return The WalkingCharacter, or null if not found or not a player
      */
-    public PlayerObject getPlayerById(String id) {
+    public WalkingCharacter getPlayerById(String id) {
         GameObject obj = getObjectById(id);
-        if (obj instanceof PlayerObject) {
-            return (PlayerObject) obj;
+        if (obj instanceof WalkingCharacter) {
+            return (WalkingCharacter) obj;
         }
         return null;
     }
@@ -188,11 +186,11 @@ public class ServerGameObjectManager {
      * @param radius Search radius
      * @return List of players within radius
      */
-    public List<PlayerObject> getPlayersInRadius(Vector3 position, float radius) {
-        List<PlayerObject> nearbyPlayers = new ArrayList<>();
+    public List<WalkingCharacter> getPlayersInRadius(Vector3 position, float radius) {
+        List<WalkingCharacter> nearbyPlayers = new ArrayList<>();
         float radiusSquared = radius * radius;
 
-        for (PlayerObject player : activePlayers) {
+        for (WalkingCharacter player : activePlayers) {
             if (!gameObjectsToBeRemoved.contains(player)) {
                 Vector3 playerPos = player.getPosition();
                 float distSquared = position.dst2(playerPos);
@@ -209,7 +207,7 @@ public class ServerGameObjectManager {
      * Gets all active players (defensive copy).
      * @return List of all active players
      */
-    public List<PlayerObject> getAllPlayers() {
+    public List<WalkingCharacter> getAllPlayers() {
         return new ArrayList<>(activePlayers);
     }
 
@@ -252,7 +250,7 @@ public class ServerGameObjectManager {
      * @return true if the update is valid, false if suspicious
      */
     public boolean validatePositionUpdate(String playerId, Vector3 newPosition, float maxSpeed, float deltaTime) {
-        PlayerObject player = getPlayerById(playerId);
+        WalkingCharacter player = getPlayerById(playerId);
         if (player == null) {
             Log.warn("ServerGameObjectManager", "Cannot validate position for unknown player: " + playerId);
             return false;
@@ -294,7 +292,7 @@ public class ServerGameObjectManager {
     public List<WorldObject> getNPCs() {
         List<WorldObject> npcs = new ArrayList<>();
         for (GameObject obj : gameObjects) {
-            if (obj instanceof WorldObject && !(obj instanceof PlayerObject)) {
+            if (obj instanceof WorldObject && !(obj instanceof WalkingCharacter)) {
                 npcs.add((WorldObject) obj);
             }
         }
@@ -306,11 +304,11 @@ public class ServerGameObjectManager {
      * @param position The position to search from
      * @return The nearest player, or null if no players exist
      */
-    public PlayerObject getNearestPlayer(Vector3 position) {
-        PlayerObject nearest = null;
+    public WalkingCharacter getNearestPlayer(Vector3 position) {
+        WalkingCharacter nearest = null;
         float nearestDistSquared = Float.MAX_VALUE;
 
-        for (PlayerObject player : activePlayers) {
+        for (WalkingCharacter player : activePlayers) {
             if (!gameObjectsToBeRemoved.contains(player)) {
                 float distSquared = position.dst2(player.getPosition());
                 if (distSquared < nearestDistSquared) {
@@ -362,7 +360,7 @@ public class ServerGameObjectManager {
 
         // Dispose all non-player objects
         for (GameObject obj : new ArrayList<>(gameObjects)) {
-            if (!(obj instanceof PlayerObject)) {
+            if (!(obj instanceof WalkingCharacter)) {
                 if (obj instanceof WorldObject) {
                     ((WorldObject) obj).dispose();
                 }

@@ -5,6 +5,9 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
+import curly.octo.common.character.NPCBrain;
+import curly.octo.common.character.PlayerBrain;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.map.MapTile;
 import curly.octo.common.map.enums.Direction;
 import curly.octo.common.map.enums.MapTileGeometryType;
@@ -13,7 +16,6 @@ import curly.octo.common.map.hints.LightHint;
 import curly.octo.common.map.hints.MapHint;
 import curly.octo.common.map.hints.SpawnPointHint;
 import curly.octo.common.network.messages.*;
-import curly.octo.server.NPCElectionManager;
 import curly.octo.server.playerManagement.ClientUniqueId;
 import org.bitlet.weupnp.GatewayDevice;
 import org.bitlet.weupnp.GatewayDiscover;
@@ -21,7 +23,6 @@ import curly.octo.common.map.GameMap;
 import curly.octo.common.map.enums.MapTileFillType;
 import curly.octo.common.network.messages.legacyMessages.MapDataUpdate;
 import curly.octo.common.GameObject;
-import curly.octo.common.PlayerObject;
 import curly.octo.common.WorldObject;
 
 import java.net.InetAddress;
@@ -95,9 +96,10 @@ public class KryoNetwork {
         // Register game object hierarchy
         kryo.register(GameObject.class);
         kryo.register(WorldObject.class);
-        kryo.register(PlayerObject[].class);
-        kryo.register(PlayerObject.class);
-        kryo.register(curly.octo.common.NPCObject.class);
+        kryo.register(WalkingCharacter.class);
+        kryo.register(WalkingCharacter[].class);
+        kryo.register(PlayerBrain.class);
+        kryo.register(NPCBrain.class);
         kryo.register(Color.class);
 
         kryo.register(PlayerObjectRosterUpdate.class);

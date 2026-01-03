@@ -8,6 +8,9 @@ import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.client.clientStates.StateManager;
+import curly.octo.common.character.NPCBrain;
+import curly.octo.common.character.PlayerBrain;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.network.NetworkManager;
 import curly.octo.common.map.hints.SpawnPointHint;
 import curly.octo.common.network.messages.*;
@@ -352,11 +355,11 @@ public class ClientGameMode implements GameMode {
                 Log.warn("ClientGameMode", "Received deprecated PlayerObjectRosterUpdate - " +
                         "players should come from map transfer");
                 HashSet<String> currentPlayers = new HashSet<>();
-                for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
+                for (WalkingCharacter player : gameWorld.getGameObjectManager().activePlayers) {
                     currentPlayers.add(player.entityId);
                 }
 
-                for (PlayerObject player : roster.players) {
+                for (WalkingCharacter player : roster.players) {
                     if (!currentPlayers.contains(player.entityId)) {
                         gameWorld.getGameObjectManager().activePlayers.add(player);
                         gameWorld.getGameObjectManager().add(player);
@@ -372,8 +375,8 @@ public class ClientGameMode implements GameMode {
                 Log.info("ClientGameMode", "Processing disconnect for player " + disconnectUpdate.playerId);
 
                 // Find and remove the disconnected player
-                PlayerObject playerToRemove = null;
-                for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
+                WalkingCharacter playerToRemove = null;
+                for (WalkingCharacter player : gameWorld.getGameObjectManager().activePlayers) {
                     if (player.entityId.equals(disconnectUpdate.playerId)) {
                         playerToRemove = player;
                         break;
@@ -400,8 +403,8 @@ public class ClientGameMode implements GameMode {
                 }
 
                 // Find the player in our list
-                PlayerObject targetPlayer = null;
-                for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
+                WalkingCharacter targetPlayer = null;
+                for (WalkingCharacter player : gameWorld.getGameObjectManager().activePlayers) {
                     if (player.entityId.equals(playerUpdate.playerId)) {
                         targetPlayer = player;
                         break;
@@ -411,7 +414,7 @@ public class ClientGameMode implements GameMode {
                 // If player not found, create a new one
                 if (targetPlayer == null) {
                     Log.info("ClientGameMode", "Creating new remote player for player " + playerUpdate.playerId);
-                    targetPlayer = new PlayerObject(playerUpdate.playerId); // client mode - need graphics
+                    targetPlayer = new WalkingCharacter(playerUpdate.playerId, Constants.PLAYER_HEIGHT, 1.0f); // client mode - need graphics
                     gameWorld.getGameObjectManager().activePlayers.add(targetPlayer);
                     gameWorld.getGameObjectManager().add(targetPlayer);
 
@@ -436,17 +439,17 @@ public class ClientGameMode implements GameMode {
         NetworkManager.onReceive(PlayerImpulseMessage.class, impulseMessage -> {
             Gdx.app.postRunnable(() -> {
                 // Find the target player (could be local or remote)
-                PlayerObject targetPlayer = null;
+                WalkingCharacter targetPlayer = null;
                 String playerType = "UNKNOWN";
 
                 // First check if this is the local player
-                PlayerObject localPlayer = gameWorld.getGameObjectManager().localPlayer;
+                WalkingCharacter localPlayer = gameWorld.getGameObjectManager().localPlayer;
                 if (localPlayer != null && localPlayer.entityId.equals(impulseMessage.playerId)) {
                     targetPlayer = localPlayer;
                     playerType = "LOCAL";
                 } else {
                     // Search remote players in activePlayers list
-                    for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
+                    for (WalkingCharacter player : gameWorld.getGameObjectManager().activePlayers) {
                         if (player.entityId.equals(impulseMessage.playerId)) {
                             targetPlayer = player;
                             playerType = "REMOTE";
@@ -496,8 +499,8 @@ public class ClientGameMode implements GameMode {
 
                 // Update NPC's authority flag and completion callback (if NPC exists)
                 curly.octo.common.GameObject obj = gameWorld.getGameObjectManager().getObjectById(npcId);
-                if (obj instanceof curly.octo.common.NPCObject) {
-                    curly.octo.common.NPCObject npc = (curly.octo.common.NPCObject) obj;
+                if (obj instanceof WalkingCharacter) {
+                    WalkingCharacter npc = (WalkingCharacter) obj;
                     Log.info("ClientGameMode", "NPC found in game object manager - configuring authority");
                     configureNPCAuthority(npc);
                 } else {
@@ -519,8 +522,8 @@ public class ClientGameMode implements GameMode {
                 GameObjectManager gom = gameWorld.getGameObjectManager();
                 curly.octo.common.GameObject obj = gom.getObjectById(instructionMessage.npcId);
 
-                if (obj instanceof curly.octo.common.NPCObject) {
-                    curly.octo.common.NPCObject npc = (curly.octo.common.NPCObject) obj;
+                if (obj instanceof WalkingCharacter) {
+                    WalkingCharacter npc = (WalkingCharacter) obj;
                     Log.info("ClientGameMode", "NPC current position before instruction: (" +
                             String.format("%.1f, %.1f, %.1f",
                                 npc.getPosition().x, npc.getPosition().y, npc.getPosition().z) + ")");
@@ -531,7 +534,7 @@ public class ClientGameMode implements GameMode {
                     npc.executeInstruction(instructionMessage);
                     Log.info("ClientGameMode", "Applied instruction to NPC " + instructionMessage.npcId);
                 } else {
-                    Log.warn("ClientGameMode", "NPC " + instructionMessage.npcId + " not found or not an NPCObject");
+                    Log.warn("ClientGameMode", "NPC " + instructionMessage.npcId + " not found or not an WalkingCharacter");
                 }
             });
         });
@@ -558,7 +561,7 @@ public class ClientGameMode implements GameMode {
      * This can be called either when the player is first assigned, or after the map is loaded.
      * @param player The player to set up physics for
      */
-    public void setupPlayerPhysics(PlayerObject player) {
+    public void setupPlayerPhysics(WalkingCharacter player) {
         if (player == null) {
             Log.error("ClientGameMode", "Cannot setup physics for null player");
             return;
@@ -596,13 +599,13 @@ public class ClientGameMode implements GameMode {
             Log.info("ClientGameMode", "PlayerController already exists, skipping physics creation");
         }
 
-        // Link the PlayerObject to the physics character controller
-        Log.info("ClientGameMode", "Linking PlayerObject to physics...");
+        // Link the WalkingCharacter to the physics character controller
+        Log.info("ClientGameMode", "Linking WalkingCharacter to physics...");
         player.setGameMap(gameWorld.getMapManager());
         player.setCharacterController(gameWorld.getMapManager().getPlayerController());
-        Log.info("ClientGameMode", "PlayerObject.characterController set to: " + (player.getCharacterController() != null ? "EXISTS" : "NULL"));
+        Log.info("ClientGameMode", "WalkingCharacter.characterController set to: " + (player.getCharacterController() != null ? "EXISTS" : "NULL"));
 
-        // Sync PlayerObject position to physics (in case physics was created at different position)
+        // Sync WalkingCharacter position to physics (in case physics was created at different position)
         if (gameWorld.getMapManager().getPlayerController() != null) {
             Vector3 physicsPos = gameWorld.getMapManager().getPlayerController()
                 .getGhostObject()
@@ -619,7 +622,7 @@ public class ClientGameMode implements GameMode {
      * Get the local player object.
      * @return The local player, or null if not assigned yet
      */
-    public PlayerObject getLocalPlayer() {
+    public WalkingCharacter getLocalPlayer() {
         return gameWorld.getGameObjectManager().localPlayer;
     }
 
@@ -629,14 +632,14 @@ public class ClientGameMode implements GameMode {
 
         // Debug: Print all active players
         for (int i = 0; i < gameWorld.getGameObjectManager().activePlayers.size(); i++) {
-            PlayerObject p = gameWorld.getGameObjectManager().activePlayers.get(i);
+            WalkingCharacter p = gameWorld.getGameObjectManager().activePlayers.get(i);
             Log.info("ClientGameMode", "activePlayers[" + i + "] = " + (p != null ? p.entityId : "NULL"));
         }
 
         // NORMAL FLOW: Player should already exist from map transfer
         // Check if a player with this ID already exists in activePlayers (from map transfer payload)
-        PlayerObject existingPlayer = null;
-        for (PlayerObject player : gameWorld.getGameObjectManager().activePlayers) {
+        WalkingCharacter existingPlayer = null;
+        for (WalkingCharacter player : gameWorld.getGameObjectManager().activePlayers) {
             if (player != null && player.entityId != null && player.entityId.equals(localPlayerId)) {
                 existingPlayer = player;
                 break;
@@ -683,7 +686,7 @@ public class ClientGameMode implements GameMode {
             gameWorld.getGameObjectManager().localPlayer.entityId = localPlayerId;
 
             // Set up the newly created local player
-            PlayerObject localPlayer = gameWorld.getGameObjectManager().localPlayer;
+            WalkingCharacter localPlayer = gameWorld.getGameObjectManager().localPlayer;
             if (localPlayer != null) {
                 // Set up the player for local control
                 if (gameWorld.getMapManager() != null) {
@@ -740,7 +743,7 @@ public class ClientGameMode implements GameMode {
             return;
         }
 
-        PlayerObject localPlayer = gameWorld.getGameObjectManager().localPlayer;
+        WalkingCharacter localPlayer = gameWorld.getGameObjectManager().localPlayer;
         if (localPlayer != null) {
             // Log.info("ClientGameMode", "Rendering with local player: " + localPlayer.getPlayerId());
             // Create camera for rendering if not exists
@@ -1049,14 +1052,14 @@ public class ClientGameMode implements GameMode {
         int skippedStationary = 0;
 
         // Send individual sync message for each managed NPC
-        // Note: Path completion is now handled immediately via NPCObject callback
+        // Note: Path completion is now handled immediately via WalkingCharacter callback
         for (String npcId : curly.octo.common.NPCAuthorityManager.getManagedNPCs()) {
             // Find the NPC object
-            NPCObject npc = null;
+            WalkingCharacter npc = null;
             for (GameObject obj : gameWorld.getGameObjectManager().getAllObjects()) {
-                if (obj instanceof NPCObject &&
+                if (obj instanceof WalkingCharacter &&
                     obj.entityId.equals(npcId)) {
-                    npc = (curly.octo.common.NPCObject) obj;
+                    npc = (WalkingCharacter) obj;
                     break;
                 }
             }
@@ -1109,7 +1112,7 @@ public class ClientGameMode implements GameMode {
      *
      * @param npc The NPC to configure
      */
-    private void configureNPCAuthority(curly.octo.common.NPCObject npc) {
+    private void configureNPCAuthority(WalkingCharacter npc) {
         boolean iAmAuthority = curly.octo.common.NPCAuthorityManager.isMyNPC(npc.entityId);
 
         if (iAmAuthority) {
@@ -1127,11 +1130,11 @@ public class ClientGameMode implements GameMode {
 
     /**
      * Send NPC path completion message immediately when path finishes.
-     * Called by NPCObject callback when the authority client detects completion.
+     * Called by WalkingCharacter callback when the authority client detects completion.
      *
      * @param npc The NPC that completed its path
      */
-    private void sendNPCPathCompletion(curly.octo.common.NPCObject npc) {
+    private void sendNPCPathCompletion(WalkingCharacter npc) {
         Vector3 pos = npc.getPosition();
         if (pos == null) {
             Log.warn("NPCCompletion", "Cannot send completion - NPC position is null");
@@ -1179,11 +1182,11 @@ public class ClientGameMode implements GameMode {
 
         // Find the NPC object
         curly.octo.common.GameObject obj = gameWorld.getGameObjectManager().getObjectById(sync.npcId);
-        if (!(obj instanceof curly.octo.common.NPCObject)) {
+        if (!(obj instanceof WalkingCharacter)) {
             return; // NPC not found
         }
 
-        curly.octo.common.NPCObject npc = (curly.octo.common.NPCObject) obj;
+        WalkingCharacter npc = (WalkingCharacter) obj;
 
         // Extract authority position from sync
         Vector3 authorityPos = new Vector3(

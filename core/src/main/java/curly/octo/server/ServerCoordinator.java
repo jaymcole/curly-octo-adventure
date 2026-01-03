@@ -1,6 +1,7 @@
 package curly.octo.server;
 
 import com.esotericsoftware.minlog.Log;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.server.playerManagement.ClientManager;
 import curly.octo.server.playerManagement.ClientConnectionKey;
 import curly.octo.server.playerManagement.ClientProfile;
@@ -109,8 +110,8 @@ public class ServerCoordinator {
         int npcCount = 0;
 
         for (curly.octo.common.WorldObject obj : gameObjectManager.getNPCs()) {
-            if (obj instanceof curly.octo.common.NPCObject) {
-                curly.octo.common.NPCObject npc = (curly.octo.common.NPCObject) obj;
+            if (obj instanceof WalkingCharacter) {
+                WalkingCharacter npc = (WalkingCharacter) obj;
 
                 // Find the NPC behavior agent
                 for (curly.octo.server.serverAgents.BaseAgent agent : serverAgents) {

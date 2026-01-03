@@ -1,16 +1,16 @@
 package curly.octo.common.network.messages;
 
-import curly.octo.common.PlayerObject;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.network.NetworkMessage;
 
 public class PlayerObjectRosterUpdate extends NetworkMessage {
-    public PlayerObject[] players;
+    public WalkingCharacter[] players;
 
     public PlayerObjectRosterUpdate() {
         // Default constructor required for Kryo
     }
 
-    public PlayerObjectRosterUpdate(PlayerObject[] players) {
+    public PlayerObjectRosterUpdate(WalkingCharacter[] players) {
         this.players = players;
     }
 }

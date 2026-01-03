@@ -7,11 +7,10 @@ import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.GameObject;
 import curly.octo.common.ModelAssetManager;
-import curly.octo.common.NPCObject;
 import curly.octo.common.PhysicsProperties;
-import curly.octo.common.PlayerObject;
 import curly.octo.common.WorldObject;
 import curly.octo.common.character.GameCharacter;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.lights.BaseLight;
 
 import java.util.ArrayList;
@@ -19,8 +18,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 public class GameObjectManager implements Disposable {
-    public ArrayList<PlayerObject> activePlayers = new ArrayList<>();
-    public PlayerObject localPlayer;
+    public ArrayList<WalkingCharacter> activePlayers = new ArrayList<>();
+    public WalkingCharacter localPlayer;
 
     private final HashMap<String, GameObject> idToGameObjectMap = new HashMap<>();
 
@@ -102,8 +101,8 @@ public class GameObjectManager implements Disposable {
         gameObjects.add(gameObject);
         addToStringToObjectMap(gameObject);
 
-        if (gameObject instanceof GameCharacter) {
-            GameCharacter character = (GameCharacter) gameObject;
+        if (gameObject instanceof WalkingCharacter) {
+            WalkingCharacter character = (WalkingCharacter) gameObject;
             if (character.getModelAssetPath() != null) {
                 Model model = modelAssetManager.loadModel(character.getModelAssetPath());
                 if (model != null) {
@@ -112,11 +111,7 @@ public class GameObjectManager implements Disposable {
             }
 
             if (gameWorld != null && gameWorld.getMapManager() != null && gameWorld.getMapManager().isPhysicsInitialized()) {
-                if (character instanceof PlayerObject) {
-                    character.initializePhysics(gameWorld.getMapManager().dynamicsWorld, PlayerObject.PLAYER_HEIGHT, 1.0f);
-                } else if (character instanceof NPCObject) {
-                    character.initializePhysics(gameWorld.getMapManager().dynamicsWorld, NPCObject.NPC_HEIGHT, NPCObject.NPC_WIDTH);
-                }
+                character.initializePhysics(gameWorld.getMapManager().dynamicsWorld, character.getCharacterHeight(), character.getCharacterWidth());
             }
         } else if (gameObject instanceof WorldObject) {
             WorldObject worldObject = (WorldObject) gameObject;

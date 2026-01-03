@@ -1,20 +1,27 @@
 package curly.octo.common;
 
+import curly.octo.common.character.PlayerBrain;
+import curly.octo.common.character.WalkingCharacter;
+
 import java.util.UUID;
 
 public class PlayerUtilities {
 
-    public static PlayerObject createPlayerObject() {
+    public static WalkingCharacter createPlayerObject() {
         String playerId = UUID.randomUUID().toString();
-        return new PlayerObject(playerId);
+        WalkingCharacter player = new WalkingCharacter(playerId, Constants.PLAYER_HEIGHT, 1.0f);
+        player.setBrain(new PlayerBrain());
+        return player;
     }
 
     /**
      * Creates a server-only player object that skips graphics initialization.
      * Used by GameServer for tracking player state without rendering overhead.
      */
-    public static PlayerObject createServerPlayerObject() {
+    public static WalkingCharacter createServerPlayerObject() {
         String playerId = UUID.randomUUID().toString();
-        return new PlayerObject(playerId); // true = server-only
+        WalkingCharacter player = new WalkingCharacter(playerId, Constants.PLAYER_HEIGHT, 1.0f);
+        player.setBrain(new PlayerBrain());
+        return player;
     }
 }

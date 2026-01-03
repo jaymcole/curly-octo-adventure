@@ -3,7 +3,8 @@ package curly.octo.server.serverAgents;
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.Constants;
-import curly.octo.common.NPCObject;
+import curly.octo.common.character.NPCBrain;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.map.GameMap;
 import curly.octo.common.map.MapTile;
 import curly.octo.common.map.hints.MapHint;
@@ -100,7 +101,8 @@ public class NPCSpawnerAgent extends BaseAgent {
         String npcId = "npc_" + UUID.randomUUID().toString().substring(0, 8);
 
         // Create NPC object
-        NPCObject npc = new NPCObject(npcId);
+        WalkingCharacter npc = new WalkingCharacter(npcId, 1.8f, 0.6f);
+        npc.setBrain(new NPCBrain());
         npc.setPosition(position);
 
         // Add to object manager

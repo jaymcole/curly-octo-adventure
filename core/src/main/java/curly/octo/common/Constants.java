@@ -76,7 +76,7 @@ public class Constants {
     public static final float PLAYER_HEIGHT = 2.5f;
 
     /** Player movement speed multiplier */
-    public static final float PLAYER_MOVEMENT_SPEED = 0.3f;
+    public static final float PLAYER_MOVEMENT_SPEED = 10.0f;
 
     /** Force applied when player jumps */
     public static final float PLAYER_JUMP_FORCE = 25f;

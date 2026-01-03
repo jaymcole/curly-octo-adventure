@@ -9,12 +9,12 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.graphics.GL20;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.map.GameMap;
 import curly.octo.client.rendering.GameMapRenderer;
 import curly.octo.common.map.MapTile;
 import curly.octo.common.map.enums.MapTileFillType;
 import curly.octo.common.map.hints.MapHint;
-import curly.octo.common.PlayerObject;
 import curly.octo.common.map.hints.SpawnPointHint;
 
 import java.util.ArrayList;
@@ -34,7 +34,7 @@ public class ClientGameWorld {
     protected GameMap mapManager;
     protected GameMapRenderer mapRenderer;
     protected Environment environment;
-    protected List<PlayerObject> players;
+    protected List<WalkingCharacter> players;
     protected Random random;
     protected GameObjectManager gameObjectManager;
     protected float positionUpdateTimer = 0;
@@ -78,7 +78,7 @@ public class ClientGameWorld {
 
             // Initialize physics for remote players that were created before map was ready
             Log.info("ClientGameWorld", "Checking for remote players needing physics initialization");
-            for (PlayerObject player : gameObjectManager.activePlayers) {
+            for (WalkingCharacter player : gameObjectManager.activePlayers) {
                 // Skip local player (they get full character controller physics)
                 if (player != gameObjectManager.localPlayer && !player.isRemotePhysicsInitialized()) {
                     Log.info("ClientGameWorld", "Initializing remote physics for player: " + player.entityId);
@@ -189,7 +189,7 @@ public class ClientGameWorld {
     public void setupLocalPlayer() {
         if (getGameObjectManager().localPlayer == null) {
             Log.info("ClientGameWorld", "Creating local player object");
-            getGameObjectManager().localPlayer = new PlayerObject(UUID.randomUUID().toString());
+            getGameObjectManager().localPlayer = new WalkingCharacter(UUID.randomUUID().toString(), curly.octo.common.Constants.PLAYER_HEIGHT, 1.0f);
 
             // Graphics initialization happens asynchronously on OpenGL thread
             Log.info("ClientGameWorld", "Graphics initialization scheduled for local player");
@@ -219,7 +219,7 @@ public class ClientGameWorld {
                 getMapManager().addPlayer(playerStart.x, playerStart.y, playerStart.z, playerRadius, playerHeight, playerMass);
             }
 
-            // Link the PlayerObject to the physics character controller
+            // Link the WalkingCharacter to the physics character controller
             getGameObjectManager().localPlayer.setGameMap(getMapManager());
             getGameObjectManager().localPlayer.setCharacterController(getMapManager().getPlayerController());
 
@@ -277,12 +277,12 @@ public class ClientGameWorld {
             // Collect other players' ModelInstances for shadow casting
             Array<ModelInstance> playerInstances = new Array<>();
             if (getGameObjectManager().activePlayers != null && getGameObjectManager().localPlayer != null) {
-                for (PlayerObject player : getGameObjectManager().activePlayers) {
+                for (WalkingCharacter player : getGameObjectManager().activePlayers) {
                     if (!player.entityId.equals(getGameObjectManager().localPlayer.entityId)) {
                         // Get the player's ModelInstance for shadow casting
                         ModelInstance playerModel = player.getModelInstance();
                         if (playerModel != null) {
-                            // Don't manually position here - PlayerObject.update() handles this with bounds-aware positioning
+                            // Don't manually position here - WalkingCharacter.update() handles this with bounds-aware positioning
                             playerInstances.add(playerModel);
                         }
                     }
@@ -310,10 +310,10 @@ public class ClientGameWorld {
                     );
 
                     // Render NPC paths (waypoints, wander zones)
-                    java.util.ArrayList<curly.octo.common.NPCObject> npcs = new java.util.ArrayList<>();
+                    java.util.ArrayList<WalkingCharacter> npcs = new java.util.ArrayList<>();
                     for (curly.octo.common.GameObject obj : getGameObjectManager().getAllObjects()) {
-                        if (obj instanceof curly.octo.common.NPCObject) {
-                            npcs.add((curly.octo.common.NPCObject) obj);
+                        if (obj instanceof WalkingCharacter) {
+                            npcs.add((WalkingCharacter) obj);
                         }
                     }
                     if (!npcs.isEmpty()) {
@@ -382,7 +382,7 @@ public class ClientGameWorld {
             // Step 3: Remove all player physics but keep player data
             if (players != null) {
                 Log.info("ClientGameWorld", "Safely removing physics for " + players.size() + " player objects");
-                for (PlayerObject player : players) {
+                for (WalkingCharacter player : players) {
                     try {
                         // Clean up remote physics (important for remote players)
                         player.disposeRemotePhysics(mapManager);
@@ -481,7 +481,7 @@ public class ClientGameWorld {
 
         try {
             if (gameObjectManager != null && gameObjectManager.localPlayer != null) {
-                PlayerObject localPlayer = gameObjectManager.localPlayer;
+                WalkingCharacter localPlayer = gameObjectManager.localPlayer;
 
                 // CRITICAL: Always recreate physics body to ensure clean state
                 if (mapManager != null) {
@@ -516,7 +516,7 @@ public class ClientGameWorld {
                     }
                 }
 
-                // Reset PlayerObject position and state
+                // Reset WalkingCharacter position and state
                 localPlayer.setPosition(spawnPosition);
                 localPlayer.setYaw(spawnYaw);
                 localPlayer.resetPhysicsState();
@@ -549,7 +549,7 @@ public class ClientGameWorld {
 
             // Reinitialize local player physics with new map
             if (gameObjectManager != null && gameObjectManager.localPlayer != null && mapManager != null) {
-                PlayerObject localPlayer = gameObjectManager.localPlayer;
+                WalkingCharacter localPlayer = gameObjectManager.localPlayer;
 
                 // CRITICAL: Recreate the physics body in the new physics world
                 if (mapManager.getPlayerController() == null) {
@@ -573,7 +573,7 @@ public class ClientGameWorld {
                     Log.info("ClientGameWorld", "Player controller already exists, reusing existing physics body");
                 }
 
-                // Link the PlayerObject to the physics character controller
+                // Link the WalkingCharacter to the physics character controller
                 localPlayer.setGameMap(mapManager);
                 localPlayer.setCharacterController(mapManager.getPlayerController());
 
@@ -587,7 +587,7 @@ public class ClientGameWorld {
 
             // For remote players, just link them to the map (they don't need physics bodies on client)
             if (players != null && mapManager != null) {
-                for (PlayerObject player : players) {
+                for (WalkingCharacter player : players) {
                     try {
                         if (player != gameObjectManager.localPlayer) {
                             // Remote players only need map reference, not physics bodies
@@ -644,7 +644,7 @@ public class ClientGameWorld {
         this.mapManager = mapManager;
     }
 
-    protected List<PlayerObject> getPlayers() {
+    protected List<WalkingCharacter> getPlayers() {
         return players;
     }
 

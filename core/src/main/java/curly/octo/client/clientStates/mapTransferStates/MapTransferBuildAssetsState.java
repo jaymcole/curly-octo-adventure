@@ -8,6 +8,7 @@ import curly.octo.client.clientStates.BaseScreen;
 import curly.octo.client.clientStates.StateManager;
 import curly.octo.client.clientStates.mapTransferStates.ui.MapTransferScreen;
 import curly.octo.common.GameObject;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.map.GameMap;
 
 import java.util.List;
@@ -62,7 +63,7 @@ public class MapTransferBuildAssetsState extends BaseGameStateClient {
                 // This handles the race condition where PlayerAssignmentUpdate arrives before map is ready
                 curly.octo.client.ClientGameMode clientGameMode = StateManager.getClientGameMode();
                 if (clientGameMode != null) {
-                    curly.octo.common.PlayerObject localPlayer = clientGameMode.getLocalPlayer();
+                    WalkingCharacter localPlayer = clientGameMode.getLocalPlayer();
                     if (localPlayer != null) {
                         Log.info("MapTransferBuildAssetsState", "Local player exists after map load - checking physics setup...");
                         // Check if physics needs to be set up (characterController will be null if physics wasn't initialized)

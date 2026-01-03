@@ -5,6 +5,7 @@ import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Server;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.network.messages.*;
 import curly.octo.server.playerManagement.ClientConnectionKey;
 import curly.octo.server.playerManagement.ClientProfile;
@@ -21,7 +22,6 @@ import curly.octo.common.network.KryoNetwork;
 import curly.octo.common.network.NetworkManager;
 import curly.octo.common.network.messages.legacyMessages.MapRegenerationStartMessage;
 import curly.octo.common.network.messages.legacyMessages.ClientReadyForMapMessage;
-import curly.octo.common.PlayerObject;
 import curly.octo.common.PlayerUtilities;
 import curly.octo.server.workflows.BulkTransferServer;
 
@@ -125,7 +125,7 @@ public class GameServer {
             Log.info("GameServer", "Client " + connection.getID() + " identified, starting map transfer");
 
             // Create player and add to game object manager
-            PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
+            WalkingCharacter newPlayer = PlayerUtilities.createServerPlayerObject();
             gameObjectManager.add(newPlayer);
             connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
 
@@ -148,7 +148,7 @@ public class GameServer {
             // Trigger initial map generation
             Log.info("GameServer", "Deferring player assignment until after initial map generation for client " + connection.getID());
 
-            PlayerObject newPlayer = PlayerUtilities.createServerPlayerObject();
+            WalkingCharacter newPlayer = PlayerUtilities.createServerPlayerObject();
             gameObjectManager.add(newPlayer);
             connectionToPlayerMap.put(connection.getID(), newPlayer.entityId);
             pendingPlayerAssignments.put(connection.getID(), newPlayer.entityId);
@@ -163,7 +163,7 @@ public class GameServer {
     public void handlePlayerUpdate(Connection connection, PlayerUpdate update) {
         // Received a player position update, update in game object manager
         //TODO: don't include playerId in message. This should be determined via Connection/ClientProfile
-        PlayerObject player = gameObjectManager.getPlayerById(update.playerId);
+        WalkingCharacter player = (WalkingCharacter) gameObjectManager.getPlayerById(update.playerId);
         if (player != null) {
             player.setPosition(new Vector3(update.x, update.y, update.z));
             player.setYaw(update.yaw);
@@ -193,10 +193,10 @@ public class GameServer {
         npcPositions.put(syncMessage.npcId, pos);
         npcLastUpdateTime.put(syncMessage.npcId, System.currentTimeMillis());
 
-        // Update server-side NPCObject position for path generation
+        // Update server-side WalkingCharacter position for path generation
         curly.octo.common.GameObject obj = gameObjectManager.getObjectById(syncMessage.npcId);
-        if (obj instanceof curly.octo.common.NPCObject) {
-            ((curly.octo.common.NPCObject) obj).setPosition(pos);
+        if (obj instanceof WalkingCharacter) {
+            ((WalkingCharacter) obj).setPosition(pos);
         }
 
         Log.debug("GameServer", "Updated NPC " + syncMessage.npcId +
@@ -232,10 +232,10 @@ public class GameServer {
         npcPositions.put(msg.npcId, finalPos);
         npcLastUpdateTime.put(msg.npcId, System.currentTimeMillis());
 
-        // Update server-side NPCObject position
+        // Update server-side WalkingCharacter position
         curly.octo.common.GameObject obj = gameObjectManager.getObjectById(msg.npcId);
-        if (obj instanceof curly.octo.common.NPCObject) {
-            ((curly.octo.common.NPCObject) obj).setPosition(finalPos);
+        if (obj instanceof WalkingCharacter) {
+            ((WalkingCharacter) obj).setPosition(finalPos);
         }
 
         // Validate instruction ID to prevent stale completions
@@ -403,8 +403,8 @@ public class GameServer {
     @Deprecated
     private PlayerObjectRosterUpdate createPlayerRosterUpdate() {
         PlayerObjectRosterUpdate update = new PlayerObjectRosterUpdate();
-        List<PlayerObject> players = gameObjectManager.getAllPlayers();
-        PlayerObject[] playerRoster = new PlayerObject[players.size()];
+        List<WalkingCharacter> players = gameObjectManager.getAllPlayers();
+        WalkingCharacter[] playerRoster = new WalkingCharacter[players.size()];
         for (int i = 0; i < players.size(); i++) {
             playerRoster[i] = players.get(i);
         }
@@ -792,7 +792,7 @@ public class GameServer {
             // Remove player mapping from ClientManager
             serverCoordinator.clientManager.removePlayerMapping(playerId);
 
-            PlayerObject disconnectedPlayer = gameObjectManager.getPlayerById(playerId);
+            WalkingCharacter disconnectedPlayer = (WalkingCharacter) gameObjectManager.getPlayerById(playerId);
 
             if (disconnectedPlayer != null) {
                 gameObjectManager.remove(disconnectedPlayer);

@@ -2,8 +2,8 @@ package curly.octo.server.serverAgents;
 
 import com.badlogic.gdx.math.Vector3;
 import com.esotericsoftware.minlog.Log;
-import curly.octo.common.NPCObject;
 import curly.octo.common.WorldObject;
+import curly.octo.common.character.WalkingCharacter;
 import curly.octo.common.network.NetworkManager;
 import curly.octo.common.network.messages.NPCInstructionMessage;
 import curly.octo.server.ServerGameObjectManager;
@@ -47,8 +47,8 @@ public class NPCBehaviorAgent extends BaseAgent {
      */
     private void generateInstructions() {
         for (WorldObject obj : objectManager.getNPCs()) {
-            if (obj instanceof NPCObject) {
-                NPCObject npc = (NPCObject) obj;
+            if (obj instanceof WalkingCharacter) {
+                WalkingCharacter npc = (WalkingCharacter) obj;
                 // Use null position to force using NPC's current position
                 generateInstructionForNPC(npc, null);
             }
@@ -61,7 +61,7 @@ public class NPCBehaviorAgent extends BaseAgent {
      * @param npc The NPC object
      * @param currentPos Current position (from server tracking), or null to use NPC's position
      */
-    private void generateInstructionForNPC(NPCObject npc, Vector3 currentPos) {
+    private void generateInstructionForNPC(WalkingCharacter npc, Vector3 currentPos) {
         Log.info("NPCBehaviorAgent", "generateInstructionForNPC called for NPC: " + npc.entityId + " with currentPos: " + currentPos);
 
         // Use provided position or fall back to NPC's stored position
@@ -453,8 +453,8 @@ public class NPCBehaviorAgent extends BaseAgent {
      */
     public void generateImmediateInstruction(String npcId, Vector3 currentPos) {
         curly.octo.common.GameObject obj = objectManager.getObjectById(npcId);
-        if (obj instanceof NPCObject) {
-            NPCObject npc = (NPCObject) obj;
+        if (obj instanceof WalkingCharacter) {
+            WalkingCharacter npc = (WalkingCharacter) obj;
             generateInstructionForNPC(npc, currentPos);
         } else {
             Log.warn("NPCBehaviorAgent", "Cannot generate instruction - NPC " + npcId + " not found");
@@ -466,7 +466,7 @@ public class NPCBehaviorAgent extends BaseAgent {
      *
      * @param npc The NPC object
      */
-    public void generateInitialInstruction(NPCObject npc) {
+    public void generateInitialInstruction(WalkingCharacter npc) {
         Log.info("NPCBehaviorAgent", "generateInitialInstruction called for NPC: " + npc.entityId + " at position: " + npc.getPosition());
         generateInstructionForNPC(npc, npc.getPosition());
     }
