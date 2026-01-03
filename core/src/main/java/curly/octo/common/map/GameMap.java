@@ -491,6 +491,7 @@ public class GameMap {
         // Position capsule so its bottom sits on the ground, not its center
         // Note: btCapsuleShape height is cylinder only, total = height + 2*radius
         Matrix4 transform = new Matrix4().setToTranslation(x, y + height/2f + radius, z);
+        transform.rotate(Vector3.X, 90f); // Rotate capsule to stand vertically
 
         playerGhostObject = new btPairCachingGhostObject();
         playerGhostObject.setWorldTransform(transform);

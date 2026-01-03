@@ -648,7 +648,7 @@ public class ClientGameMode implements GameMode {
         if (existingPlayer != null) {
             // Found existing player from map transfer, reuse it as the local player
             Log.info("ClientGameMode", "Found existing player from map transfer, reusing as local player");
-            Log.info("ClientGameMode", "Existing player graphics initialized: " + existingPlayer.isGraphicsInitialized());
+            Log.info("ClientGameMode", "Existing player graphics initialized: " + (existingPlayer.getModelInstance() != null));
             Log.info("ClientGameMode", "Existing player current position: " + existingPlayer.getPosition());
 
             // Set this existing player as the local player instead of creating a new one

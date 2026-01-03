@@ -4,10 +4,13 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
+import com.badlogic.gdx.graphics.g3d.loader.ObjLoader;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.math.collision.BoundingBox;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
+import net.mgsx.gltf.loaders.gltf.GLTFLoader;
+import net.mgsx.gltf.scene3d.scene.SceneAsset;
 
 import java.util.HashMap;
 import java.util.Properties;
@@ -52,6 +55,29 @@ public class ModelAssetManager implements Disposable {
             this.physicsProperties = physicsProperties;
             this.bounds = new ModelBounds(model);
         }
+    }
+
+    public Model loadModel(String assetPath) {
+        ModelAsset asset = modelAssets.get(assetPath);
+        if (asset != null) {
+            return asset.model;
+        }
+
+        Model model = null;
+        if (assetPath.endsWith(".obj")) {
+            model = new ObjLoader().loadModel(Gdx.files.internal(assetPath));
+        } else if (assetPath.endsWith(".gltf") || assetPath.endsWith(".glb")) {
+            SceneAsset sceneAsset = new GLTFLoader().load(Gdx.files.internal(assetPath));
+            model = sceneAsset.scene.model;
+        }
+
+        if (model != null) {
+            PhysicsProperties physicsProps = loadPhysicsProperties(assetPath);
+            asset = new ModelAsset(model, physicsProps);
+            modelAssets.put(assetPath, asset);
+            return model;
+        }
+        return null;
     }
 
     public ModelInstance createModelInstance(String assetPath, Model model) {

@@ -26,7 +26,8 @@
       "Bash(done)",
       "Bash(java:*)",
       "Bash(gradlew.bat compileJava:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "WebFetch(domain:pybullet.org)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

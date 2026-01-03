@@ -1,21 +1,22 @@
 package curly.octo.client;
 
+import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Disposable;
 import com.esotericsoftware.minlog.Log;
 import curly.octo.common.GameObject;
 import curly.octo.common.ModelAssetManager;
+import curly.octo.common.NPCObject;
 import curly.octo.common.PhysicsProperties;
 import curly.octo.common.PlayerObject;
 import curly.octo.common.WorldObject;
+import curly.octo.common.character.GameCharacter;
 import curly.octo.common.lights.BaseLight;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-
-import static curly.octo.common.Constants.RENDER_SELF;
 
 public class GameObjectManager implements Disposable {
     public ArrayList<PlayerObject> activePlayers = new ArrayList<>();
@@ -101,59 +102,29 @@ public class GameObjectManager implements Disposable {
         gameObjects.add(gameObject);
         addToStringToObjectMap(gameObject);
 
-        if (gameObject instanceof WorldObject) {
+        if (gameObject instanceof GameCharacter) {
+            GameCharacter character = (GameCharacter) gameObject;
+            if (character.getModelAssetPath() != null) {
+                Model model = modelAssetManager.loadModel(character.getModelAssetPath());
+                if (model != null) {
+                    character.setModelInstance(modelAssetManager.createModelInstance(character.getModelAssetPath(), model));
+                }
+            }
+
+            if (gameWorld != null && gameWorld.getMapManager() != null && gameWorld.getMapManager().isPhysicsInitialized()) {
+                if (character instanceof PlayerObject) {
+                    character.initializePhysics(gameWorld.getMapManager().dynamicsWorld, PlayerObject.PLAYER_HEIGHT, 1.0f);
+                } else if (character instanceof NPCObject) {
+                    character.initializePhysics(gameWorld.getMapManager().dynamicsWorld, NPCObject.NPC_HEIGHT, NPCObject.NPC_WIDTH);
+                }
+            }
+        } else if (gameObject instanceof WorldObject) {
             WorldObject worldObject = (WorldObject) gameObject;
-
-            // Special handling for PlayerObjects
-            if (gameObject instanceof PlayerObject) {
-                PlayerObject playerObject = (PlayerObject) gameObject;
-                // Initialize graphics with model asset manager for proper bounds calculation
-                // Only initialize if position is set to avoid frozen models at origin
-                if (!playerObject.isGraphicsInitialized() && playerObject.getPosition() != null) {
-                    playerObject.initializeGraphicsWithManager(modelAssetManager);
-                } else if (playerObject.getPosition() == null) {
-                    Log.warn("GameObjectManager", "Player " + playerObject.entityId +
-                            " added without position - graphics initialization deferred");
+            if (worldObject.getModelAssetPath() != null) {
+                Model model = modelAssetManager.loadModel(worldObject.getModelAssetPath());
+                if (model != null) {
+                    worldObject.setModelInstance(modelAssetManager.createModelInstance(worldObject.getModelAssetPath(), model));
                 }
-            }
-
-            // Special handling for NPCObjects
-            if (gameObject instanceof curly.octo.common.NPCObject) {
-                curly.octo.common.NPCObject npcObject = (curly.octo.common.NPCObject) gameObject;
-                Log.info("GameObjectManager", "Adding NPC: " + npcObject.entityId + " at position: " + npcObject.getPosition());
-
-                // Note: GameMap reference no longer needed - waypoints are server-generated now
-
-                // Initialize graphics with placeholder model
-                if (!npcObject.isGraphicsInitialized()) {
-                    npcObject.initializeGraphics(modelAssetManager);
-                    Log.info("GameObjectManager", "NPC graphics initialized for: " + npcObject.entityId);
-                } else {
-                    Log.info("GameObjectManager", "NPC graphics already initialized for: " + npcObject.entityId);
-                }
-
-                // Initialize physics for collision detection
-                Log.info("GameObjectManager", "NPC physics check - isPhysicsInitialized: " + npcObject.isPhysicsInitialized() +
-                    ", gameWorld: " + (gameWorld != null ? "exists" : "null"));
-
-                if (!npcObject.isPhysicsInitialized()) {
-                    if (gameWorld == null) {
-                        Log.error("GameObjectManager", "Cannot initialize NPC physics - gameWorld is null!");
-                    } else if (gameWorld.getMapManager() == null) {
-                        Log.warn("GameObjectManager", "Skipping NPC physics init - mapManager is null for: " + npcObject.entityId);
-                    } else if (!gameWorld.getMapManager().isPhysicsInitialized()) {
-                        Log.warn("GameObjectManager", "Skipping NPC physics init - map physics not initialized for: " + npcObject.entityId);
-                    } else {
-                        Log.info("GameObjectManager", "Initializing NPC physics for: " + npcObject.entityId);
-                        npcObject.initializePhysics(gameWorld.getMapManager().dynamicsWorld);
-                        Log.info("GameObjectManager", "NPC physics initialized successfully for: " + npcObject.entityId);
-                    }
-                } else {
-                    Log.info("GameObjectManager", "NPC physics already initialized for: " + npcObject.entityId);
-                }
-            }
-
-            if (worldObject.getModelAssetPath() != null && worldObject.getBasePhysicsProperties() == PhysicsProperties.DEFAULT) {
                 PhysicsProperties props = modelAssetManager.getPhysicsProperties(worldObject.getModelAssetPath());
                 worldObject.setBasePhysicsProperties(props);
             }
