@@ -76,6 +76,10 @@ public class GameObjectManager implements Disposable {
             }
             gameObjects.remove(object);
             idToGameObjectMap.remove(object.entityId);
+
+            if (object instanceof WalkingCharacter) {
+                activePlayers.remove(object);
+            }
         }
         gameObjectsToBeRemoved.clear();
 
@@ -99,18 +103,38 @@ public class GameObjectManager implements Disposable {
     }
 
     public void add(GameObject gameObject) {
+        Log.info("GameObjectManager", "[GOM_DEBUG] Adding object: " + gameObject.getClass().getSimpleName() + " ID: " + gameObject.entityId);
+
+        if (idToGameObjectMap.containsKey(gameObject.entityId)) {
+            Log.warn("GameObjectManager", "[GOM_DEBUG] DUPLICATE OBJECT ID DETECTED: " + gameObject.entityId);
+            // Optional: return or handle duplicate
+        }
+
         gameObjects.add(gameObject);
         addToStringToObjectMap(gameObject);
 
         if (gameObject instanceof WalkingCharacter) {
             WalkingCharacter character = (WalkingCharacter) gameObject;
+            Log.info("GameObjectManager", "[GOM_DEBUG] Object is WalkingCharacter. Brain: " + (character.getBrain() != null ? character.getBrain().getClass().getSimpleName() : "null"));
 
             // Re-initialize transient brain on the client after deserialization
             if (character.getBrain() == null) {
                 if (character.entityId != null && character.entityId.startsWith("npc_")) {
                     Log.info("GameObjectManager", "[DEBUG_NPC] Re-initializing NPCBrain for deserialized character " + character.entityId);
                     character.setBrain(new NPCBrain());
+                } else {
+                    // It's a player! Add to activePlayers
+                    activePlayers.add(character);
+                    Log.info("GameObjectManager", "[GOM_DEBUG] Added player to activePlayers: " + character.entityId);
                 }
+            } else if (character.getBrain() instanceof NPCBrain) {
+                 // It's an NPC (brain already set, maybe locally created)
+            } else {
+                 // It's a player with a brain (maybe local player)
+                 if (!activePlayers.contains(character)) {
+                     activePlayers.add(character);
+                     Log.info("GameObjectManager", "[GOM_DEBUG] Added player to activePlayers: " + character.entityId);
+                 }
             }
 
             if (character.getModelAssetPath() != null) {
@@ -182,6 +206,19 @@ public class GameObjectManager implements Disposable {
         gameLightsToBeRemoved.clear();
 
         Log.info("GameObjectManager", "All lights cleared");
+    }
+
+    public void clearAllObjects() {
+        Log.info("GameObjectManager", "Clearing all objects...");
+        for (GameObject obj : gameObjects) {
+            if (obj instanceof WorldObject) {
+                ((WorldObject) obj).dispose();
+            }
+        }
+        gameObjects.clear();
+        idToGameObjectMap.clear();
+        activePlayers.clear();
+        localPlayer = null;
     }
 
     public void setGameWorld(ClientGameWorld gameWorld) {

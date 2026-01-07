@@ -280,28 +280,30 @@ public class DebugRenderer implements Disposable {
      * @param camera The camera for projection matrix
      * @param remotePlayers List of remote players
      * @param localPlayer The local player (can be null)
-     * @param radius The capsule radius (typically 1.0f)
-     * @param height The capsule height (typically 5.0f)
      */
     public void renderPlayerCapsules(Camera camera, ArrayList<WalkingCharacter> remotePlayers,
-                                      WalkingCharacter localPlayer, float radius, float height) {
+                                      WalkingCharacter localPlayer) {
         // Note: btCapsuleShape height is cylinder only, total height = height + 2*radius
         // Position capsule center accounting for the hemispheres
 
         // Render local player in bright green
         if (localPlayer != null && localPlayer.getPosition() != null) {
             Vector3 pos = localPlayer.getPosition();
+            float height = localPlayer.getCharacterHeight();
+            float radius = localPlayer.getCharacterWidth() / 2f;
             // Offset position to capsule center (position is at feet, add cylinder half + radius for hemisphere)
-            Vector3 capsuleCenter = new Vector3(pos.x, pos.y + height/2f + radius, pos.z);
-            renderCapsule(camera, capsuleCenter, radius, height, Color.GREEN);
+            Vector3 capsuleCenter = new Vector3(pos.x, pos.y + height/2f, pos.z);
+            renderCapsule(camera, capsuleCenter, radius, height - (2*radius), Color.GREEN);
         }
 
         // Render remote players in bright yellow
         for (WalkingCharacter player : remotePlayers) {
             if (player != null && player.getPosition() != null) {
                 Vector3 pos = player.getPosition();
-                Vector3 capsuleCenter = new Vector3(pos.x, pos.y + height/2f + radius, pos.z);
-                renderCapsule(camera, capsuleCenter, radius, height, Color.YELLOW);
+                float height = player.getCharacterHeight();
+                float radius = player.getCharacterWidth() / 2f;
+                Vector3 capsuleCenter = new Vector3(pos.x, pos.y + height/2f, pos.z);
+                renderCapsule(camera, capsuleCenter, radius, height - (2*radius), Color.YELLOW);
             }
         }
     }
@@ -346,21 +348,9 @@ public class DebugRenderer implements Disposable {
             java.util.List<Vector3> waypointQueue = npc.getWaypointQueue();
             int currentIndex = npc.getCurrentWaypointIndex();
 
-            // DIAGNOSTIC: Always log NPC state
-//            com.esotericsoftware.minlog.Log.info("DebugRenderer", "  NPC " + npc.entityId +
-//                    " at " + String.format("(%.1f, %.1f, %.1f)", npcPos.x, npcPos.y, npcPos.z) +
-//                    " - waypoints: " + (waypointQueue != null ? waypointQueue.size() : 0) +
-//                    " - currentIdx: " + currentIndex);
-
             // Draw waypoint queue as connected path
             if (waypointQueue != null && !waypointQueue.isEmpty()) {
                 Vector3 prev = npcPos;
-
-                // DIAGNOSTIC: Log first waypoint being drawn
-                Vector3 firstWp = waypointQueue.get(0);
-//                com.esotericsoftware.minlog.Log.info("DebugRenderer", "    Drawing path from NPC pos " +
-//                        String.format("(%.1f, %.1f, %.1f)", npcPos.x, npcPos.y, npcPos.z) +
-//                        " to first waypoint " + String.format("(%.1f, %.1f, %.1f)", firstWp.x, firstWp.y, firstWp.z));
 
                 for (int i = 0; i < waypointQueue.size(); i++) {
                     Vector3 wp = waypointQueue.get(i);
@@ -380,13 +370,8 @@ public class DebugRenderer implements Disposable {
                         shapeRenderer.setColor(waypointColor);
                         drawSphereWireframe(wp, 0.5f, 8);  // 0.5 units radius
                     }
-
                     prev = wp;
                 }
-
-//                com.esotericsoftware.minlog.Log.info("DebugRenderer", "    ✓ Drew " + waypointQueue.size() + " waypoint segments");
-            } else {
-//                com.esotericsoftware.minlog.Log.warn("DebugRenderer", "    ✗ NPC has EMPTY waypoint queue!");
             }
         }
 

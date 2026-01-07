@@ -649,7 +649,8 @@ public class GameServer {
                             MapHint spawnHint = spawnHints.get(spawnIndex % spawnHints.size());
                             MapTile spawnTile = currentMap.getTile(spawnHint.tileLookupKey);
                             if (spawnTile != null) {
-                                Vector3 spawnPosition = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
+                                // Add 0.5f to Y to avoid clipping into floor
+                                Vector3 spawnPosition = new Vector3(spawnTile.x, spawnTile.y + 0.5f, spawnTile.z);
                                 player.setPosition(spawnPosition);
                                 Log.info("GameServer", "[SPAWN_DEBUG] Set server-side position for player " + player.entityId + " to " + spawnPosition);
                             }
@@ -690,6 +691,71 @@ public class GameServer {
     public void regenerateMapRandom(String reason) {
         long newSeed = System.currentTimeMillis();
         regenerateMap(newSeed, reason != null ? reason : "Random regeneration");
+    }
+
+    /**
+     * Resets all connected players to spawn locations on the new map.
+     */
+    private void resetAllPlayersToSpawn() {
+        GameMap currentMap = serverCoordinator.getMapManager();
+        if (currentMap == null) {
+            Log.error("GameServer", "Cannot reset players - map is null");
+            return;
+        }
+
+        try {
+            // Get all spawn points from the new map
+            java.util.ArrayList<MapHint> spawnHints = currentMap.getAllHintsOfType(SpawnPointHint.class);
+
+            if (spawnHints.isEmpty()) {
+                Log.warn("GameServer", "No spawn points found in new map");
+                return;
+            }
+
+            Log.info("GameServer", "Resetting " + connectionToPlayerMap.size() + " players to spawn locations");
+
+            int spawnIndex = 0;
+            for (Map.Entry<Integer, String> entry : connectionToPlayerMap.entrySet()) {
+                int connectionId = entry.getKey();
+                String playerId = entry.getValue();
+
+                // Use spawn points in rotation if there are more players than spawn points
+                MapHint spawnHint = spawnHints.get(spawnIndex % spawnHints.size());
+                MapTile spawnTile = currentMap.getTile(spawnHint.tileLookupKey);
+
+                Vector3 spawnPosition;
+                if (spawnTile != null) {
+                    // Spawn well above the tile to avoid clipping into floor
+                    spawnPosition = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
+                    Log.info("GameServer", "Player spawn position calculated: " + spawnPosition + " (tile Y: " + spawnTile.y + ")");
+                } else {
+                    Log.warn("GameServer", "Could not find spawn tile for hint, using default position");
+                    spawnPosition = new Vector3(15, 1, 15);
+                }
+
+                // Send reset message to specific client
+                PlayerResetMessage resetMessage = new PlayerResetMessage(playerId, spawnPosition, 0f);
+
+                Connection connection = null;
+                for (Connection conn : server.getConnections()) {
+                    if (conn.getID() == connectionId) {
+                        connection = conn;
+                        break;
+                    }
+                }
+                if (connection != null) {
+                    NetworkManager.sendToClient(connection.getID(), resetMessage);
+                    Log.info("GameServer", "Sent player reset to " + playerId +
+                             " at position: " + spawnPosition);
+                }
+
+                spawnIndex++;
+            }
+
+        } catch (Exception e) {
+            Log.error("GameServer", "Failed to reset players to spawn: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     /**

@@ -73,7 +73,10 @@ public class Constants {
     public static final boolean RENDER_SELF = true;
 
     /** Player character height in world units */
-    public static final float PLAYER_HEIGHT = 2.5f;
+    public static final float PLAYER_HEIGHT = 4.0f;
+
+    /** Player character width in world units */
+    public static final float PLAYER_WIDTH = 1.5f;
 
     /** Player movement speed multiplier */
     public static final float PLAYER_MOVEMENT_SPEED = 10.0f;

@@ -105,10 +105,6 @@ public class NPCBrain implements ICharacterBrain {
         Vector3 dir = new Vector3(targetWaypoint).sub(pos).nor();
         character.setYaw((float) Math.toDegrees(Math.atan2(dir.x, dir.z)));
         character.setWalkDirection(dir);
-
-        if(System.currentTimeMillis() % 1000 < 50) { // Log every second
-            Log.info("NPCBrain", "[DEBUG_NPC] " + character.entityId + " moving towards " + targetWaypoint + ". Distance: " + dist);
-        }
     }
 
     public List<Vector3> getWaypointQueue() {

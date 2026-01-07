@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.g3d.ModelBatch;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.physics.bullet.collision.ContactListener;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.graphics.GL20;
 import com.esotericsoftware.minlog.Log;
@@ -39,6 +40,8 @@ public class ClientGameWorld {
     protected GameObjectManager gameObjectManager;
     protected float positionUpdateTimer = 0;
     protected boolean disposed = false;
+
+    private ContactListener contactListener;
 
     // Flag to temporarily disable physics during regeneration
     private volatile boolean physicsDisabled = false;
@@ -75,6 +78,22 @@ public class ClientGameWorld {
                 // Also generate triangle mesh physics that was skipped in server-only generation
                 map.regeneratePhysics();
             }
+
+            // Initialize contact listener for debugging collisions
+            if (contactListener != null) {
+                contactListener.dispose();
+            }
+            contactListener = new ContactListener() {
+                @Override
+                public boolean onContactAdded(int userValue0, int partId0, int index0, boolean match0, int userValue1, int partId1, int index1, boolean match1) {
+                    // Filter out 0 (usually terrain or default) to reduce noise, unless both are non-zero
+                    if (userValue0 != 0 || userValue1 != 0) {
+                         Log.info("PhysicsCollision", "Collision detected: UserValue0=" + userValue0 + ", UserValue1=" + userValue1);
+                    }
+                    return true;
+                }
+            };
+            Log.info("ClientGameWorld", "Initialized physics contact listener");
 
             // Initialize physics for remote players that were created before map was ready
             Log.info("ClientGameWorld", "Checking for remote players needing physics initialization");
@@ -189,7 +208,7 @@ public class ClientGameWorld {
     public void setupLocalPlayer() {
         if (getGameObjectManager().localPlayer == null) {
             Log.info("ClientGameWorld", "[SPAWN_DEBUG] Creating local player object (WalkingCharacter)");
-            getGameObjectManager().localPlayer = new WalkingCharacter(UUID.randomUUID().toString(), curly.octo.common.Constants.PLAYER_HEIGHT, 1.0f);
+            getGameObjectManager().localPlayer = new WalkingCharacter(UUID.randomUUID().toString(), curly.octo.common.Constants.PLAYER_HEIGHT, curly.octo.common.Constants.PLAYER_WIDTH);
 
             getGameObjectManager().add(getGameObjectManager().localPlayer);
             getPlayers().add(getGameObjectManager().localPlayer);
@@ -204,7 +223,8 @@ public class ClientGameWorld {
                 if (!spawnHints.isEmpty()) {
                     MapTile spawnTile = getMapManager().getTile(spawnHints.get(0).tileLookupKey);
                     if (spawnTile != null) {
-                        playerStart = new Vector3(spawnTile.x, spawnTile.y, spawnTile.z);
+                        // Add 0.5f to Y to avoid clipping into floor
+                        playerStart = new Vector3(spawnTile.x, spawnTile.y + 0.5f, spawnTile.z);
                         Log.info("ClientGameWorld", "[SPAWN_DEBUG] Found spawn hint. Player start position: " + playerStart);
                     }
                 } else {
@@ -290,9 +310,7 @@ public class ClientGameWorld {
                     mapRenderer.getDebugRenderer().renderPlayerCapsules(
                         camera,
                         getGameObjectManager().activePlayers,
-                        getGameObjectManager().localPlayer,
-                        1.0f,  // radius
-                        5.0f   // height
+                        getGameObjectManager().localPlayer
                     );
 
                     // Render NPC paths (waypoints, wander zones)
@@ -355,9 +373,8 @@ public class ClientGameWorld {
                 Log.info("ClientGameWorld", "Safely removing local player from physics world");
                 try {
                     // Remove player from physics world first, then reset state
-                    if (mapManager != null && gameObjectManager.localPlayer.getCharacterController() != null) {
-                        gameObjectManager.localPlayer.setCharacterController(null);
-                        gameObjectManager.localPlayer.setGameMap(null);
+                    if (mapManager != null) {
+                        gameObjectManager.localPlayer.forceClearPhysics();
                     }
                     gameObjectManager.localPlayer.resetPhysicsState();
                 } catch (Exception e) {
@@ -375,8 +392,7 @@ public class ClientGameWorld {
 
                         // Remove from physics world first, then reset
                         if (mapManager != null) {
-                            player.setCharacterController(null);
-                            // player.setGameMap(null); // disposeRemotePhysics uses gameMap, so maybe set null after?
+                            player.forceClearPhysics();
                         }
                         player.setGameMap(null);
 
@@ -388,6 +404,13 @@ public class ClientGameWorld {
                 }
                 // DON'T clear players - we want to keep them for the new map
                 Log.info("ClientGameWorld", "Preserved " + players.size() + " player objects for new map");
+            }
+
+            // Also clear physics for any other WalkingCharacters (NPCs)
+            for (curly.octo.common.GameObject obj : gameObjectManager.getAllObjects()) {
+                if (obj instanceof WalkingCharacter) {
+                    ((WalkingCharacter) obj).forceClearPhysics();
+                }
             }
 
             // Step 4: Clean up map renderer (textures, models, shaders, etc.)

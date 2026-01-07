@@ -22,7 +22,9 @@ public abstract class GameCharacter extends WorldObject {
     protected float yaw = 0f;
     protected float pitch = 0f;
     protected float movementSpeed = 10.0f;
-    protected float jumpForce = 10.0f;
+    protected float jumpForce = 1.0f;
+    protected float characterHeight;
+    protected float characterWidth;
 
     protected transient ICharacterBrain brain;
     protected Vector3 velocity = new Vector3();
@@ -33,12 +35,16 @@ public abstract class GameCharacter extends WorldObject {
         super();
     }
 
-    public GameCharacter(String id) {
+    public GameCharacter(String id, float height, float width) {
         super(id);
+        this.characterHeight = height;
+        this.characterWidth = width;
     }
 
-    public GameCharacter(String id, String modelAssetPath) {
+    public GameCharacter(String id, String modelAssetPath, float height, float width) {
         super(id, modelAssetPath);
+        this.characterHeight = height;
+        this.characterWidth = width;
     }
 
     public void setBrain(ICharacterBrain brain) {
@@ -68,7 +74,7 @@ public abstract class GameCharacter extends WorldObject {
             Log.warn("GameCharacter", "[SPAWN_DEBUG] initializePhysics called but already initialized for " + entityId);
             return;
         }
-        if (position == null) {
+        if (position == null && initialPosition == null) {
             Log.error("GameCharacter", "[SPAWN_DEBUG] initializePhysics called with null position for " + entityId);
             return;
         }
@@ -134,12 +140,19 @@ public abstract class GameCharacter extends WorldObject {
 
         if (characterController != null) {
             Vector3 finalVelocity = new Vector3(velocity).scl(movementSpeed).add(externalForce);
+
+            if (finalVelocity.len2() > 0.01f && System.currentTimeMillis() % 1000 < 50) {
+                 Log.info("GameCharacter", "[MOVE_DEBUG] Applying velocity: " + finalVelocity + " to " + entityId + " (Hash: " + System.identityHashCode(this) + ")");
+            }
+
             characterController.setWalkDirection(finalVelocity.scl(delta));
             externalForce.scl(0.95f);
 
             if (ghostObject != null) {
                 Vector3 tempVector = new Vector3();
-                position.set(ghostObject.getWorldTransform().getTranslation(tempVector));
+                ghostObject.getWorldTransform().getTranslation(tempVector);
+                // Set our character's position to be the feet, not the center of the capsule
+                position.set(tempVector.x, tempVector.y - (characterHeight / 2f), tempVector.z);
 
                 com.badlogic.gdx.math.Matrix4 currentTransform = ghostObject.getWorldTransform();
                 com.badlogic.gdx.math.Matrix4 uprightTransform = new com.badlogic.gdx.math.Matrix4();
@@ -154,7 +167,7 @@ public abstract class GameCharacter extends WorldObject {
         }
 
         if (System.currentTimeMillis() % 2000 < 100 && entityId.startsWith("player")) {
-            Log.info("GameCharacter", "[SPAWN_DEBUG] Player " + entityId + " position: " + position);
+            Log.info("GameCharacter", "[SPAWN_DEBUG] Player " + entityId + " position: " + position + " (Hash: " + System.identityHashCode(this) + ")");
         }
     }
 
@@ -189,7 +202,27 @@ public abstract class GameCharacter extends WorldObject {
     }
 
     public void setPitch(float pitch) {
-        this.pitch = pitch;
+        this.pitch = Math.max(-89f, Math.min(89f, pitch));
+    }
+
+    @Override
+    public Vector3 getCameraPosition() {
+        if (position != null) {
+            return new Vector3(position).add(0, characterHeight * 0.9f, 0); // Camera at 90% of height
+        }
+        return new Vector3(0, characterHeight * 0.9f, 0);
+    }
+
+    @Override
+    public Vector3 getCameraDirection() {
+        float yawRad = (float) Math.toRadians(yaw);
+        float pitchRad = (float) Math.toRadians(pitch);
+
+        return new Vector3(
+            (float) (Math.cos(pitchRad) * Math.sin(yawRad)),
+            (float) -Math.sin(pitchRad),
+            (float) (Math.cos(pitchRad) * Math.cos(yawRad))
+        ).nor();
     }
 
     public btPairCachingGhostObject getGhostObject() {
@@ -198,6 +231,36 @@ public abstract class GameCharacter extends WorldObject {
 
     public boolean isPhysicsInitialized() {
         return physicsInitialized;
+    }
+
+    public float getCharacterHeight() {
+        return characterHeight;
+    }
+
+    public float getCharacterWidth() {
+        return characterWidth;
+    }
+
+    /**
+     * Forcefully clears physics references without attempting to remove them from the world.
+     * Use this ONLY when the dynamics world itself is being disposed or is already invalid.
+     */
+    public void forceClearPhysics() {
+        if (characterController != null) {
+            characterController.dispose();
+            characterController = null;
+        }
+        if (ghostObject != null) {
+            ghostObject.dispose();
+            ghostObject = null;
+        }
+        if (physicsShape != null) {
+            physicsShape.dispose();
+            physicsShape = null;
+        }
+        dynamicsWorld = null;
+        physicsInitialized = false;
+        Log.info("GameCharacter", "Force cleared physics for " + entityId);
     }
 
     @Override

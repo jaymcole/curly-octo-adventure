@@ -40,6 +40,7 @@ public class ClientGameMode implements GameMode {
     private boolean active = false;
     private boolean mapReceived = false;
     private boolean playerAssigned = false;
+    private String localPlayerId; // Store ID independently of GameObjectManager
 
     // State management system
     private boolean networkUpdatesPaused = false;
@@ -98,11 +99,7 @@ public class ClientGameMode implements GameMode {
 
     // Helper method to get local player ID
     public String getLocalPlayerId() {
-        GameObjectManager gom = gameWorld.getGameObjectManager();
-        if (gom.localPlayer != null) {
-            return gom.localPlayer.entityId;
-        }
-        return null;
+        return localPlayerId;
     }
 
     /**
@@ -335,6 +332,17 @@ public class ClientGameMode implements GameMode {
             playerAssigned = true;
         }));
 
+        NetworkManager.onReceive(PlayerResetMessage.class, msg -> Gdx.app.postRunnable(() -> {
+            Log.info("ClientGameMode", "[SPAWN_DEBUG] Received PlayerResetMessage for player " + msg.playerId + " to position " + msg.getSpawnPosition());
+            WalkingCharacter player = (WalkingCharacter) gameWorld.getGameObjectManager().getObjectById(msg.playerId);
+            if (player != null) {
+                player.setInitialPosition(msg.getSpawnPosition());
+                player.setYaw(msg.spawnYaw);
+            } else {
+                Log.warn("ClientGameMode", "[SPAWN_DEBUG] Player " + msg.playerId + " not found for reset message.");
+            }
+        }));
+
         NetworkManager.onReceive(PlayerObjectRosterUpdate.class, roster -> {
             Gdx.app.postRunnable(() -> {
                 HashSet<String> currentPlayers = new HashSet<>();
@@ -459,6 +467,8 @@ public class ClientGameMode implements GameMode {
 
     private void setLocalPlayer(String localPlayerId) {
         Log.info("ClientGameMode", "[SPAWN_DEBUG] Setting local player ID: " + localPlayerId);
+        this.localPlayerId = localPlayerId; // Store ID independently
+
         WalkingCharacter existingPlayer = (WalkingCharacter) gameWorld.getGameObjectManager().getObjectById(localPlayerId);
 
         if (existingPlayer != null) {

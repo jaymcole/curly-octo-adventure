@@ -51,8 +51,10 @@ public class BulkTransferClient {
         }
 
         try {
+            // Use standard KryoNet threading
             client.start();
-            Log.info("BulkTransferClient", "Client started, connecting to " + host + ":" +
+
+            Log.info("BulkTransferClient", "Connecting to " + host + ":" +
                 Constants.BULK_TRANSFER_TCP_PORT + "/" + Constants.BULK_TRANSFER_UDP_PORT);
 
             client.connect(5000, host,
@@ -63,6 +65,8 @@ public class BulkTransferClient {
             Log.info("BulkTransferClient", "Successfully connected to bulk transfer server");
         } catch (IOException e) {
             Log.error("BulkTransferClient", "Failed to connect: " + e.getMessage());
+            // Ensure thread is stopped if connection fails
+            client.stop();
             e.printStackTrace();
             throw e;
         }
@@ -79,7 +83,7 @@ public class BulkTransferClient {
         Log.info("BulkTransferClient", "Disconnecting from bulk transfer server");
 
         if (client != null) {
-            client.stop();
+            client.stop(); // Gracefully stop the background thread
             connected = false;
         }
 
@@ -87,12 +91,11 @@ public class BulkTransferClient {
     }
 
     /**
-     * Update the client. Must be called regularly while connected.
+     * Update the client.
+     * No-op because we are using client.start() which runs its own update thread.
      */
-    public void update() throws IOException {
-        if (client != null && connected) {
-            client.update(0);
-        }
+    public void update() {
+        // No-op: Client runs on its own thread
     }
 
     /**

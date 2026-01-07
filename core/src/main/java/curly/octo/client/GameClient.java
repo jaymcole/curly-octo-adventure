@@ -191,15 +191,7 @@ public class GameClient {
             }
         }
 
-        // Update bulk transfer connection if active
-        if (bulkClient != null && bulkClient.isConnected()) {
-            try {
-                bulkClient.update();
-            } catch (Exception e) {
-                Log.error("GameClient", "Bulk transfer client.update() failed: " + e.getMessage());
-                throw e;
-            }
-        }
+        // Bulk client runs on its own thread, no manual update needed
     }
 
     /**

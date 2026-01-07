@@ -19,10 +19,6 @@ import java.util.List;
  */
 public class WalkingCharacter extends GameCharacter {
 
-    // Character properties, configurable on creation
-    private float characterHeight;
-    private float characterWidth;
-
     // State previously in PlayerObject
     private transient GameMap gameMap;
     private transient btRigidBody remotePhysicsBody;
@@ -34,19 +30,15 @@ public class WalkingCharacter extends GameCharacter {
         super();
         // Default to player dimensions
         this.characterHeight = Constants.PLAYER_HEIGHT;
-        this.characterWidth = 1.0f;
+        this.characterWidth = Constants.PLAYER_WIDTH;
     }
 
     public WalkingCharacter(String id, float height, float width) {
-        super(id);
-        this.characterHeight = height;
-        this.characterWidth = width;
+        super(id, height, width);
     }
 
     public WalkingCharacter(String id, String modelAssetPath, float height, float width) {
-        super(id, modelAssetPath);
-        this.characterHeight = height;
-        this.characterWidth = width;
+        super(id, modelAssetPath, height, width);
     }
 
     // Common methods from PlayerObject
@@ -96,6 +88,7 @@ public class WalkingCharacter extends GameCharacter {
     }
 
     public void initializeRemotePhysics(GameMap map, float radius, float height) {
+        Log.info("WalkingCharacter", "[PHYSICS_DEBUG] initializeRemotePhysics called for " + entityId);
         this.gameMap = map;
         disposeRemotePhysics(map);
         remotePhysicsShape = new btCapsuleShape(radius, height);
@@ -111,10 +104,12 @@ public class WalkingCharacter extends GameCharacter {
         );
         remotePhysicsBody.setWorldTransform(transform);
         map.dynamicsWorld.addRigidBody(remotePhysicsBody, GameMap.PLAYER_GROUP, (short)(GameMap.GROUND_GROUP | GameMap.PLAYER_GROUP | GameMap.NPC_GROUP));
+        Log.info("WalkingCharacter", "[PHYSICS_DEBUG] Created remote physics body for " + entityId);
     }
 
     public void disposeRemotePhysics(GameMap map) {
         if (remotePhysicsBody != null) {
+            Log.info("WalkingCharacter", "[PHYSICS_DEBUG] Disposing remote physics body for " + entityId);
             if (map != null && map.dynamicsWorld != null) {
                 map.dynamicsWorld.removeRigidBody(remotePhysicsBody);
             }
@@ -145,9 +140,9 @@ public class WalkingCharacter extends GameCharacter {
     @Override
     public Vector3 getCameraPosition() {
         if (position != null) {
-            return new Vector3(position).add(0, characterHeight, 0);
+            return new Vector3(position).add(0, characterHeight * 0.9f, 0); // Camera at 90% of height
         }
-        return new Vector3(0, characterHeight, 0);
+        return new Vector3(0, characterHeight * 0.9f, 0);
     }
 
     @Override

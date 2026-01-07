@@ -310,6 +310,7 @@ public class GameMap {
             terrainBody = new btRigidBody(info);
             terrainBody.setCollisionFlags(terrainBody.getCollisionFlags() | btCollisionObject.CollisionFlags.CF_STATIC_OBJECT);
 
+            Log.info("GameMap", "[PHYSICS_DEBUG] Adding terrain body to dynamics world");
             dynamicsWorld.addRigidBody(terrainBody, GROUND_GROUP, (short)(PLAYER_GROUP | NPC_GROUP));
             info.dispose();
 

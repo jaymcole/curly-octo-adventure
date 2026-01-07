@@ -3,6 +3,8 @@ package curly.octo.common.character;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.math.Vector3;
+import com.esotericsoftware.minlog.Log;
+import curly.octo.common.Constants;
 
 public class PlayerBrain implements ICharacterBrain {
 
@@ -18,6 +20,11 @@ public class PlayerBrain implements ICharacterBrain {
     @Override
     public void setCharacter(GameCharacter character) {
         this.character = character;
+        if (character != null) {
+            Log.info("PlayerBrain", "[BRAIN_DEBUG] Possessed character: " + character.entityId);
+        } else {
+            Log.info("PlayerBrain", "[BRAIN_DEBUG] Possessed character set to NULL");
+        }
     }
 
     @Override
@@ -62,24 +69,37 @@ public class PlayerBrain implements ICharacterBrain {
         Vector3 forward = new Vector3((float)Math.sin(yawRad), 0, (float)Math.cos(yawRad));
         Vector3 right = new Vector3(forward.z, 0, -forward.x);
 
+        boolean inputDetected = false;
 
         if (Gdx.input.isKeyPressed(Input.Keys.W)) {
             tempDirection.add(forward);
+            inputDetected = true;
         }
         if (Gdx.input.isKeyPressed(Input.Keys.S)) {
             tempDirection.sub(forward);
+            inputDetected = true;
         }
         if (Gdx.input.isKeyPressed(Input.Keys.A)) {
             tempDirection.add(right);
+            inputDetected = true;
         }
         if (Gdx.input.isKeyPressed(Input.Keys.D)) {
             tempDirection.sub(right);
+            inputDetected = true;
+        }
+
+        if (inputDetected) {
+            // Log only when moving to avoid spam, throttled
+            if (System.currentTimeMillis() % 1000 < 50) {
+                Log.info("PlayerBrain", "[MOVE_DEBUG] Input keys detected for " + character.entityId + ". Direction: " + tempDirection);
+            }
         }
 
         character.setWalkDirection(tempDirection.nor());
 
         boolean spaceIsPressed = Gdx.input.isKeyPressed(Input.Keys.SPACE);
         if (spaceIsPressed && !spaceWasPressed && character.canJump()) {
+            Log.info("PlayerBrain", "[MOVE_DEBUG] Jump requested for " + character.entityId);
             character.jump();
         }
         spaceWasPressed = spaceIsPressed;

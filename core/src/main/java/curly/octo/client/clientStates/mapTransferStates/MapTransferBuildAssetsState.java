@@ -59,31 +59,10 @@ public class MapTransferBuildAssetsState extends BaseGameStateClient {
                 Log.info("MapTransferBuildAssetsState", "Building map renderer and physics...");
                 clientWorld.setMap(receivedMap);
 
-                // Check if local player needs physics setup now that map is loaded
-                // This handles the race condition where PlayerAssignmentUpdate arrives before map is ready
-                curly.octo.client.ClientGameMode clientGameMode = StateManager.getClientGameMode();
-                if (clientGameMode != null) {
-                    WalkingCharacter localPlayer = clientGameMode.getLocalPlayer();
-                    if (localPlayer != null) {
-                        Log.info("MapTransferBuildAssetsState", "Local player exists after map load - checking physics setup...");
-                        // Check if physics needs to be set up (characterController will be null if physics wasn't initialized)
-                        if (localPlayer.getCharacterController() == null) {
-                            Log.info("MapTransferBuildAssetsState", "Local player has no physics controller - setting up now...");
-                            clientGameMode.setupPlayerPhysics(localPlayer);
-                        } else {
-                            Log.info("MapTransferBuildAssetsState", "Local player physics already initialized");
-                        }
-                    } else {
-                        Log.info("MapTransferBuildAssetsState", "No local player assigned yet - physics will be set up when player is assigned");
-                    }
-                } else {
-                    Log.warn("MapTransferBuildAssetsState", "ClientGameMode not available in StateManager");
-                }
-
-                // Clear existing players before adding new ones from transfer
-                // This prevents accumulation of old players with new players
-                clientWorld.getGameObjectManager().activePlayers.clear();
-                Log.info("MapTransferBuildAssetsState", "Cleared existing players before receiving new transfer payload");
+                // Clear ALL existing objects before adding new ones from transfer
+                // This prevents accumulation of old players/objects and duplicates
+                clientWorld.getGameObjectManager().clearAllObjects();
+                Log.info("MapTransferBuildAssetsState", "Cleared all existing objects before receiving new transfer payload");
 
                 // Add game objects from transfer
                 if (receivedGameObjects == null) {
@@ -101,11 +80,38 @@ public class MapTransferBuildAssetsState extends BaseGameStateClient {
                     }
                 }
 
-                // Don't create local player here - it's already in the transfer payload
-                // Will be assigned when server sends PlayerAssignmentUpdate
-                Log.info("MapTransferBuildAssetsState", "Received " +
-                        (receivedGameObjects != null ? receivedGameObjects.size() : 0) +
-                        " game objects from transfer (players will be assigned by server)");
+                // Restore local player reference and setup physics
+                curly.octo.client.ClientGameMode clientGameMode = StateManager.getClientGameMode();
+                if (clientGameMode != null) {
+                    String localPlayerId = clientGameMode.getLocalPlayerId();
+                    if (localPlayerId != null) {
+                        GameObject obj = clientWorld.getGameObjectManager().getObjectById(localPlayerId);
+                        if (obj instanceof WalkingCharacter) {
+                            WalkingCharacter localPlayer = (WalkingCharacter) obj;
+                            clientWorld.getGameObjectManager().localPlayer = localPlayer;
+                            Log.info("MapTransferBuildAssetsState", "Restored local player reference: " + localPlayerId);
+
+                            // Ensure physics is set up for the local player
+                            if (localPlayer.getCharacterController() == null) {
+                                Log.info("MapTransferBuildAssetsState", "Setting up physics for restored local player...");
+                                clientGameMode.setupPlayerPhysics(localPlayer);
+                            }
+
+                            // CRITICAL: Re-possess the new player object instance
+                            // The InputController might be holding a reference to the old (now cleared) player object
+                            if (clientGameMode.getInputController() != null) {
+                                Log.info("MapTransferBuildAssetsState", "Re-possessing local player to update input controller reference");
+                                clientGameMode.getInputController().setPossessionTarget(localPlayer);
+                            }
+                        } else {
+                            Log.warn("MapTransferBuildAssetsState", "Local player ID " + localPlayerId + " not found in received objects!");
+                        }
+                    } else {
+                        Log.info("MapTransferBuildAssetsState", "No local player ID assigned yet.");
+                    }
+                } else {
+                    Log.warn("MapTransferBuildAssetsState", "ClientGameMode not available in StateManager");
+                }
 
                 Log.info("MapTransferBuildAssetsState", "Asset building complete!");
                 buildComplete = true;

@@ -9,7 +9,7 @@ public class PlayerUtilities {
 
     public static WalkingCharacter createPlayerObject() {
         String playerId = UUID.randomUUID().toString();
-        WalkingCharacter player = new WalkingCharacter(playerId, Constants.PLAYER_HEIGHT, 1.0f);
+        WalkingCharacter player = new WalkingCharacter(playerId, Constants.PLAYER_HEIGHT, Constants.PLAYER_WIDTH);
         player.setBrain(new PlayerBrain());
         return player;
     }
@@ -20,7 +20,7 @@ public class PlayerUtilities {
      */
     public static WalkingCharacter createServerPlayerObject() {
         String playerId = UUID.randomUUID().toString();
-        WalkingCharacter player = new WalkingCharacter(playerId, Constants.PLAYER_HEIGHT, 1.0f);
+        WalkingCharacter player = new WalkingCharacter(playerId, Constants.PLAYER_HEIGHT, Constants.PLAYER_WIDTH);
         player.setBrain(new PlayerBrain());
         return player;
     }
