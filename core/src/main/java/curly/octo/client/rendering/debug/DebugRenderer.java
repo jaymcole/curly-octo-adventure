@@ -348,7 +348,6 @@ public class DebugRenderer implements Disposable {
             java.util.List<Vector3> waypointQueue = npc.getWaypointQueue();
             int currentIndex = npc.getCurrentWaypointIndex();
 
-            // Draw waypoint queue as connected path
             if (waypointQueue != null && !waypointQueue.isEmpty()) {
                 Vector3 prev = npcPos;
 
@@ -370,11 +369,11 @@ public class DebugRenderer implements Disposable {
                         shapeRenderer.setColor(waypointColor);
                         drawSphereWireframe(wp, 0.5f, 8);  // 0.5 units radius
                     }
+
                     prev = wp;
                 }
             }
         }
-
         shapeRenderer.end();
         Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
     }

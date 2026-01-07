@@ -1,13 +1,11 @@
 package curly.octo.common.character;
 
 import com.badlogic.gdx.math.Vector3;
-import com.esotericsoftware.minlog.Log;
 import curly.octo.common.Constants;
 import curly.octo.common.network.messages.NPCInstructionMessage;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 public class NPCBrain implements ICharacterBrain {
 
@@ -30,7 +28,6 @@ public class NPCBrain implements ICharacterBrain {
         if (currentInstruction != null) {
             long elapsed = System.currentTimeMillis() - instructionStartTime;
             if (elapsed > currentInstruction.duration * 1000) {
-                Log.info("NPCBrain", "[DEBUG_NPC] Instruction expired for " + character.entityId);
                 currentInstruction = null;
                 character.setWalkDirection(new Vector3(0, 0, 0));
             } else {
@@ -40,7 +37,6 @@ public class NPCBrain implements ICharacterBrain {
     }
 
     public void setInstruction(NPCInstructionMessage instruction) {
-        Log.info("NPCBrain", "[DEBUG_NPC] Received new instruction for " + character.entityId + ": " + instruction.type);
         this.currentInstruction = instruction;
         this.instructionStartTime = System.currentTimeMillis();
 
@@ -65,12 +61,7 @@ public class NPCBrain implements ICharacterBrain {
             }
             if (!waypointQueue.isEmpty()) {
                 targetWaypoint.set(waypointQueue.get(0));
-                Log.info("NPCBrain", "[DEBUG_NPC] Parsed " + waypointQueue.size() + " waypoints. First target: " + targetWaypoint);
-            } else {
-                Log.warn("NPCBrain", "[DEBUG_NPC] Waypoint parsing resulted in an empty queue.");
             }
-        } else {
-            Log.warn("NPCBrain", "[DEBUG_NPC] Received WANDER instruction with null waypoint indices.");
         }
     }
 
@@ -93,9 +84,7 @@ public class NPCBrain implements ICharacterBrain {
             currentWaypointIndex++;
             if (currentWaypointIndex < waypointQueue.size()) {
                 targetWaypoint.set(waypointQueue.get(currentWaypointIndex));
-                Log.info("NPCBrain", "[DEBUG_NPC] " + character.entityId + " reached waypoint. New target: " + targetWaypoint);
             } else {
-                Log.info("NPCBrain", "[DEBUG_NPC] " + character.entityId + " completed path.");
                 character.setWalkDirection(new Vector3(0, 0, 0));
                 waypointQueue.clear(); // Clear the queue once path is complete
                 return;

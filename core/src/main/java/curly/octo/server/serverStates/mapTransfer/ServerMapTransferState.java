@@ -4,6 +4,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.minlog.Log;
+import curly.octo.common.GameObject;
 import curly.octo.server.ServerCoordinator;
 import curly.octo.client.clientStates.mapTransferStates.MapTransferSharedStatics;
 import curly.octo.server.playerManagement.*;
@@ -17,6 +18,7 @@ import curly.octo.common.network.messages.mapTransferMessages.MapTransferAllClie
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -50,23 +52,23 @@ public class ServerMapTransferState extends BaseGameStateServer {
         // Reset transfer tracking
         hasStartedTransfers = false;
 
-        // Serialize map once
-        cachedMapData = getSerializedMapData();
-        if (cachedMapData != null) {
-            Log.info("ServerMapTransferState", "Cached map data: " + cachedMapData.length + " bytes");
-        } else {
-            Log.error("ServerMapTransferState", "Failed to serialize map data");
-            return;
+        // Serialize map once, if not already cached
+        if (cachedMapData == null) {
+            cachedMapData = getSerializedMapData();
+            if (cachedMapData != null) {
+                Log.info("ServerMapTransferState", "Cached map data: " + cachedMapData.length + " bytes");
+            } else {
+                Log.error("ServerMapTransferState", "Failed to serialize map data");
+                // Transition out of this state to prevent getting stuck
+                ServerStateManager.setServerState(ServerWaitForClientsToBeReadyState.class);
+                return;
+            }
         }
 
         // Create workers for ALL currently connected clients
-        // This handles initial entry and mid-game joins where existing clients need to be notified
         for (Connection conn : gameServer.getServer().getConnections()) {
-            // Skip disconnected clients
-            ClientConnectionKey clientKey = new ClientConnectionKey(conn);
-            ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
+            ClientProfile profile = serverCoordinator.getClientProfile(new ClientConnectionKey(conn));
             if (profile != null && profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
-                Log.info("ServerMapTransferState", "Skipping transfer for disconnected client " + conn.getID());
                 continue;
             }
             startTransferForClient(conn);
@@ -79,36 +81,29 @@ public class ServerMapTransferState extends BaseGameStateServer {
      * Start transfer for a specific client
      */
     public void startTransferForClient(Connection connection) {
-        // Check if client is disconnected
-        ClientConnectionKey clientKey = new ClientConnectionKey(connection);
-        ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
+        ClientProfile profile = serverCoordinator.getClientProfile(new ClientConnectionKey(connection));
         if (profile != null && profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
-            Log.info("ServerMapTransferState", "Skipping transfer for disconnected client " + connection.getID());
             return;
         }
 
         if (activeWorkers.containsKey(connection.getID())) {
-            Log.warn("ServerMapTransferState", "Transfer already in progress for client " + connection.getID());
             return;
         }
 
         if (cachedMapData == null) {
-            Log.info("ServerMapTransferState", "Map data not ready yet, queueing client " + connection.getID());
             pendingClients.add(connection);
             return;
         }
 
-        // Verify map is available before starting transfer
         GameMap currentMap = serverCoordinator.getMapManager();
         if (currentMap == null) {
-            Log.error("ServerMapTransferState", "Cannot start transfer - map is null (possibly being regenerated)");
             return;
         }
 
         MapTransferWorker worker = new MapTransferWorker(connection, gameServer, serverCoordinator, cachedMapData, currentMap.getMapId());
         activeWorkers.put(connection.getID(), worker);
         worker.start();
-        hasStartedTransfers = true; // Mark that we've started at least one transfer
+        hasStartedTransfers = true;
 
         Log.info("ServerMapTransferState", "Started transfer worker for client " + connection.getID() +
                 " (total active: " + activeWorkers.size() + ")");
@@ -117,35 +112,25 @@ public class ServerMapTransferState extends BaseGameStateServer {
 
     @Override
     public void update(float delta) {
-        // Rate-limit progress broadcasts to avoid overwhelming client buffers
         progressBroadcastTimer += delta;
         if (progressBroadcastTimer >= PROGRESS_BROADCAST_INTERVAL) {
             MapTransferAllClientProgressMessage groupProgress = constructGroupProgressMessage();
-            // Broadcast progress to ALL clients (including those already in ClientPlayingState)
             NetworkManager.sendToAllClients(groupProgress);
             progressBroadcastTimer = 0f;
         }
 
-        // Process any clients that were queued waiting for cachedMapData
         if (!pendingClients.isEmpty() && cachedMapData != null) {
-            Log.info("ServerMapTransferState", "Processing " + pendingClients.size() + " pending client(s)");
             while (!pendingClients.isEmpty()) {
-                Connection pendingConn = pendingClients.poll();
-                startTransferForClient(pendingConn); // Retry - will succeed now
+                startTransferForClient(pendingClients.poll());
             }
         }
 
-        // Update all active workers
         Iterator<Map.Entry<Integer, MapTransferWorker>> iterator = activeWorkers.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<Integer, MapTransferWorker> entry = iterator.next();
             MapTransferWorker worker = entry.getValue();
-
             worker.update(delta);
-
-            // Remove completed workers
             if (worker.isComplete()) {
-                Log.info("ServerMapTransferState", "Worker completed for client " + entry.getKey());
                 iterator.remove();
             }
         }
@@ -158,31 +143,19 @@ public class ServerMapTransferState extends BaseGameStateServer {
 
     private MapTransferAllClientProgressMessage constructGroupProgressMessage() {
         HashMap<ClientUniqueId, Integer> clientIdToChunkProgressMap = new HashMap<>();
-        // Iterate through ALL connected clients
         for (Connection conn : gameServer.getServer().getConnections()) {
-            ClientConnectionKey clientKey = new ClientConnectionKey(conn);
-            ClientProfile profile = serverCoordinator.getClientProfile(clientKey);
-
-            // Skip disconnected clients
-            if (profile == null || profile.connectionStatus == ConnectionStatus.DISCONNECTED) {
+            ClientProfile profile = serverCoordinator.getClientProfile(new ClientConnectionKey(conn));
+            if (profile == null || profile.connectionStatus == ConnectionStatus.DISCONNECTED || profile.clientUniqueId == null) {
                 continue;
             }
 
-            if (profile.clientUniqueId == null) {
-                continue;
-            }
-
-            // Check if this client has an active worker (currently downloading)
             MapTransferWorker worker = activeWorkers.get(conn.getID());
             if (worker != null) {
-                // Client is downloading - use their current progress
                 clientIdToChunkProgressMap.put(profile.clientUniqueId, worker.currentChunkIndex);
             } else {
-                // Client already has the map - mark as 100% complete
                 clientIdToChunkProgressMap.put(profile.clientUniqueId, MapTransferSharedStatics.getTotalChunks());
             }
         }
-
         return new MapTransferAllClientProgressMessage(clientIdToChunkProgressMap);
     }
 
@@ -202,7 +175,6 @@ public class ServerMapTransferState extends BaseGameStateServer {
             return null;
         }
 
-        // Gather all game objects from ServerGameObjectManager
         MapTransferPayload payload = new MapTransferPayload();
         payload.map = currentMap;
 

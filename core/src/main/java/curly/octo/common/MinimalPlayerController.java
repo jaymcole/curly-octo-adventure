@@ -1,7 +1,6 @@
 package curly.octo.common;
 
 import com.badlogic.gdx.graphics.PerspectiveCamera;
-import com.esotericsoftware.minlog.Log;
 import curly.octo.common.character.GameCharacter;
 import curly.octo.common.character.PlayerBrain;
 import curly.octo.common.character.WalkingCharacter;
@@ -24,7 +23,6 @@ public class MinimalPlayerController implements InputController {
 
     @Override
     public void setPossessionTarget(Possessable target) {
-        Log.info("MinimalPlayerController", "[BRAIN_DEBUG] setPossessionTarget called with: " + (target != null ? ((GameCharacter)target).entityId : "null"));
         if (this.currentTarget != null) {
             this.currentTarget.onPossessionEnd();
         }

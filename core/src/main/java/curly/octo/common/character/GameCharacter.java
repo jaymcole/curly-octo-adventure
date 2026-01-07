@@ -21,8 +21,8 @@ public abstract class GameCharacter extends WorldObject {
 
     protected float yaw = 0f;
     protected float pitch = 0f;
-    protected float movementSpeed = 10.0f;
-    protected float jumpForce = 1.0f;
+    protected float movementSpeed = 0.30f;
+    protected float jumpForce = 0.30f;
     protected float characterHeight;
     protected float characterWidth;
 
@@ -30,9 +30,12 @@ public abstract class GameCharacter extends WorldObject {
     protected Vector3 velocity = new Vector3();
     protected Vector3 externalForce = new Vector3();
     private Vector3 initialPosition;
+    private Vector3 lastPosition = new Vector3();
 
     public GameCharacter() {
         super();
+        this.characterHeight = Constants.PLAYER_HEIGHT;
+        this.characterWidth = Constants.PLAYER_WIDTH;
     }
 
     public GameCharacter(String id, float height, float width) {
@@ -59,39 +62,34 @@ public abstract class GameCharacter extends WorldObject {
     }
 
     public void setInitialPosition(Vector3 position) {
-        Log.info("GameCharacter", "[SPAWN_DEBUG] setInitialPosition called for " + entityId + " with position " + position);
         if (physicsInitialized) {
-            Log.warn("GameCharacter", "[SPAWN_DEBUG] Physics already initialized. Setting position directly.");
             setPosition(position);
         } else {
-            Log.info("GameCharacter", "[SPAWN_DEBUG] Storing initial position for later.");
             this.initialPosition = position;
         }
     }
 
     public void initializePhysics(btDiscreteDynamicsWorld dynamicsWorld, float height, float width) {
-        if (physicsInitialized) {
-            Log.warn("GameCharacter", "[SPAWN_DEBUG] initializePhysics called but already initialized for " + entityId);
-            return;
-        }
-        if (position == null && initialPosition == null) {
-            Log.error("GameCharacter", "[SPAWN_DEBUG] initializePhysics called with null position for " + entityId);
-            return;
-        }
+        if (physicsInitialized || (position == null && initialPosition == null)) return;
 
         this.dynamicsWorld = dynamicsWorld;
-        Log.info("GameCharacter", "[SPAWN_DEBUG] Initializing physics for " + entityId);
 
         try {
             float radius = width / 2f;
             float cylinderHeight = height - (2 * radius);
+
             if (cylinderHeight < 0) cylinderHeight = 0;
+            if (radius <= 0.001f) return;
 
             physicsShape = new btCapsuleShape(radius, cylinderHeight);
 
             com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4();
             Vector3 pos = (initialPosition != null) ? initialPosition : position;
-            Log.info("GameCharacter", "[SPAWN_DEBUG] Physics body for " + entityId + " will be created at: " + pos);
+
+            if (pos == null || Float.isNaN(pos.x) || Float.isNaN(pos.y) || Float.isNaN(pos.z)) {
+                 pos = new Vector3(0, 10, 0);
+            }
+
             transform.setToTranslation(pos.x, pos.y + height / 2f, pos.z);
 
             ghostObject = new btPairCachingGhostObject();
@@ -103,11 +101,12 @@ public abstract class GameCharacter extends WorldObject {
             );
             ghostObject.setActivationState(4);
 
-            characterController = new btKinematicCharacterController(ghostObject, physicsShape, 0.35f);
+            characterController = new btKinematicCharacterController(ghostObject, physicsShape, 0.35f, new Vector3(0, 1, 0));
             characterController.setGravity(new Vector3(0, Constants.PHYSICS_GRAVITY, 0));
-            characterController.setUp(new Vector3(0, 1, 0));
             characterController.setMaxSlope((float)Math.toRadians(Constants.PHYSICS_MAX_SLOPE_DEGREES));
             characterController.setJumpSpeed(jumpForce);
+            characterController.setMaxJumpHeight(4f);
+            characterController.setFallSpeed(55f);
             characterController.setUseGhostSweepTest(false);
 
             dynamicsWorld.addCollisionObject(ghostObject,
@@ -117,16 +116,18 @@ public abstract class GameCharacter extends WorldObject {
             dynamicsWorld.addAction(characterController);
 
             physicsInitialized = true;
-            Log.info("GameCharacter", "[SPAWN_DEBUG] Physics initialized successfully for " + entityId);
 
             if (initialPosition != null) {
-                Log.info("GameCharacter", "[SPAWN_DEBUG] Applying stored initial position " + initialPosition + " to " + entityId);
                 setPosition(initialPosition);
                 initialPosition = null;
             }
 
+            if (position != null) {
+                lastPosition.set(position);
+            }
+
         } catch (Exception e) {
-            Log.error("GameCharacter", "[SPAWN_DEBUG] Failed to initialize physics for " + entityId, e);
+            Log.error("GameCharacter", "Failed to initialize physics for " + entityId, e);
         }
     }
 
@@ -140,19 +141,31 @@ public abstract class GameCharacter extends WorldObject {
 
         if (characterController != null) {
             Vector3 finalVelocity = new Vector3(velocity).scl(movementSpeed).add(externalForce);
+            characterController.setWalkDirection(finalVelocity);
 
-            if (finalVelocity.len2() > 0.01f && System.currentTimeMillis() % 1000 < 50) {
-                 Log.info("GameCharacter", "[MOVE_DEBUG] Applying velocity: " + finalVelocity + " to " + entityId + " (Hash: " + System.identityHashCode(this) + ")");
-            }
-
-            characterController.setWalkDirection(finalVelocity.scl(delta));
             externalForce.scl(0.95f);
 
             if (ghostObject != null) {
                 Vector3 tempVector = new Vector3();
                 ghostObject.getWorldTransform().getTranslation(tempVector);
-                // Set our character's position to be the feet, not the center of the capsule
                 position.set(tempVector.x, tempVector.y - (characterHeight / 2f), tempVector.z);
+
+                if (Float.isNaN(position.x) || Float.isInfinite(position.x) ||
+                    Float.isNaN(position.y) || Float.isInfinite(position.y) ||
+                    Float.isNaN(position.z) || Float.isInfinite(position.z) ||
+                    Math.abs(position.x) > 100000 || Math.abs(position.y) > 100000 || Math.abs(position.z) > 100000) {
+
+                    position.set(lastPosition);
+
+                    com.badlogic.gdx.math.Matrix4 resetTransform = new com.badlogic.gdx.math.Matrix4();
+                    resetTransform.setToTranslation(position.x, position.y + characterHeight / 2f, position.z);
+                    ghostObject.setWorldTransform(resetTransform);
+
+                    velocity.setZero();
+                    externalForce.setZero();
+                } else {
+                    lastPosition.set(position);
+                }
 
                 com.badlogic.gdx.math.Matrix4 currentTransform = ghostObject.getWorldTransform();
                 com.badlogic.gdx.math.Matrix4 uprightTransform = new com.badlogic.gdx.math.Matrix4();
@@ -165,10 +178,6 @@ public abstract class GameCharacter extends WorldObject {
             getModelInstance().transform.setToTranslation(position);
             getModelInstance().transform.rotate(Vector3.Y, yaw);
         }
-
-        if (System.currentTimeMillis() % 2000 < 100 && entityId.startsWith("player")) {
-            Log.info("GameCharacter", "[SPAWN_DEBUG] Player " + entityId + " position: " + position + " (Hash: " + System.identityHashCode(this) + ")");
-        }
     }
 
     public void setWalkDirection(Vector3 walkDirection) {
@@ -176,8 +185,8 @@ public abstract class GameCharacter extends WorldObject {
     }
 
     public void jump() {
-        if (characterController != null && characterController.canJump()) {
-            characterController.jump();
+        if (canJump()) {
+            applyImpulse(new Vector3(0, jumpForce, 0));
         }
     }
 
@@ -260,7 +269,6 @@ public abstract class GameCharacter extends WorldObject {
         }
         dynamicsWorld = null;
         physicsInitialized = false;
-        Log.info("GameCharacter", "Force cleared physics for " + entityId);
     }
 
     @Override

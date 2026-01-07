@@ -327,19 +327,19 @@ public class ClientGameMode implements GameMode {
         Log.info("ClientGameMode", "Setting up network listeners");
 
         NetworkManager.onReceive(PlayerAssignmentUpdate.class, msg -> Gdx.app.postRunnable(() -> {
-            Log.info("ClientGameMode", "[SPAWN_DEBUG] Received PlayerAssignmentUpdate for player ID: " + msg.playerId);
+            Log.info("ClientGameMode", "Received PlayerAssignmentUpdate for player ID: " + msg.playerId);
             setLocalPlayer(msg.playerId);
             playerAssigned = true;
         }));
 
         NetworkManager.onReceive(PlayerResetMessage.class, msg -> Gdx.app.postRunnable(() -> {
-            Log.info("ClientGameMode", "[SPAWN_DEBUG] Received PlayerResetMessage for player " + msg.playerId + " to position " + msg.getSpawnPosition());
+            Log.info("ClientGameMode", "Received PlayerResetMessage for player " + msg.playerId + " to position " + msg.getSpawnPosition());
             WalkingCharacter player = (WalkingCharacter) gameWorld.getGameObjectManager().getObjectById(msg.playerId);
             if (player != null) {
                 player.setInitialPosition(msg.getSpawnPosition());
                 player.setYaw(msg.spawnYaw);
             } else {
-                Log.warn("ClientGameMode", "[SPAWN_DEBUG] Player " + msg.playerId + " not found for reset message.");
+                Log.warn("ClientGameMode", "Player " + msg.playerId + " not found for reset message.");
             }
         }));
 
@@ -392,12 +392,15 @@ public class ClientGameMode implements GameMode {
                 }
 
                 if (targetPlayer == null) {
-                    targetPlayer = new WalkingCharacter(playerUpdate.playerId, Constants.PLAYER_HEIGHT, 1.0f);
+                    targetPlayer = new WalkingCharacter(playerUpdate.playerId, Constants.PLAYER_HEIGHT, Constants.PLAYER_WIDTH);
                     gameWorld.getGameObjectManager().activePlayers.add(targetPlayer);
                     gameWorld.getGameObjectManager().add(targetPlayer);
 
                     if (gameWorld.getMapManager() != null && gameWorld.getMapManager().isPhysicsInitialized()) {
-                        targetPlayer.initializeRemotePhysics(gameWorld.getMapManager(), 1.0f, 5.0f);
+                        // CRITICAL: Do not initialize remote physics for the local player
+                        if (localId == null || !targetPlayer.entityId.equals(localId)) {
+                            targetPlayer.initializeRemotePhysics(gameWorld.getMapManager(), 1.0f, 5.0f);
+                        }
                     }
                 }
 
@@ -437,7 +440,6 @@ public class ClientGameMode implements GameMode {
 
         NetworkManager.onReceive(NPCInstructionMessage.class, instructionMessage -> {
             Gdx.app.postRunnable(() -> {
-                Log.info("ClientGameMode", "[DEBUG_NPC] Received NPCInstructionMessage for NPC: " + instructionMessage.npcId);
                 WalkingCharacter npc = (WalkingCharacter) gameWorld.getGameObjectManager().getObjectById(instructionMessage.npcId);
                 if (npc != null) {
                     configureNPCAuthority(npc);
@@ -466,19 +468,19 @@ public class ClientGameMode implements GameMode {
     }
 
     private void setLocalPlayer(String localPlayerId) {
-        Log.info("ClientGameMode", "[SPAWN_DEBUG] Setting local player ID: " + localPlayerId);
+        Log.info("ClientGameMode", "Setting local player ID: " + localPlayerId);
         this.localPlayerId = localPlayerId; // Store ID independently
 
         WalkingCharacter existingPlayer = (WalkingCharacter) gameWorld.getGameObjectManager().getObjectById(localPlayerId);
 
         if (existingPlayer != null) {
-            Log.info("ClientGameMode", "[SPAWN_DEBUG] Reusing existing player from map transfer.");
+            Log.info("ClientGameMode", "Reusing existing player from map transfer.");
             gameWorld.getGameObjectManager().localPlayer = existingPlayer;
             if (gameWorld.getMapManager() != null) {
                 setupPlayerPhysics(existingPlayer);
             }
         } else {
-            Log.warn("ClientGameMode", "[SPAWN_DEBUG] No existing player found. Creating new one.");
+            Log.warn("ClientGameMode", "No existing player found. Creating new one.");
             gameWorld.setupLocalPlayer();
             gameWorld.getGameObjectManager().localPlayer.entityId = localPlayerId;
         }

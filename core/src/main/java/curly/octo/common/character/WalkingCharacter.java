@@ -28,9 +28,7 @@ public class WalkingCharacter extends GameCharacter {
     // No-arg constructor for Kryo
     public WalkingCharacter() {
         super();
-        // Default to player dimensions
-        this.characterHeight = Constants.PLAYER_HEIGHT;
-        this.characterWidth = Constants.PLAYER_WIDTH;
+        // Defaults are now set in the GameCharacter constructor
     }
 
     public WalkingCharacter(String id, float height, float width) {
@@ -88,7 +86,7 @@ public class WalkingCharacter extends GameCharacter {
     }
 
     public void initializeRemotePhysics(GameMap map, float radius, float height) {
-        Log.info("WalkingCharacter", "[PHYSICS_DEBUG] initializeRemotePhysics called for " + entityId);
+        Log.error("WalkingCharacter", "[MYSTERY_COLLIDER] initializeRemotePhysics CALLED FOR " + entityId);
         this.gameMap = map;
         disposeRemotePhysics(map);
         remotePhysicsShape = new btCapsuleShape(radius, height);
@@ -104,12 +102,10 @@ public class WalkingCharacter extends GameCharacter {
         );
         remotePhysicsBody.setWorldTransform(transform);
         map.dynamicsWorld.addRigidBody(remotePhysicsBody, GameMap.PLAYER_GROUP, (short)(GameMap.GROUND_GROUP | GameMap.PLAYER_GROUP | GameMap.NPC_GROUP));
-        Log.info("WalkingCharacter", "[PHYSICS_DEBUG] Created remote physics body for " + entityId);
     }
 
     public void disposeRemotePhysics(GameMap map) {
         if (remotePhysicsBody != null) {
-            Log.info("WalkingCharacter", "[PHYSICS_DEBUG] Disposing remote physics body for " + entityId);
             if (map != null && map.dynamicsWorld != null) {
                 map.dynamicsWorld.removeRigidBody(remotePhysicsBody);
             }
@@ -136,40 +132,10 @@ public class WalkingCharacter extends GameCharacter {
         return characterController;
     }
 
-    // Camera overrides for first-person view
-    @Override
-    public Vector3 getCameraPosition() {
-        if (position != null) {
-            return new Vector3(position).add(0, characterHeight * 0.9f, 0); // Camera at 90% of height
-        }
-        return new Vector3(0, characterHeight * 0.9f, 0);
-    }
-
-    @Override
-    public Vector3 getCameraDirection() {
-        float yawRad = (float) Math.toRadians(yaw);
-        float pitchRad = (float) Math.toRadians(pitch);
-
-        return new Vector3(
-            (float) (Math.cos(pitchRad) * Math.sin(yawRad)),
-            (float) -Math.sin(pitchRad),
-            (float) (Math.cos(pitchRad) * Math.cos(yawRad))
-        ).nor();
-    }
-
-    @Override
-    public void setPitch(float pitch) {
-        // Clamp pitch to prevent camera flipping
-        this.pitch = Math.max(-89f, Math.min(89f, pitch));
-    }
-
     // Methods from NPCObject, guarded by brain type check
     public void executeInstruction(NPCInstructionMessage instruction) {
         if (brain instanceof NPCBrain) {
-            Log.info("WalkingCharacter", "[DEBUG_NPC] Passing instruction to NPCBrain for " + entityId);
             ((NPCBrain) brain).setInstruction(instruction);
-        } else {
-            Log.warn("WalkingCharacter", "[DEBUG_NPC] executeInstruction called on a non-NPC character: " + entityId);
         }
     }
 
@@ -199,14 +165,5 @@ public class WalkingCharacter extends GameCharacter {
             position.set(syncPosition);
             setYaw(syncYaw);
         }
-    }
-
-    // Getters for properties
-    public float getCharacterHeight() {
-        return characterHeight;
-    }
-
-    public float getCharacterWidth() {
-        return characterWidth;
     }
 }
