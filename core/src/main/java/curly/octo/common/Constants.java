@@ -78,8 +78,8 @@ public class Constants {
     /** Player character width in world units */
     public static final float PLAYER_WIDTH = 1.5f;
 
-    /** Player movement speed multiplier */
-    public static final float PLAYER_MOVEMENT_SPEED = 10.0f;
+    /** Player movement speed in units per second */
+    public static final float PLAYER_MOVEMENT_SPEED = 12.0f;
 
     /** Force applied when player jumps */
     public static final float PLAYER_JUMP_FORCE = 25f;

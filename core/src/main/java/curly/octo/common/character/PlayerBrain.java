@@ -78,8 +78,12 @@ public class PlayerBrain implements ICharacterBrain {
             tempDirection.sub(right);
         }
 
-        // Only set the X/Z components of the velocity
-        character.setWalkDirection(tempDirection.nor());
+        // Only normalize if the vector has length (prevent NaN from zero vector)
+        if (tempDirection.len2() > 0.0001f) {
+            character.setWalkDirection(tempDirection.nor());
+        } else {
+            character.setWalkDirection(new Vector3(0, 0, 0));
+        }
 
         boolean spaceIsPressed = Gdx.input.isKeyPressed(Input.Keys.SPACE);
         if (spaceIsPressed && !spaceWasPressed && character.canJump()) {

@@ -21,14 +21,14 @@ public abstract class GameCharacter extends WorldObject {
 
     protected float yaw = 0f;
     protected float pitch = 0f;
-    protected float movementSpeed = 0.30f;
-    protected float jumpForce = 0.30f;
+    protected float movementSpeed = Constants.PLAYER_MOVEMENT_SPEED;  // 10.0f
+    protected float jumpForce = Constants.PLAYER_JUMP_FORCE;  // 25f
     protected float characterHeight;
     protected float characterWidth;
 
     protected transient ICharacterBrain brain;
-    protected Vector3 velocity = new Vector3();
-    protected Vector3 externalForce = new Vector3();
+    protected Vector3 velocity = new Vector3();  // Horizontal (X/Z) movement direction from brain
+    protected Vector3 externalForce = new Vector3();  // Horizontal (X/Z) forces from collisions/pushes
     private Vector3 initialPosition;
     private Vector3 lastPosition = new Vector3();
 
@@ -140,10 +140,20 @@ public abstract class GameCharacter extends WorldObject {
         }
 
         if (characterController != null) {
-            Vector3 finalVelocity = new Vector3(velocity).scl(movementSpeed).add(externalForce);
+            // Calculate horizontal movement with proper deltaTime scaling
+            Vector3 finalVelocity = new Vector3(velocity).scl(movementSpeed * delta);
+
+            // Add horizontal external forces (from collisions, pushes, etc.)
+            finalVelocity.add(externalForce.x, 0, externalForce.z);
+
+            // CRITICAL: Only pass horizontal (X/Z) movement to character controller
+            // The controller manages Y-axis internally through gravity and jump()
+            finalVelocity.y = 0;
             characterController.setWalkDirection(finalVelocity);
 
-            externalForce.scl(0.95f);
+            // Frame-rate independent exponential decay - much faster (95% loss per second)
+            float decayFactor = (float) Math.pow(0.05f, delta);
+            externalForce.scl(decayFactor);
 
             if (ghostObject != null) {
                 Vector3 tempVector = new Vector3();
@@ -181,12 +191,26 @@ public abstract class GameCharacter extends WorldObject {
     }
 
     public void setWalkDirection(Vector3 walkDirection) {
-        this.velocity.set(walkDirection);
+        // Defensive validation: reject NaN and Infinity values
+        if (walkDirection == null ||
+            Float.isNaN(walkDirection.x) || Float.isInfinite(walkDirection.x) ||
+            Float.isNaN(walkDirection.y) || Float.isInfinite(walkDirection.y) ||
+            Float.isNaN(walkDirection.z) || Float.isInfinite(walkDirection.z)) {
+
+            Log.warn("GameCharacter", "Rejected invalid walk direction for " + entityId +
+                     ": " + walkDirection + ", resetting to zero");
+            this.velocity.setZero();
+            return;
+        }
+
+        // Only store horizontal (X/Z) velocity - Y is managed by character controller
+        this.velocity.set(walkDirection.x, 0, walkDirection.z);
     }
 
     public void jump() {
-        if (canJump()) {
-            applyImpulse(new Vector3(0, jumpForce, 0));
+        if (canJump() && characterController != null) {
+            // Use Bullet's first-class jump method
+            characterController.jump();
         }
     }
 
@@ -195,7 +219,8 @@ public abstract class GameCharacter extends WorldObject {
     }
 
     public void applyImpulse(Vector3 impulse) {
-        externalForce.add(impulse);
+        // Only apply horizontal forces - Y-axis is managed by character controller
+        externalForce.add(impulse.x, 0, impulse.z);
     }
 
     public float getYaw() {

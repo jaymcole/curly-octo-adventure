@@ -91,9 +91,15 @@ public class NPCBrain implements ICharacterBrain {
             }
         }
 
-        Vector3 dir = new Vector3(targetWaypoint).sub(pos).nor();
-        character.setYaw((float) Math.toDegrees(Math.atan2(dir.x, dir.z)));
-        character.setWalkDirection(dir);
+        Vector3 dir = new Vector3(targetWaypoint).sub(pos);
+        if (dir.len2() > 0.0001f) {
+            dir.nor();
+            character.setYaw((float) Math.toDegrees(Math.atan2(dir.x, dir.z)));
+            character.setWalkDirection(dir);
+        } else {
+            // Already at waypoint, stop moving
+            character.setWalkDirection(new Vector3(0, 0, 0));
+        }
     }
 
     public List<Vector3> getWaypointQueue() {
