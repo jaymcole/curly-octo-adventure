@@ -247,16 +247,12 @@ public class ClientGameWorld {
             return; // Skip everything until map regeneration is complete
         }
 
-        // Update physics
+        // Update physics - GameCharacter.update() handles position sync
         if (getMapManager() != null && getGameObjectManager().localPlayer != null) {
             getMapManager().stepPhysics(deltaTime);
 
-            // Only sync physics position if NOT in fly mode
-            if (!getGameObjectManager().localPlayer.isFlyModeEnabled() && getGameObjectManager().localPlayer.getGhostObject() != null) {
-                Vector3 bulletPlayerPos = getGameObjectManager().localPlayer.getGhostObject()
-                        .getWorldTransform().getTranslation(new Vector3());
-                getGameObjectManager().localPlayer.setPosition(bulletPlayerPos);
-            }
+            // Position sync removed - duplicate read was causing race condition
+            // GameCharacter.update() reads position from physics and has NaN recovery
         }
 
         // Update local player

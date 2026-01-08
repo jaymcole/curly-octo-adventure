@@ -86,8 +86,13 @@ public class PlayerBrain implements ICharacterBrain {
         }
 
         boolean spaceIsPressed = Gdx.input.isKeyPressed(Input.Keys.SPACE);
-        if (spaceIsPressed && !spaceWasPressed && character.canJump()) {
-            character.jump();
+        if (spaceIsPressed && !spaceWasPressed) {
+            Log.info("PlayerBrain", "[INPUT] Jump pressed. canJump=" + character.canJump() +
+                    " onGround=" + (character.getCharacterController() != null ?
+                                   character.getCharacterController().onGround() : "N/A"));
+            if (character.canJump()) {
+                character.jump();
+            }
         }
         spaceWasPressed = spaceIsPressed;
     }

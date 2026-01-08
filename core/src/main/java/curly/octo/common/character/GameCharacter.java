@@ -29,6 +29,7 @@ public abstract class GameCharacter extends WorldObject {
     protected transient ICharacterBrain brain;
     protected Vector3 velocity = new Vector3();  // Horizontal (X/Z) movement direction from brain
     protected Vector3 externalForce = new Vector3();  // Horizontal (X/Z) forces from collisions/pushes
+    protected float verticalVelocity = 0f;  // Vertical velocity (managed separately from Bullet)
     private Vector3 initialPosition;
     private Vector3 lastPosition = new Vector3();
 
@@ -146,9 +147,28 @@ public abstract class GameCharacter extends WorldObject {
             // Add horizontal external forces (from collisions, pushes, etc.)
             finalVelocity.add(externalForce.x, 0, externalForce.z);
 
-            // CRITICAL: Only pass horizontal (X/Z) movement to character controller
-            // The controller manages Y-axis internally through gravity and jump()
-            finalVelocity.y = 0;
+            // Apply gravity to vertical velocity
+            verticalVelocity += Constants.PHYSICS_GRAVITY * delta;
+
+            // Set Y component to our managed vertical velocity
+            finalVelocity.y = verticalVelocity * delta;
+
+            // Reset vertical velocity when on ground
+            if (characterController.onGround() && verticalVelocity < 0) {
+                verticalVelocity = 0;
+                finalVelocity.y = 0;
+            }
+
+            // Validate before passing to Bullet to prevent physics corruption
+            if (Float.isNaN(finalVelocity.x) || Float.isNaN(finalVelocity.z) || Float.isNaN(finalVelocity.y) ||
+                Float.isInfinite(finalVelocity.x) || Float.isInfinite(finalVelocity.z) || Float.isInfinite(finalVelocity.y) ||
+                finalVelocity.len() > 100f) {  // Sanity check: no movement faster than 100 units/frame
+                Log.warn("GameCharacter", "[PHYSICS] Invalid walk direction rejected: " + finalVelocity +
+                         " velocity=" + velocity + " verticalVel=" + verticalVelocity + " delta=" + delta);
+                finalVelocity.set(0, 0, 0);
+                verticalVelocity = 0;
+            }
+
             characterController.setWalkDirection(finalVelocity);
 
             // Frame-rate independent exponential decay - much faster (95% loss per second)
@@ -165,6 +185,10 @@ public abstract class GameCharacter extends WorldObject {
                     Float.isNaN(position.z) || Float.isInfinite(position.z) ||
                     Math.abs(position.x) > 100000 || Math.abs(position.y) > 100000 || Math.abs(position.z) > 100000) {
 
+                    Log.error("GameCharacter", "[NaN_RECOVERY] Invalid position for " + entityId +
+                             " pos=" + position + " lastPos=" + lastPosition +
+                             " velocity=" + velocity + " externalForce=" + externalForce);
+
                     position.set(lastPosition);
 
                     com.badlogic.gdx.math.Matrix4 resetTransform = new com.badlogic.gdx.math.Matrix4();
@@ -173,6 +197,7 @@ public abstract class GameCharacter extends WorldObject {
 
                     velocity.setZero();
                     externalForce.setZero();
+                    verticalVelocity = 0;
                 } else {
                     lastPosition.set(position);
                 }
@@ -209,8 +234,16 @@ public abstract class GameCharacter extends WorldObject {
 
     public void jump() {
         if (canJump() && characterController != null) {
-            // Use Bullet's first-class jump method
-            characterController.jump();
+            Log.info("GameCharacter", "[JUMP] Initiating jump for " + entityId +
+                     " pos=" + position + " onGround=" + characterController.onGround());
+            // Set vertical velocity directly instead of using characterController.jump()
+            // This avoids conflicts with setWalkDirection() calls
+            verticalVelocity = jumpForce;
+        } else {
+            Log.warn("GameCharacter", "[JUMP] BLOCKED for " + entityId +
+                    " canJump=" + canJump() +
+                    " controller=" + (characterController != null) +
+                    " onGround=" + (characterController != null ? characterController.onGround() : "N/A"));
         }
     }
 
@@ -273,6 +306,10 @@ public abstract class GameCharacter extends WorldObject {
 
     public float getCharacterWidth() {
         return characterWidth;
+    }
+
+    public btKinematicCharacterController getCharacterController() {
+        return characterController;
     }
 
     /**
