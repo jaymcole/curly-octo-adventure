@@ -78,9 +78,12 @@ public class NPCBrain implements ICharacterBrain {
         }
 
         Vector3 pos = character.getPosition();
-        float dist = Vector3.dst(pos.x, pos.y, pos.z, targetWaypoint.x, targetWaypoint.y, targetWaypoint.z);
+        // Calculate distance on the XZ plane only, to ignore vertical differences
+        float dx = pos.x - targetWaypoint.x;
+        float dz = pos.z - targetWaypoint.z;
+        float dist2 = dx * dx + dz * dz;
 
-        if (dist < 0.5f) {
+        if (dist2 < 0.5f * 0.5f) { // Use squared distance for comparison
             currentWaypointIndex++;
             if (currentWaypointIndex < waypointQueue.size()) {
                 targetWaypoint.set(waypointQueue.get(currentWaypointIndex));
