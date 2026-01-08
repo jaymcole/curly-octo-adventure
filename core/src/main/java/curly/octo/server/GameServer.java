@@ -217,9 +217,6 @@ public class GameServer {
      * @param msg Completion notification with final position
      */
     public void handleNPCPathComplete(Connection connection, curly.octo.common.network.messages.NPCPathCompleteMessage msg) {
-        Log.info("GameServer", "Received path completion for NPC " + msg.npcId +
-                 " (instruction " + msg.instructionId + ")");
-
         // Extract final position from message
         com.badlogic.gdx.math.Vector3 finalPos = new com.badlogic.gdx.math.Vector3(
             msg.finalPosition[0],
@@ -247,6 +244,7 @@ public class GameServer {
                 // Valid completion - generate new instruction immediately
                 Log.info("GameServer", "✓ Valid completion for NPC " + msg.npcId +
                          " - generating new path");
+                npcBehaviorAgent.removeInstruction(msg.npcId);
                 npcBehaviorAgent.generateImmediateInstruction(msg.npcId, finalPos);
             } else {
                 Log.warn("GameServer", "Ignoring stale completion for NPC " + msg.npcId +

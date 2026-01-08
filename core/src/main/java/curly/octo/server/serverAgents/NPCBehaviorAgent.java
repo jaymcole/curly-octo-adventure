@@ -408,6 +408,10 @@ public class NPCBehaviorAgent extends BaseAgent {
         return activeInstructions.get(npcId);
     }
 
+    public void removeInstruction(String npcId) {
+        activeInstructions.remove(npcId);
+    }
+
     /**
      * Generate immediate instruction for NPC (triggered by completion or spawn).
      *

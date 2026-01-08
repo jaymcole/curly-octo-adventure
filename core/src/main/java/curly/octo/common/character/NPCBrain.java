@@ -2,6 +2,7 @@ package curly.octo.common.character;
 
 import com.badlogic.gdx.math.Vector3;
 import curly.octo.common.Constants;
+import curly.octo.common.NPCAuthorityManager;
 import curly.octo.common.network.messages.NPCInstructionMessage;
 
 import java.util.ArrayList;
@@ -90,6 +91,7 @@ public class NPCBrain implements ICharacterBrain {
             } else {
                 character.setWalkDirection(new Vector3(0, 0, 0));
                 waypointQueue.clear(); // Clear the queue once path is complete
+                NPCAuthorityManager.invokePathCompleteCallback(character.entityId);
                 return;
             }
         }
