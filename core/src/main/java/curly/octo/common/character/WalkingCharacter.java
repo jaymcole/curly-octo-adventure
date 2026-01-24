@@ -92,8 +92,32 @@ public class WalkingCharacter extends GameCharacter {
     }
 
     public void initializeRemotePhysics(GameMap map, float radius, float height) {
-        Log.error("WalkingCharacter", "[MYSTERY_COLLIDER] initializeRemotePhysics CALLED FOR " + entityId);
+        Log.info("WalkingCharacter", "initializeRemotePhysics called for " + entityId);
         this.gameMap = map;
+
+        // CRITICAL: Dispose any local physics that may have been auto-initialized by GameObjectManager.add()
+        // If we don't do this, the characterController will overwrite position from ghostObject every frame
+        // Must remove from dynamics world BEFORE disposing to avoid native crash
+        if (physicsInitialized && dynamicsWorld != null) {
+            Log.info("WalkingCharacter", "Disposing auto-initialized local physics for remote player " + entityId);
+            if (characterController != null) {
+                dynamicsWorld.removeAction(characterController);
+                characterController.dispose();
+                characterController = null;
+            }
+            if (ghostObject != null) {
+                dynamicsWorld.removeCollisionObject(ghostObject);
+                ghostObject.dispose();
+                ghostObject = null;
+            }
+            if (physicsShape != null) {
+                physicsShape.dispose();
+                physicsShape = null;
+            }
+            physicsInitialized = false;
+            dynamicsWorld = null;
+        }
+
         disposeRemotePhysics(map);
         remotePhysicsShape = new btCapsuleShape(radius, height);
         com.badlogic.gdx.math.Matrix4 transform = new com.badlogic.gdx.math.Matrix4()

@@ -392,9 +392,10 @@ public class ClientGameMode implements GameMode {
                 }
 
                 if (targetPlayer == null) {
-                    targetPlayer = new WalkingCharacter(playerUpdate.playerId, Constants.PLAYER_HEIGHT, Constants.PLAYER_WIDTH);
-                    gameWorld.getGameObjectManager().activePlayers.add(targetPlayer);
+                    // Create with model path so remote players are visible
+                    targetPlayer = new WalkingCharacter(playerUpdate.playerId, Constants.PLAYER_MODEL_PATH, Constants.PLAYER_HEIGHT, Constants.PLAYER_WIDTH);
                     gameWorld.getGameObjectManager().add(targetPlayer);
+                    // Note: add() already handles adding to activePlayers for players without NPCBrain
 
                     if (gameWorld.getMapManager() != null && gameWorld.getMapManager().isPhysicsInitialized()) {
                         // CRITICAL: Do not initialize remote physics for the local player
