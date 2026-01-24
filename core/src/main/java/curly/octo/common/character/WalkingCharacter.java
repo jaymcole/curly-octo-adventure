@@ -25,6 +25,9 @@ public class WalkingCharacter extends GameCharacter {
     private transient btCapsuleShape remotePhysicsShape;
     private boolean flyModeEnabled = false;
 
+    /** Scale factor for this character's model */
+    private float modelScale = 1.0f;
+
     // No-arg constructor for Kryo
     public WalkingCharacter() {
         super();
@@ -33,10 +36,13 @@ public class WalkingCharacter extends GameCharacter {
 
     public WalkingCharacter(String id, float height, float width) {
         super(id, height, width);
+        this.modelScale = 1.0f;
     }
 
     public WalkingCharacter(String id, String modelAssetPath, float height, float width) {
         super(id, modelAssetPath, height, width);
+        // Automatically determine scale based on model path
+        this.modelScale = determineModelScale(modelAssetPath);
     }
 
     // Common methods from PlayerObject
@@ -165,5 +171,35 @@ public class WalkingCharacter extends GameCharacter {
             position.set(syncPosition);
             setYaw(syncYaw);
         }
+    }
+
+    /**
+     * Determines the appropriate scale for a given model path.
+     * Uses constants to allow easy future customization.
+     */
+    private float determineModelScale(String modelPath) {
+        if (modelPath == null) return 1.0f;
+
+        // Check against known model paths
+        if (modelPath.equals(Constants.PLAYER_MODEL_PATH)) {
+            return Constants.PLAYER_MODEL_SCALE;
+        } else if (modelPath.equals(Constants.NPC_MODEL_PATH)) {
+            return Constants.NPC_MODEL_SCALE;
+        }
+
+        // Default scale for unknown models
+        return 1.0f;
+    }
+
+    @Override
+    protected float getModelScale() {
+        return modelScale;
+    }
+
+    /**
+     * Allows manual override of model scale for special cases.
+     */
+    public void setModelScale(float scale) {
+        this.modelScale = scale;
     }
 }

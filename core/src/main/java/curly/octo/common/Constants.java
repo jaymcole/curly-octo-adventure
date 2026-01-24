@@ -96,6 +96,12 @@ public class Constants {
     /** Scale factor for player model rendering */
     public static final float PLAYER_MODEL_SCALE = 0.1f;
 
+    /** Path to NPC 3D model asset */
+    public static final String NPC_MODEL_PATH = "models/character/crate.gltf";
+
+    /** Scale factor for NPC model rendering */
+    public static final float NPC_MODEL_SCALE = 0.1f; // Match PLAYER_MODEL_SCALE
+
     /** Fly mode movement speed multiplier (for debugging) */
     public static final float PLAYER_FLY_SPEED = 50f;
 

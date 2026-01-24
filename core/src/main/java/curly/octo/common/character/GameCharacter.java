@@ -212,6 +212,12 @@ public abstract class GameCharacter extends WorldObject {
         if (getModelInstance() != null && position != null) {
             getModelInstance().transform.setToTranslation(position);
             getModelInstance().transform.rotate(Vector3.Y, yaw);
+
+            // Apply model scale to match character dimensions
+            float scale = getModelScale();
+            if (scale != 1.0f) {
+                getModelInstance().transform.scale(scale, scale, scale);
+            }
         }
     }
 
@@ -306,6 +312,15 @@ public abstract class GameCharacter extends WorldObject {
 
     public float getCharacterWidth() {
         return characterWidth;
+    }
+
+    /**
+     * Get the scale factor for this character's model.
+     * Override in subclasses to provide character-specific scaling.
+     * @return Scale factor (1.0 = no scaling)
+     */
+    protected float getModelScale() {
+        return 1.0f; // Default: no scaling
     }
 
     public btKinematicCharacterController getCharacterController() {

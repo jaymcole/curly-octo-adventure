@@ -100,8 +100,8 @@ public class NPCSpawnerAgent extends BaseAgent {
         // Generate unique NPC ID
         String npcId = "npc_" + UUID.randomUUID().toString().substring(0, 8);
 
-        // Create NPC object with standard dimensions
-        WalkingCharacter npc = new WalkingCharacter(npcId, Constants.PLAYER_HEIGHT, Constants.PLAYER_WIDTH);
+        // Create NPC object with standard dimensions and model
+        WalkingCharacter npc = new WalkingCharacter(npcId, Constants.NPC_MODEL_PATH, Constants.PLAYER_HEIGHT, Constants.PLAYER_WIDTH);
         npc.setBrain(new NPCBrain());
         npc.setPosition(position);
 
