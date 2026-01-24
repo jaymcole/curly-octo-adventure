@@ -113,26 +113,26 @@ public class GameObjectManager implements Disposable {
         gameObjects.add(gameObject);
         addToStringToObjectMap(gameObject);
 
-        if (gameObject instanceof WalkingCharacter) {
-            WalkingCharacter character = (WalkingCharacter) gameObject;
-            Log.info("GameObjectManager", "[GOM_DEBUG] Object is WalkingCharacter. Brain: " + (character.getBrain() != null ? character.getBrain().getClass().getSimpleName() : "null"));
+        if (gameObject instanceof GameCharacter) {
+            GameCharacter character = (GameCharacter) gameObject;
+            Log.info("GameObjectManager", "[GOM_DEBUG] Object is GameCharacter. Brain: " + (character.getBrain() != null ? character.getBrain().getClass().getSimpleName() : "null"));
 
             // Re-initialize transient brain on the client after deserialization
             if (character.getBrain() == null) {
                 if (character.entityId != null && character.entityId.startsWith("npc_")) {
                     Log.info("GameObjectManager", "[DEBUG_NPC] Re-initializing NPCBrain for deserialized character " + character.entityId);
                     character.setBrain(new NPCBrain());
-                } else {
+                } else if (character instanceof WalkingCharacter) {
                     // It's a player! Add to activePlayers
-                    activePlayers.add(character);
+                    activePlayers.add((WalkingCharacter) character);
                     Log.info("GameObjectManager", "[GOM_DEBUG] Added player to activePlayers: " + character.entityId);
                 }
             } else if (character.getBrain() instanceof NPCBrain) {
                  // It's an NPC (brain already set, maybe locally created)
-            } else {
+            } else if (character instanceof WalkingCharacter){
                  // It's a player with a brain (maybe local player)
                  if (!activePlayers.contains(character)) {
-                     activePlayers.add(character);
+                     activePlayers.add((WalkingCharacter) character);
                      Log.info("GameObjectManager", "[GOM_DEBUG] Added player to activePlayers: " + character.entityId);
                  }
             }

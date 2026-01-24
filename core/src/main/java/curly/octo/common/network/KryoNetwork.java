@@ -24,6 +24,7 @@ import curly.octo.common.map.enums.MapTileFillType;
 import curly.octo.common.network.messages.legacyMessages.MapDataUpdate;
 import curly.octo.common.GameObject;
 import curly.octo.common.WorldObject;
+import curly.octo.common.PhysicsProperties;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -101,6 +102,7 @@ public class KryoNetwork {
         kryo.register(PlayerBrain.class);
         kryo.register(NPCBrain.class);
         kryo.register(Color.class);
+        kryo.register(PhysicsProperties.class);
 
         kryo.register(PlayerObjectRosterUpdate.class);
         kryo.register(PlayerAssignmentUpdate.class);

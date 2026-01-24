@@ -4,10 +4,17 @@ public class PhysicsProperties {
 
     public static final PhysicsProperties DEFAULT = new PhysicsProperties(1.0f, 1.0f);
 
-    private final float volumeDisplacement;
-    private final float weight;
-    private final float density;
-    private final boolean floats;
+    private float volumeDisplacement;
+    private float weight;
+    private float density;
+    private boolean floats;
+
+    public PhysicsProperties() {
+        this.volumeDisplacement = 1.0f;
+        this.weight = 1.0f;
+        this.density = 1.0f;
+        this.floats = false;
+    }
 
     public PhysicsProperties(float volumeDisplacement, float weight) {
         this.volumeDisplacement = volumeDisplacement;
