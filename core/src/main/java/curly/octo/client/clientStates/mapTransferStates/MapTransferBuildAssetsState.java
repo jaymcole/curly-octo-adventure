@@ -70,11 +70,31 @@ public class MapTransferBuildAssetsState extends BaseGameStateClient {
                 } else {
                     Log.info("MapTransferBuildAssetsState", "Adding " + receivedGameObjects.size() +
                             " game objects to GameObjectManager...");
+
+                    // Get local player ID to identify remote players
+                    curly.octo.client.ClientGameMode cgm = StateManager.getClientGameMode();
+                    String localPlayerId = (cgm != null) ? cgm.getLocalPlayerId() : null;
+
                     // Add all received game objects to the client's GameObjectManager
                     for (GameObject obj : receivedGameObjects) {
                         Log.info("MapTransferBuildAssetsState", "About to add " + obj.getClass().getSimpleName() +
                                 " with ID: " + obj.entityId);
                         clientWorld.getGameObjectManager().add(obj);
+
+                        // For remote players (not local, not NPC), switch to remote physics
+                        // This prevents characterController from overwriting position from network updates
+                        if (obj instanceof WalkingCharacter &&
+                            obj.entityId != null &&
+                            !obj.entityId.startsWith("npc_") &&
+                            (localPlayerId == null || !obj.entityId.equals(localPlayerId))) {
+
+                            WalkingCharacter remotePlayer = (WalkingCharacter) obj;
+                            if (receivedMap != null && receivedMap.isPhysicsInitialized()) {
+                                Log.info("MapTransferBuildAssetsState", "Initializing remote physics for transferred player: " + obj.entityId);
+                                remotePlayer.initializeRemotePhysics(receivedMap, 1.0f, 5.0f);
+                            }
+                        }
+
                         Log.info("MapTransferBuildAssetsState", "Successfully added " + obj.getClass().getSimpleName() +
                                 " with ID: " + obj.entityId);
                     }
